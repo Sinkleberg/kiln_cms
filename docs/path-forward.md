@@ -1,6 +1,7 @@
 # Path forward: right, everywhere, provably
 
-Written on 2026-10-10, against v1.1.0. This page says **what Kiln is for**
+Written on 2026-10-10 against v1.1.0; the minors were renumbered on
+2026-10-11 after v1.2.0 shipped without wedge work. This page says **what Kiln is for**
 from here on, **why that changed**, and **the order of releases** that get
 there. Like [roadmap-1.0.md](roadmap-1.0.md), it does not track status: the
 [issue tracker](https://github.com/The-Verscienta/kiln_cms/issues) holds that
@@ -28,7 +29,7 @@ it, who approved it, and what every reader saw at any moment.**
 
 ## Where Kiln is today
 
-Kiln is at v1.1.0 (shipped 2026-10-06), under a frozen overlay contract, with
+Kiln is at v1.2.0 (shipped 2026-10-11), under a frozen overlay contract, with
 two production consumers and one scaffold.
 
 | Area | State |
@@ -244,7 +245,7 @@ touching delivery routes or cache headers.
 
 | Major | Minors before it | Gate (a passing demo line, not a date) |
 |---|---|---|
-| 2.0 Provable publishing | 1.2 to 1.7 | Demo lines 1 and 4 pass on Verscienta.com staging |
+| 2.0 Provable publishing | 1.3 to 1.8 | Demo lines 1 and 4 pass on Verscienta.com staging |
 | 3.0 Live delivery | 2.1 to 2.6 | Demo lines 2 and 3 pass; fan-out numbers published |
 | 4.0 Governed at scale | 3.1 to 3.6 | A reviewer outside the project verifies a signed bundle offline |
 
@@ -257,12 +258,12 @@ Verscienta.com.
 
 | Release | Ships | Demo line | Number it produces |
 |---|---|---|---|
-| 1.2 | A failing test for "an anonymous subscriber is told when a record leaves visibility", then the fix. Webhook payloads gain `affected: [{type, id, slug}]` from the firing dependency graph (additive field). `KilnClient` and `@kiln-cms/client` expose it. | 2 | Dependent pages invalidated per publish |
-| 1.3 | Retraction guarantee: `unpublished`, `archived` and `deleted` deliveries are exempt from endpoint auto-disable, retried on their own longer schedule, and surfaced in the console and in `/editor/governance` when they exhaust retries. Webhook ledger gains a `delivered_at` per endpoint. | 3 | Retraction deliveries lost: must be 0 |
-| 1.4 | End-to-end latency measurement: publish and unpublish timestamps, CDN purge acknowledgement, and each webhook endpoint's `delivered_at`, rolled into one `propagation` record per transition. First number on benchmarks.md. | 2, 3 | Unpublish-to-last-endpoint p95, in seconds |
-| 1.5 | "What readers saw" timeline in the governance detail view: every transition, its approver, its propagation record, its `?as_of=` link, and the chain verdict, on one line each. CSV/JSON export carries the same. Headless draft mode (#1887) so a front end can show the draft side of the same timeline. | 4 | Makes 1.4's number visible |
-| 1.6 | Provenance on by default: a signing key is generated at `/setup`, every fired artifact carries a manifest, and `GET /api/provenance/verify/:type/:slug` answers `verified`, `tampered` or `unsigned`. Existing installs without a key keep `unsigned` and a console banner. | 4 | Share of published artifacts signed |
-| 1.7 | Wedge positioning: README, kilncms.dev hero, docs index, and one combined guide replacing six scattered pages as the entry point. No code. | all | None |
+| 1.3 | A failing test for "an anonymous subscriber is told when a record leaves visibility", then the fix. Webhook payloads gain `affected: [{type, id, slug}]` from the firing dependency graph (additive field). `KilnClient` and `@kiln-cms/client` expose it. | 2 | Dependent pages invalidated per publish |
+| 1.4 | Retraction guarantee: `unpublished`, `archived` and `deleted` deliveries are exempt from endpoint auto-disable, retried on their own longer schedule, and surfaced in the console and in `/editor/governance` when they exhaust retries. Webhook ledger gains a `delivered_at` per endpoint. | 3 | Retraction deliveries lost: must be 0 |
+| 1.5 | End-to-end latency measurement: publish and unpublish timestamps, CDN purge acknowledgement, and each webhook endpoint's `delivered_at`, rolled into one `propagation` record per transition. First number on benchmarks.md. | 2, 3 | Unpublish-to-last-endpoint p95, in seconds |
+| 1.6 | "What readers saw" timeline in the governance detail view: every transition, its approver, its propagation record, its `?as_of=` link, and the chain verdict, on one line each. CSV/JSON export carries the same. Headless draft mode (#1887) so a front end can show the draft side of the same timeline. | 4 | Makes 1.4's number visible |
+| 1.7 | Provenance on by default: a signing key is generated at `/setup`, every fired artifact carries a manifest, and `GET /api/provenance/verify/:type/:slug` answers `verified`, `tampered` or `unsigned`. Existing installs without a key keep `unsigned` and a console banner. | 4 | Share of published artifacts signed |
+| 1.8 | Wedge positioning: README, kilncms.dev hero, docs index, and one combined guide replacing six scattered pages as the entry point. No code. | all | None |
 | 2.0 | The 1.x deprecations removed. #1595 taxonomy collapse with its migration and upgrade note. #1529 one-click deploy templates with the runtime defaults they need. `--allow-major` note written first. | gate | Demo lines 1 and 4 pass on staging, recorded |
 
 **Exit criteria for 2.0**
@@ -271,7 +272,7 @@ Verscienta.com.
   two-minute screen capture linked from the README.
 - benchmarks.md carries unpublish-to-last-endpoint p95 for Verscienta.com's
   endpoint set.
-- Zero retraction deliveries lost across the 1.3 to 1.7 soak period on
+- Zero retraction deliveries lost across the 1.4 to 1.8 soak period on
   Verscienta.com production.
 - Both production sites upgraded through every 1.x minor without an overlay
   change.
@@ -349,7 +350,7 @@ when the 2.0 gate passes and a wedge consumer needs it.
 | Plugin registry and marketplace plans | Frozen | Ecosystem work only pays once there are users to serve |
 | Hosted offering plan (#334) | Closed, except #1529 | One-click self-hosting is on the wedge; a hosted service is not, yet |
 | Mobile admin spike, content experiments plan | Frozen | No wedge line moves |
-| Marketing site kilncms.dev | Repositioned in 1.7, then frozen | No further pages until 2.0 |
+| Marketing site kilncms.dev | Repositioned in 1.8, then frozen | No further pages until 2.0 |
 | CRDT co-editing (`:collab_prototype`) | Experimental, no roadmap slot until 3.6 | The wrong wedge; decided in 3.6, not before |
 | GraphQL subscriptions over `/ws/gql` | Experimental until 3.0, then promoted or deprecated | The change feed is the covered real-time surface |
 
@@ -365,18 +366,18 @@ when the 2.0 gate passes and a wedge consumer needs it.
 
 | Risk | Likelihood | What we do |
 |---|---|---|
-| Retraction events never reach anonymous subscribers because the policy-scoped read drops a record that left visibility | Unverified; plausible from the code | 1.2 starts with the failing test. If it is a design problem, the feed carries identifiers only (2.1 already assumes this) and the fix moves earlier |
+| Retraction events never reach anonymous subscribers because the policy-scoped read drops a record that left visibility | Unverified; plausible from the code | 1.3 starts with the failing test. If it is a design problem, the feed carries identifiers only (2.1 already assumes this) and the fix moves earlier |
 | Two half-built things instead of one product | High if the demo is not enforced | Every minor names its demo line and number; a minor that moves none is not cut |
 | Fan-out numbers disappoint at 50k subscribers | Low to medium | 2.4 publishes what it finds; the claim is sized to the number |
 | The freeze breaks a production site that quietly depends on a frozen area | Low; both sites are read and their dependencies listed | Frozen areas still get bug fixes; the sites are on the upgrade rehearsal |
-| Provenance on by default surprises existing installs | Medium | 1.6 keeps unsigned installs working with a banner; no artifact is refused |
+| Provenance on by default surprises existing installs | Medium | 1.7 keeps unsigned installs working with a banner; no artifact is refused |
 | Market is small: few teams know they want "provable" until an incident | Medium | The second organisation in the 4.0 exit criteria is the test; if not found by 3.x, the positioning is revisited before 4.0 |
 | Solo-maintainer bandwidth across 21 minors | High | Each minor is one PR-sized change plus a number; majors slip rather than minors growing |
 
 **Open questions**
 
-- Does Verscienta.com need the feed at all, or does the richer webhook (1.2)
-  cover it? Decide after 1.4's number.
+- Does Verscienta.com need the feed at all, or does the richer webhook (1.3)
+  cover it? Decide after 1.5's number.
 - How long should `/api/feed` replay on resume: one hour, one day, or until
   the next full publish?
 - Which external witness for 3.4: a second Kiln, an RFC 3161 timestamp

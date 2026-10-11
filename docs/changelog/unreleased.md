@@ -7,6 +7,15 @@ carries the reasoning.
 
 ## Changed
 
+<a id="wedge-minors-renumbered"></a>
+
+- **The path forward's wedge minors are 1.3 to 1.8: v1.2.0 shipped the
+  toolchain move without them.** `docs/path-forward.md` was written against
+  v1.1.0 with the first wedge release as 1.2; v1.2.0 then shipped the same
+  day with the Elixir 1.20 / OTP 29 toolchain move and no wedge work, so
+  every minor in the 2.0 plan moves up one. The six tracker issues carry the
+  new numbers in their titles.
+
 <a id="subscription-retraction"></a>
 
 - **A `<type>Changed` GraphQL subscription now tells anonymous subscribers

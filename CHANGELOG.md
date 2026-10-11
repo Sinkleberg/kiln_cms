@@ -62,6 +62,10 @@ Every summary line below that was shortened links to its own entry there.
 
 ### Changed
 
+- **The path forward's wedge minors are 1.3 to 1.8: v1.2.0 shipped the
+  toolchain move without them.**
+  ([long form](docs/changelog/unreleased.md#wedge-minors-renumbered))
+
 - **A `<type>Changed` GraphQL subscription now tells anonymous subscribers
   when a published record is unpublished or archived, as `destroyed`.**
   ([#1925](https://github.com/The-Verscienta/kiln_cms/issues/1925) · [long form](docs/changelog/unreleased.md#subscription-retraction))
