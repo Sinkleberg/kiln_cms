@@ -5,32 +5,6 @@ The long-form entries behind the Unreleased section of
 merged. `CHANGELOG.md` carries the one-line summary of each; this file
 carries the reasoning.
 
-## Changed
-
-<a id="custom-fields-under-the-blocks"></a>
-
-- **Custom fields sit in the editor's main column, under the blocks, instead
-  of behind the inspector's Settings tab.** The inspector opens on Preview, so
-  a type's own fields (a recipe's chef, an event's venue) were invisible until
-  a writer thought to open Settings, where they were mixed in with URL, SEO and
-  scheduling. They are now a *Custom fields* panel below the block canvas, the
-  way WordPress puts meta boxes under the post body. The panel flags its own
-  validation errors, so the Settings tab's alert dot no longer counts them.
-  The panel stays visible in the Markdown view. Inputs, names and the save
-  path are unchanged. See `KilnCMSWeb.ContentEditor.CustomFieldsPanel`.
-
-<a id="newsletter-pages-in-site-chrome"></a>
-
-- **The newsletter's sign-up and unsubscribe pages render in the site's own
-  layout instead of as bare unstyled pages.** "Almost there", "Check that
-  address", "Something went wrong" and both unsubscribe pages were
-  hand-built HTML with inline styles, so a reader who signed up from a styled
-  page landed somewhere that looked like a different site. They now use
-  `Layouts.public` and the confirmation page's card, like the confirmation
-  page already did. Routes, status codes, wording and the unsubscribe
-  one-click are unchanged.
-  ([#1870](https://github.com/The-Verscienta/kiln_cms/issues/1870))
-
 ## Fixed
 
 <a id="the-reranker-scores-relevance-instead-of-10-for-every-pair-and-a-reranker-model"></a>
@@ -66,25 +40,7 @@ carries the reasoning.
   scores while the others carry 0–1 scores, so `/api/ask`'s flat sort mixes
   the two scales (documented in `docs/rag.md`).
 
-<a id="the-plugin-docs-no-longer-promise-hex-or-git-dependency-plugins-a-plugin"></a>
-
-- **The plugin docs no longer promise Hex or git-dependency plugins: a plugin
-  compiles only as a `projects/<name>/` directory, and is shared as a git
-  repository a site vendors there.**
-  ([#1909](https://github.com/The-Verscienta/kiln_cms/issues/1909))
-
-## Security
-
-<a id="ash-3-34-6-aggregate-policies"></a>
-
-- **Ash 3.34.6: an MCP read tool's `count`/`exists`/`aggregate` result no
-  longer skips related resources' read policies in its filter.**
-  EEF-CVE-2026-101028 (MEDIUM): `Ash.count`, `Ash.exists` and
-  `Ash.aggregate` applied only the root resource's read policy, so a filter
-  crossing a relationship could test conditions against related rows the
-  caller can't read. Kiln's MCP read tools keep AshAi's default parameters,
-  which let an API-key holder choose those result types and send a filter.
-  `Ash.read` and page counts were not affected.
+## Changed
 
 <a id="subscription-retraction"></a>
 
