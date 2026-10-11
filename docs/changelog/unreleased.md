@@ -5,65 +5,6 @@ The long-form entries behind the Unreleased section of
 merged. `CHANGELOG.md` carries the one-line summary of each; this file
 carries the reasoning.
 
-## Added
-
-<a id="mix-kiln-import-ghost"></a>
-
-- **`mix kiln.import.ghost` imports a Ghost JSON export: posts, pages, tags,
-  images, SEO fields and bylines, members-only posts kept gated, and a
-  redirect from every old URL.** `KilnCMS.Portability.Ghost` reads the export
-  into the same source-neutral shape as the WordPress parser, so it shares
-  that importer's dry run, re-run rules, media sideloading, author mapping and
-  report. `--site-url` replaces Ghost's `__GHOST_URL__` placeholder, and the
-  task refuses to start without it when the export contains one. Posts
-  restricted to members, paid members or tiers import into the `member`
-  audience, or as drafts if no gated audience is configured. Scheduled and
-  email-only posts import as drafts, and the task lists each one. The shared
-  HTML converter now keeps every image in a figure holding several, so a Ghost
-  gallery card no longer imports as its first image only.
-  ([#1876](https://github.com/The-Verscienta/kiln_cms/issues/1876))
-
-<a id="importers-from-a-release"></a>
-
-- **The importers run from a release: `bin/kiln_cms rpc
-  'KilnCMS.Release.import_wordpress(path, dry_run: true)'`, and likewise
-  `import_ghost/2` and `import_content/2`.** A Docker or Coolify deploy has no
-  Mix, so a migration used to need a source checkout with the production
-  environment loaded. The functions take the tasks' flags as keyword options,
-  refuse an unknown one (so a misspelt `dry_run:` cannot import for real), and
-  print the same report into the `rpc` terminal. They refuse under `eval`,
-  which has no job queue, media fetching or caches. The mix tasks and the
-  release now run the same code, `KilnCMS.Portability.Commands`, and
-  `KilnCMS.Portability.CLI` no longer calls Mix; the tasks' output and errors
-  are unchanged. See
-  [content portability](../content-portability.md#from-a-release).
-
-<a id="kiln-vs-pages-and-migration-guides"></a>
-
-- **Public "Kiln vs" pages for WordPress, Ghost, Strapi, Payload and Directus,
-  plus WordPress and Ghost migration guides, every competitor claim dated
-  and sourced.** They live in `docs/compare/` and publish to kilncms.dev with
-  the other guides. Each comparison table links a source in every row (a test
-  enforces it), states the date its facts were checked, and names a review
-  owner. The docs publisher now sends a guide's
-  `<!-- seo-description: … -->` comment as the entry's `seo_description`.
-  ([#1876](https://github.com/The-Verscienta/kiln_cms/issues/1876))
-
-<a id="newsletter-signup-block"></a>
-
-- **A *Newsletter sign-up* block puts an email sign-up on any page; it adds
-  people to the newsletter list with double opt-in.** Until now the only way
-  onto a page was a theme edit: the rich-text sanitizer strips a raw `<form>`,
-  and the *Form* block's submissions go to the forms inbox, not the subscriber
-  list. The block has an optional heading and intro, a button label (default
-  "Subscribe") and a switch to also ask for a name. It posts to the existing
-  `POST /newsletter/subscribe`, so sign-up behaves exactly as before: the
-  shared honeypot, one "check your inbox" page for every outcome, and nothing
-  sent until the reader confirms. The fired `:web` artifact is the real form,
-  and the `:json` surface carries `action` and `honeypot_field` for a headless
-  frontend. See [the newsletter guide](../newsletter.md#a-sign-up-on-a-page).
-  ([#1870](https://github.com/The-Verscienta/kiln_cms/issues/1870))
-
 ## Changed
 
 <a id="custom-fields-under-the-blocks"></a>
@@ -145,3 +86,22 @@ carries the reasoning.
   which let an API-key holder choose those result types and send a filter.
   `Ash.read` and page counts were not affected.
 
+<a id="subscription-retraction"></a>
+
+- **A `<type>Changed` GraphQL subscription now tells anonymous subscribers
+  when a published record is unpublished or archived, as `destroyed`.** A
+  retraction is an `:update` to Ash, and ash_graphql resolves an update per
+  subscriber through the policy-scoped read: once the record left
+  `:published` the anonymous read answered not found, and the batcher
+  suppresses not-found results rather than leak that a record exists, so the
+  one event a public reader most needs never arrived. The GraphQL guide said
+  as much and told readers to poll. `KilnCMS.CMS.Changes.NotifySubscribersWithdrawn`
+  now sits beside `NotifyWebhooks event: "unpublished"` on `:unpublish`,
+  `:unpublish_scheduled`, `:archive_scheduled` and `:archive` (the last only
+  when the record was published) and publishes the same notification a real
+  `:destroy` would, so the push arrives as `destroyed` with the id, the one
+  arm of the union that needs no read. The contract, now in the guide:
+  `destroyed` means the record left the published feed, whether unpublished,
+  archived or deleted. A bearer-authed editor also receives the `updated`
+  push for the same transition. Archiving a draft stays silent.
+  ([#1925](https://github.com/The-Verscienta/kiln_cms/issues/1925))

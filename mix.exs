@@ -8,7 +8,7 @@ Code.require_file(Path.expand("config/ml_flag.exs", __DIR__))
 defmodule KilnCMS.MixProject do
   use Mix.Project
 
-  @version "1.1.0"
+  @version "1.2.0"
   @source_url "https://github.com/The-Verscienta/kiln_cms"
 
   def project do
@@ -46,7 +46,7 @@ defmodule KilnCMS.MixProject do
       ],
       app: :kiln_cms,
       version: @version,
-      elixir: "~> 1.19",
+      elixir: "~> 1.20",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
@@ -305,6 +305,7 @@ defmodule KilnCMS.MixProject do
       # Operations & deployment
       "docs/deploy.md": [],
       "docs/deploy-platforms.md": [title: "One-click deploy platforms"],
+      "docs/system-requirements.md": [title: "Minimum system requirements"],
       "docs/environment-variables.md": [],
       "docs/backups.md": [],
       "docs/observability.md": [],
@@ -352,6 +353,7 @@ defmodule KilnCMS.MixProject do
       "docs/cms-comparison.md": [],
       "docs/p3-plan.md": [],
       "docs/roadmap-1.0.md": [title: "Roadmap to 1.0"],
+      "docs/path-forward.md": [title: "Path forward"],
       # Audits & release checklists
       "docs/audit-2026-07-full-surface.md": [],
       "docs/audit-2026-07-performance-usability.md": [],
@@ -465,6 +467,7 @@ defmodule KilnCMS.MixProject do
       "Operations & deployment": [
         "docs/deploy.md",
         "docs/deploy-platforms.md",
+        "docs/system-requirements.md",
         "docs/environment-variables.md",
         "docs/backups.md",
         "docs/observability.md",
@@ -512,7 +515,8 @@ defmodule KilnCMS.MixProject do
         "docs/differentiator-opportunities.md",
         "docs/cms-comparison.md",
         "docs/p3-plan.md",
-        "docs/roadmap-1.0.md"
+        "docs/roadmap-1.0.md",
+        "docs/path-forward.md"
       ],
       "Audits & release checklists": [
         "docs/audit-2026-07-full-surface.md",

@@ -5,11 +5,12 @@ LiveView · Tailwind · Elixir**, with the **Ash Framework** at its core. Client
 interactivity is handled by LiveView + colocated JS hooks — no Surface, no Alpine.js.
 
 See [`KilnCMS_Project_Plan.md`](KilnCMS_Project_Plan.md) for the full vision, architecture, and
-the resolved architectural decisions (D1–D8).
+the resolved architectural decisions (D1–D8), and [`docs/path-forward.md`](docs/path-forward.md)
+for where Kiln is going from 1.1: live content delivery plus provable, governed publishing.
 
 ## Status & maturity
 
-**Stable (`v1.1.0`), single maintainer, and consumed as a source overlay
+**Stable (`v1.2.0`), single maintainer, and consumed as a source overlay
 rather than a package.** If you are evaluating KilnCMS for a team, read this
 section before the feature list.
 
@@ -42,7 +43,7 @@ docker pull ghcr.io/the-verscienta/kiln_cms:latest   # linux/amd64
 ```
 
 `latest` is for trying it out. For a site you keep, pin the exact version
-(`:1.1.0`), or the floating major (`:1`) if you want patches and
+(`:1.2.0`), or the floating major (`:1`) if you want patches and
 minor releases without editing the tag;
 [which tag to pin](docs/deploy-platforms.md#which-tag-to-pin) has the
 trade-offs.
@@ -147,7 +148,7 @@ Resources live in `lib/kiln_cms/cms/`:
 
 ## Getting started
 
-Prerequisites: Elixir 1.19.3+ / OTP 27+, Docker (for Postgres). `.tool-versions`
+Prerequisites: Elixir 1.20+ / OTP 29+, Node.js 22, Docker (for Postgres). `.tool-versions`
 holds the exact pair CI and the release image build on, so `asdf install` (or
 `mise install`) gives you that toolchain; anything newer works for development.
 
