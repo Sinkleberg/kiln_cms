@@ -338,6 +338,8 @@ export async function POST(request: Request) {
   if (!result.ok) return new Response(result.reason, { status: 400 });
 
   const { event, delivery_id, data } = JSON.parse(raw) as WebhookDelivery;
+  // On content events, `data.affected` (AffectedDocument[]) names the
+  // published pages that embed this one: invalidate those too.
   // delivery_id is stable across retries: remember it for the window to drop duplicates.
   return new Response(null, { status: 204 });
 }

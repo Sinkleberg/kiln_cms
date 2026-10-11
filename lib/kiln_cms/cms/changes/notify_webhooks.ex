@@ -25,6 +25,10 @@ defmodule KilnCMS.CMS.Changes.NotifyWebhooks do
 
   ## What the payload carries
 
+  The full map also carries `affected`: the published documents whose fired
+  artifacts embed this one (`KilnCMS.Firing.References.affected/1`), each as
+  `type`, `id`, `slug`, `locale`. A tombstone stays identity only.
+
   Pass `payload:` to choose:
 
     * `:full` (the default) — `ContentSerializer.to_map/1`, the document's
@@ -42,6 +46,7 @@ defmodule KilnCMS.CMS.Changes.NotifyWebhooks do
   use Ash.Resource.Change
 
   alias KilnCMS.CMS.ContentSerializer
+  alias KilnCMS.Firing.References
   alias KilnCMS.Webhooks
 
   @impl true
@@ -84,7 +89,18 @@ defmodule KilnCMS.CMS.Changes.NotifyWebhooks do
 
   defp payload(:full_when_published, record), do: payload(:tombstone, record)
 
-  defp payload(:full, record), do: record |> reload() |> ContentSerializer.to_map()
+  # `affected` (#1925): the published documents whose fired artifacts embed
+  # this one, so a consumer can invalidate the formula page that lists an
+  # edited herb instead of waiting out its TTL. On the full payloads only: a
+  # tombstone is identity and nothing else by contract, and a published
+  # document leaving delivery fires `unpublished` with a full payload anyway.
+  # Read after COMMIT, like the SEO reload.
+  defp payload(:full, record) do
+    record
+    |> reload()
+    |> ContentSerializer.to_map()
+    |> Map.put(:affected, References.affected(record))
+  end
 
   # Re-read the record rather than `Ash.load/3`-ing the two calculations onto
   # the one the action returned, because that one carries only what its caller

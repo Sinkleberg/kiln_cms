@@ -604,4 +604,71 @@ defmodule KilnCMS.WebhooksTest do
     refute CMS.can_create_webhook_endpoint?(editor)
     assert CMS.can_create_webhook_endpoint?(admin())
   end
+
+  # `affected` (#1925): a herb edit must name the formula pages that list it,
+  # or Verscienta.com's cache leaves those to a 10-minute TTL. The edge is
+  # what the re-fire wave walks; the payload surfaces the same graph.
+  describe "affected documents" do
+    test "an update names the published documents that embed this one" do
+      stub_capture()
+      admin = admin()
+      CMS.create_webhook_endpoint!(%{url: "https://example.test/hook"}, actor: admin)
+
+      target = CMS.create_page!(%{title: "Herb", slug: slug()}, actor: admin)
+      target = CMS.publish_page!(target, %{}, actor: admin)
+      referrer = CMS.create_page!(%{title: "Formula", slug: slug()}, actor: admin)
+      referrer = CMS.publish_page!(referrer, %{}, actor: admin)
+      # A referrer that has since left delivery has no page to invalidate.
+      gone = CMS.create_page!(%{title: "Old formula", slug: slug()}, actor: admin)
+      gone = CMS.publish_page!(gone, %{}, actor: admin)
+      CMS.unpublish_page!(gone, %{}, actor: admin)
+
+      # Let the publishes fire first: a fire rebuilds the document's outgoing
+      # edges from its blocks, and would drop an edge seeded before it ran.
+      KilnCMS.DataCase.drain_oban()
+
+      for from <- [referrer, gone] do
+        Ash.Seed.seed!(KilnCMS.Firing.ReferenceEdge, %{
+          org_id: target.org_id,
+          from_type: :page,
+          from_id: from.id,
+          to_type: :page,
+          to_id: target.id
+        })
+      end
+
+      flush_deliveries()
+
+      CMS.update_page!(target, %{title: "Herb, corrected"}, actor: admin)
+      KilnCMS.DataCase.drain_oban()
+
+      assert_received {:delivered, _, _, %{"x-kilncms-event" => "page.updated"}, body}
+
+      assert %{"data" => %{"title" => "Herb, corrected", "affected" => affected}} =
+               Jason.decode!(body)
+
+      assert [%{"type" => "page", "id" => id, "slug" => slug, "locale" => _}] = affected
+      assert id == referrer.id
+      assert slug == referrer.slug
+    end
+
+    test "a document nothing embeds carries an empty list, never a missing key" do
+      stub_capture()
+      admin = admin()
+      CMS.create_webhook_endpoint!(%{url: "https://example.test/hook"}, actor: admin)
+
+      publish_page(admin)
+
+      assert_received {:delivered, _, _, %{"x-kilncms-event" => "page.published"}, body}
+      assert %{"data" => %{"affected" => []}} = Jason.decode!(body)
+    end
+  end
+
+  defp flush_deliveries do
+    receive do
+      {:delivered, _, _, _, _} -> flush_deliveries()
+    after
+      0 -> :ok
+    end
+  end
 end
