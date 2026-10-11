@@ -9,6 +9,11 @@ defmodule KilnClient.Webhook do
   `delivery_id`, stable across retries, for dedupe inside the window. See
   Kiln's `docs/webhooks.md`.
 
+  On a content event the decoded `data` also carries `"affected"`: the
+  published documents whose fired artifacts embed this one, each
+  `%{"type", "id", "slug", "locale"}`, so a cache can drop those pages in the
+  same step as the document itself.
+
   In a Phoenix controller, read the **raw** body (a re-encoded parse won't
   match) — for example with a `Plug.Parsers` `:body_reader` that stashes it:
 

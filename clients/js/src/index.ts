@@ -92,6 +92,7 @@ export {
   WEBHOOK_DELIVERY_ID_HEADER,
   WEBHOOK_SIGNATURE_HEADER,
   WEBHOOK_TOLERANCE_SECONDS,
+  type AffectedDocument,
   type VerifyWebhookOptions,
   type WebhookDelivery,
   type WebhookVerification,

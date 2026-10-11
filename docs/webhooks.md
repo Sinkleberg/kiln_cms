@@ -104,7 +104,9 @@ dedupe key. `data` shape depends on the event:
   `excerpt`, `blocks`, `seo_*`, `canonical_url`, `locale`, `state`, `audience`,
   `locked`, `published_at`, `scheduled_at`, `inserted_at`, `updated_at`); each block
   trimmed to `type`, `content`, `data`, `order`, `children`. Internal-only
-  fields (e.g. search text) are never included.
+  fields (e.g. search text) are never included. These payloads also carry
+  **`affected`**: the published documents whose fired artifacts embed this
+  one, each as `{"type", "id", "slug", "locale"}` (see below).
 - **`form.submitted`** — `{"form": "<slug>", "data": {...submitted fields...}}`.
 - **`membership.activated`** / **`membership.canceled`** — the member (`user_id`,
   `email`), the tier (`id`, `slug`, `name`, `audience`), the transition
@@ -121,10 +123,35 @@ dedupe key. `data` shape depends on the event:
     "id": "…", "title": "Launch", "slug": "launch", "state": "published",
     "audience": "public", "locked": false,
     "blocks": [{ "type": "paragraph", "content": "…", "data": {}, "order": 0, "children": [] }],
-    "published_at": "2026-08-04T12:00:00Z", "…": "…"
+    "published_at": "2026-08-04T12:00:00Z", "…": "…",
+    "affected": [{ "type": "page", "id": "…", "slug": "about", "locale": "en" }]
   }
 }
 ```
+
+### `affected`: the other pages this change touched
+
+A document that embeds another (a formula page listing a herb, a page with a
+reference block, a fragment's users) re-fires when its target changes, so its
+delivered artifact changes too. A consumer that caches per page used to learn
+only about the document in the event, and the pages built on it waited out
+their TTL. `data.affected` lists those referrers, so a receiver can
+invalidate or refetch them in the same breath (#1925):
+
+- Each entry is `{"type", "id", "slug", "locale"}`, with `type` the public
+  type name exactly as event names use it (`"recipe"`, not `"entry"`).
+- Only referrers that are **currently published** are listed: the list is
+  for invalidating pages a consumer serves, and a referrer that has since
+  been unpublished or trashed has no page to invalidate.
+- It is the firing dependency graph as it stands at the moment of the
+  event, the same edges Kiln's own re-fire wave walks. Edges are written
+  when a referrer fires (on publish), so a draft that has never been
+  published is never listed.
+- Present on every full payload, including `unpublished`, where it names the
+  pages that embedded the retracted document. Tombstones stay identity only.
+- An empty list means nothing embeds the document, never that the lookup
+  was skipped; a failed lookup is logged and answers `[]` rather than cost
+  the delivery.
 
 ### Gated content is delivered too — check `audience`
 

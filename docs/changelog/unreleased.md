@@ -7,6 +7,25 @@ carries the reasoning.
 
 ## Added
 
+<a id="webhook-affected"></a>
+
+- **Content webhooks carry `data.affected`: the published documents whose
+  fired artifacts embed this one, so a consumer can invalidate those pages
+  too instead of waiting out a TTL.** A formula page that lists a herb
+  re-fires when the herb changes, so its delivered artifact changes too, but
+  the `herb.updated` webhook named only the herb, and Verscienta.com's cache
+  left the formula page to a 10-minute TTL. `KilnCMS.Firing.References.affected/1`
+  reads the same reference edges the re-fire wave walks, tenant-scoped as
+  the firing system actor, keeps the referrers that are currently published
+  (the list is for invalidating pages a consumer serves), and names each as
+  `type` (the public type name, as event names use it), `id`, `slug` and
+  `locale`. `NotifyWebhooks` adds it to every full payload, `unpublished`
+  included; tombstones stay identity only by contract. An empty list means
+  nothing embeds the document; a failed lookup logs and answers `[]` rather
+  than cost the delivery. `@kiln-cms/client` exports the `AffectedDocument`
+  type and the Elixir client's `KilnClient.Webhook` documents the key.
+  ([#1925](https://github.com/The-Verscienta/kiln_cms/issues/1925))
+
 <a id="mix-kilnpluginsdoctor-notes-a-plugin-with-no-summary0-or-the-generators-todo"></a>
 
 - **`mix kiln.plugins.doctor` notes a plugin with no `summary/0` (or the

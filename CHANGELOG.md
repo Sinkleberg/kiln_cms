@@ -56,6 +56,11 @@ Every summary line below that was shortened links to its own entry there.
 
 ### Added
 
+- **Content webhooks carry `data.affected`: the published documents whose
+  fired artifacts embed this one, so a consumer can invalidate those pages
+  too instead of waiting out a TTL.**
+  ([#1925](https://github.com/The-Verscienta/kiln_cms/issues/1925) · [long form](docs/changelog/unreleased.md#webhook-affected))
+
 - **`mix kiln.plugins.doctor` notes a plugin with no `summary/0` (or the
   generator's `TODO:` placeholder) without failing the run.**
   ([#1942](https://github.com/The-Verscienta/kiln_cms/issues/1942))

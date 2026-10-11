@@ -17,6 +17,19 @@ export const WEBHOOK_DELIVERY_ID_HEADER = "x-kilncms-delivery-id";
 /** The window the server documents, in seconds. */
 export const WEBHOOK_TOLERANCE_SECONDS = 300;
 
+/**
+ * A published document whose fired artifact embeds the one in the event, so
+ * it changed too: what to invalidate or refetch beside the document itself.
+ * Carried as `data.affected` on every full content payload. `type` is the
+ * public type name exactly as event names use it.
+ */
+export interface AffectedDocument {
+  type: string;
+  id: string;
+  slug: string | null;
+  locale: string | null;
+}
+
 /** The JSON body of every delivery. */
 export interface WebhookDelivery<Data = Record<string, unknown>> {
   /** `"<type>.<verb>"`, e.g. `"page.published"`, or `"form.submitted"`, `"ping"`, … */

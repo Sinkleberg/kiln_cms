@@ -230,6 +230,83 @@ defmodule KilnCMS.Firing.References do
     :ok
   end
 
+  @doc """
+  The published documents whose fired artifacts embed `document`, as
+  `%{type, id, slug, locale}` (#1925): what a consumer must refetch or purge
+  when `document` changes, over and above the document itself.
+
+  The same edges the re-fire wave walks (`invalidate/4`), read the same way:
+  tenant-scoped, as the firing system actor. The referrers are then narrowed
+  to the ones currently `:published`, because the list exists for a delivery
+  consumer invalidating pages it serves, and a referrer that has since been
+  unpublished or trashed has no page to invalidate. `type` is the public type
+  name (`"recipe"`, not `"entry"`), as webhook event names use it.
+
+  Best-effort by design: it runs inside a webhook notification after the
+  write committed, so a failed read logs a warning and answers `[]` rather
+  than cost the delivery.
+  """
+  @spec affected(struct()) :: [
+          %{type: String.t(), id: Ash.UUID.t(), slug: String.t() | nil, locale: String.t() | nil}
+        ]
+  def affected(%{org_id: org_id} = document) do
+    type = Engine.document_type(document)
+
+    case Firing.edges_to(type, document.id, actor: system_actor(), tenant: org_id) do
+      {:ok, edges} ->
+        edges
+        |> Enum.map(&{&1.from_type, &1.from_id})
+        |> Enum.uniq()
+        |> Enum.reject(&(&1 == {type, document.id}))
+        |> Enum.group_by(fn {from_type, _id} -> from_type end, fn {_type, id} -> id end)
+        |> Enum.flat_map(fn {from_type, ids} -> published_referrers(org_id, from_type, ids) end)
+        |> Enum.sort_by(&{&1.type, &1.slug, &1.locale})
+
+      {:error, error} ->
+        Logger.warning(
+          "affected-document lookup failed for #{type} #{document.id}: #{inspect(error)}"
+        )
+
+        []
+    end
+  end
+
+  # The identity a consumer needs and nothing more: `org_id` and
+  # `type_definition_id` only so `Engine.public_type/1` can name a dynamic
+  # type. A select, so the bypass below cannot pull a block tree.
+  @affected_select [:id, :slug, :locale, :org_id]
+
+  defp published_referrers(org_id, type, ids) do
+    case referrer_resource(type) do
+      nil ->
+        []
+
+      resource ->
+        select =
+          if type == :entry, do: [:type_definition_id | @affected_select], else: @affected_select
+
+        resource
+        |> Ash.Query.filter(id in ^ids and state == :published)
+        |> Ash.Query.select(select)
+        # authorize?: false — ids the firing actor's edge read already
+        # surfaced, tenant-scoped, published only, identity fields only; the
+        # list goes to the operator's own webhook endpoints.
+        |> Ash.read(authorize?: false, tenant: org_id)
+        |> affected_rows(type)
+    end
+  end
+
+  defp affected_rows({:ok, rows}, _type) do
+    Enum.map(rows, fn row ->
+      %{type: Engine.public_type(row), id: row.id, slug: row.slug, locale: row.locale}
+    end)
+  end
+
+  defp affected_rows({:error, error}, type) do
+    Logger.warning("affected-document load failed for #{type}: #{inspect(error)}")
+    []
+  end
+
   # A widely-used asset — a site logo, a shared stock photo — can be referenced
   # by every document on the site, and each referrer costs its own fetch. The
   # list is context for a delete decision, so a bounded sample plus a count is
