@@ -1438,6 +1438,36 @@ defmodule KilnCMSWeb.EditorLive do
                   </select>
                 </div>
                 <div>
+                  <label for="content-reviewed-filter" class="field-label">
+                    {gettext("Review history")}
+                  </label>
+                  <select id="content-reviewed-filter" name="reviewed" class="field-select">
+                    <option value="">{gettext("Any")}</option>
+                    <option
+                      :for={reviewed <- Filters.reviewed()}
+                      value={reviewed}
+                      selected={@filters["reviewed"] == reviewed}
+                    >
+                      {Filters.reviewed_label(reviewed)}
+                    </option>
+                  </select>
+                </div>
+                <div>
+                  <label for="content-consent-filter" class="field-label">
+                    {gettext("Missing consent")}
+                  </label>
+                  <select id="content-consent-filter" name="consent_missing" class="field-select">
+                    <option value="">{gettext("Any")}</option>
+                    <option
+                      :for={kind <- Filters.consent_kinds()}
+                      value={kind}
+                      selected={@filters["consent_missing"] == kind}
+                    >
+                      {Filters.consent_kind_label(kind)}
+                    </option>
+                  </select>
+                </div>
+                <div>
                   <label for="content-from-filter" class="field-label">
                     {gettext("Updated from")}
                   </label>
@@ -1945,7 +1975,7 @@ defmodule KilnCMSWeb.EditorLive do
   end
 
   # The facets behind "More filters" — counted on its button.
-  @panel_keys ~w(author category tag locale health from to scheduled)
+  @panel_keys ~w(author category tag locale health reviewed consent_missing from to scheduled)
 
   # The view on screen, if any: the first built-in or saved view whose filter
   # is exactly the current one.
@@ -2009,7 +2039,8 @@ defmodule KilnCMSWeb.EditorLive do
   defp chips(assigns) do
     params = Filters.to_params(assigns.filters)
 
-    for key <- ~w(q status type author category tag locale health from to scheduled),
+    for key <-
+          ~w(q status type author category tag locale health reviewed consent_missing from to scheduled),
         value = params[key],
         not is_nil(value),
         do: {key, chip_label(key, value, assigns)}
@@ -2057,6 +2088,11 @@ defmodule KilnCMSWeb.EditorLive do
     do: gettext("Language: %{locale}", locale: locale)
 
   defp chip_label("health", health, _assigns), do: Filters.health_label(health)
+  defp chip_label("reviewed", reviewed, _assigns), do: Filters.reviewed_label(reviewed)
+
+  defp chip_label("consent_missing", kind, _assigns),
+    do: gettext("No %{kind} consent", kind: Filters.consent_kind_label(kind))
+
   defp chip_label("from", date, _assigns), do: gettext("Updated from %{date}", date: date)
   defp chip_label("to", date, _assigns), do: gettext("Updated until %{date}", date: date)
   defp chip_label("scheduled", _value, _assigns), do: gettext("Scheduled to publish")

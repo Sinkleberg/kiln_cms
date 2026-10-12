@@ -77,7 +77,7 @@ defmodule KilnCMS.CMS.HealthSummary do
   Summarize one org's content health.
 
   `worst` is capped at `limit` (default 10) — a dashboard section is a prompt to
-  act, not a work queue; the queue is `/editor?health=overdue`.
+  act, not a work queue; the queue is `/editor?health=due` (due and overdue).
   """
   @spec for_org(Ash.UUID.t(), term(), pos_integer()) :: t()
   def for_org(org_id, actor, limit \\ 10) do

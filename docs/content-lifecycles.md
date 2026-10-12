@@ -306,6 +306,19 @@ passes. It is cheap because the query filters on `health` in Postgres, so a site
 with forty thousand fresh pages reads none of them — the result set is the
 problem list, not the library.
 
+Under the panel, **Work queues** link to the full lists in the content list,
+where they can be narrowed by type and saved as views:
+
+- **Review due** (`/editor?health=due`): due and overdue. Shown once something
+  carries a cadence.
+- **Never reviewed** (`/editor?reviewed=never`): `mark_reviewed` has never run
+  on the record. The panel's counts cannot answer this: a record without a
+  cadence is always `:fresh`, and a cadenced record that was never reviewed
+  counts from `published_at`, so it reads as an ordinary re-review.
+- **No *kind* consent** (`/editor?consent_missing=<kind>`), one per configured
+  consent kind: records with no consent of that kind on this site. See
+  [editorial consent](editorial-consent.md#finding-what-has-none).
+
 ### In the editor
 
 The content editor's header carries a health pill next to the workflow state

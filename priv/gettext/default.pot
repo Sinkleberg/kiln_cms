@@ -8713,6 +8713,11 @@ msgstr ""
 msgid "Missing alt text"
 msgstr ""
 
+#: lib/kiln_cms_web/live/editor_live.ex
+#, elixir-autogen, elixir-format
+msgid "Missing consent"
+msgstr ""
+
 #: lib/kiln_cms_web/live/organize_live.ex
 #, elixir-autogen, elixir-format
 msgid "Missing hub page"
@@ -9026,6 +9031,12 @@ msgstr ""
 msgid "Network"
 msgstr ""
 
+#: lib/kiln_cms_web/live/editor_live/filters.ex
+#: lib/kiln_cms_web/live/governance_live.ex
+#, elixir-autogen, elixir-format
+msgid "Never reviewed"
+msgstr ""
+
 #: lib/kiln_cms_web/live/locale_settings_live.ex
 #, elixir-autogen, elixir-format
 msgid "Never — show nothing"
@@ -9184,6 +9195,12 @@ msgstr ""
 #: lib/kiln_cms_web/live/accounts_live.ex
 #, elixir-autogen, elixir-format
 msgid "No"
+msgstr ""
+
+#: lib/kiln_cms_web/live/editor_live.ex
+#: lib/kiln_cms_web/live/governance_live.ex
+#, elixir-autogen, elixir-format
+msgid "No %{kind} consent"
 msgstr ""
 
 #: lib/kiln_cms_web/live/translations_live.ex
@@ -12367,6 +12384,7 @@ msgstr ""
 #: lib/kiln_cms_web/components/core_components.ex
 #: lib/kiln_cms_web/live/calendar_live.ex
 #: lib/kiln_cms_web/live/editor_live/filters.ex
+#: lib/kiln_cms_web/live/governance_live.ex
 #, elixir-autogen, elixir-format
 msgid "Review due"
 msgstr ""
@@ -12379,6 +12397,11 @@ msgstr ""
 #: lib/kiln_cms_web/components/version_diff_components.ex
 #, elixir-autogen, elixir-format
 msgid "Review every (days)"
+msgstr ""
+
+#: lib/kiln_cms_web/live/editor_live.ex
+#, elixir-autogen, elixir-format
+msgid "Review history"
 msgstr ""
 
 #: lib/kiln_cms_web/controllers/manifest_controller.ex
@@ -12405,6 +12428,11 @@ msgstr ""
 #: lib/kiln_cms_web/live/organize_live.ex
 #, elixir-autogen, elixir-format
 msgid "Review tags"
+msgstr ""
+
+#: lib/kiln_cms_web/live/governance_live.ex
+#, elixir-autogen, elixir-format
+msgid "Review work queues"
 msgstr ""
 
 #: lib/kiln_cms_web/controllers/manifest_controller.ex
@@ -17413,6 +17441,11 @@ msgstr ""
 #: lib/kiln_cms_web/live/settings_live.ex
 #, elixir-autogen, elixir-format
 msgid "Words: the state badge, the date an item publishes or unpublishes, and “Missing translations” when a language is still to do."
+msgstr ""
+
+#: lib/kiln_cms_web/live/governance_live.ex
+#, elixir-autogen, elixir-format
+msgid "Work queues:"
 msgstr ""
 
 #: lib/kiln_cms_web/live/field_definition_live.ex

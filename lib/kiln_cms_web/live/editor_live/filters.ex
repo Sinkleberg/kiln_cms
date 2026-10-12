@@ -17,6 +17,8 @@ defmodule KilnCMSWeb.EditorLive.Filters do
   | `locale`    | one of the configured locales                             |
   | `from`/`to` | ISO dates, an inclusive range on the last update          |
   | `health`    | `due` (due or overdue for review), `due_soon`, `expired`  |
+  | `reviewed`  | `never`: `mark_reviewed` has never run on the record      |
+  | `consent_missing` | a consent kind the record has no consent of     |
   | `scheduled` | `1`: a publish date is set and it is not live yet         |
   | `sort`      | `updated` (default), `published`, `title`                 |
 
@@ -34,6 +36,7 @@ defmodule KilnCMSWeb.EditorLive.Filters do
   @statuses ~w(all draft in_review published archived)
   @healths ~w(due due_soon expired)
   @sorts ~w(updated published title)
+  @reviewed ~w(never)
 
   @defaults %{
     "status" => "all",
@@ -47,6 +50,8 @@ defmodule KilnCMSWeb.EditorLive.Filters do
     "to" => nil,
     "health" => nil,
     "scheduled" => nil,
+    "reviewed" => nil,
+    "consent_missing" => nil,
     "sort" => "updated"
   }
 
@@ -58,6 +63,15 @@ defmodule KilnCMSWeb.EditorLive.Filters do
 
   @doc "The health values the health filter offers."
   def healths, do: @healths
+
+  @doc "The values the review-history filter offers."
+  def reviewed, do: @reviewed
+
+  @doc """
+  The consent kinds the missing-consent filter offers: the site's configured
+  `KilnCMS.CMS.Consent.kinds/0`, as strings.
+  """
+  def consent_kinds, do: Enum.map(KilnCMS.CMS.Consent.kinds(), &Atom.to_string/1)
 
   @doc "The sort orders the list offers."
   def sorts, do: @sorts
@@ -86,6 +100,8 @@ defmodule KilnCMSWeb.EditorLive.Filters do
       "to" => date(raw["to"]),
       "health" => one_of(raw["health"], @healths, nil),
       "scheduled" => if(raw["scheduled"] == "1", do: "1"),
+      "reviewed" => one_of(raw["reviewed"], @reviewed, nil),
+      "consent_missing" => one_of(raw["consent_missing"], consent_kinds(), nil),
       "sort" => one_of(raw["sort"], @sorts, "updated")
     }
   end
@@ -131,7 +147,9 @@ defmodule KilnCMSWeb.EditorLive.Filters do
       to_filter(filters["to"]),
       health_filter(filters["health"]),
       filters["scheduled"] &&
-        expr(not is_nil(scheduled_at) and state in [:draft, :in_review])
+        expr(not is_nil(scheduled_at) and state in [:draft, :in_review]),
+      filters["reviewed"] == "never" && expr(is_nil(last_reviewed_at)),
+      consent_missing_filter(filters["consent_missing"])
     ]
     |> Enum.reject(&(&1 in [nil, false]))
     |> Enum.map(&{:filter, &1})
@@ -202,6 +220,12 @@ defmodule KilnCMSWeb.EditorLive.Filters do
   def health_label("due_soon"), do: gettext("Review due soon")
   def health_label("expired"), do: gettext("Expired")
 
+  @doc "Human label for a review-history filter value."
+  def reviewed_label("never"), do: gettext("Never reviewed")
+
+  @doc "Human label for a consent kind, e.g. `medical_review` → \"Medical review\"."
+  def consent_kind_label(kind), do: kind |> String.replace("_", " ") |> String.capitalize()
+
   @doc "Human label for a sort order."
   def sort_label("updated"), do: gettext("Last updated")
   def sort_label("published"), do: gettext("Last published")
@@ -259,6 +283,18 @@ defmodule KilnCMSWeb.EditorLive.Filters do
   defp to_filter(iso) do
     until = iso |> Date.from_iso8601!() |> Date.add(1) |> DateTime.new!(~T[00:00:00], "Etc/UTC")
     expr(updated_at < ^until)
+  end
+
+  # No consent of `kind` names this record. Consents point at content by id
+  # (a soft reference, no relationship), hence the unrelated `exists`; ids are
+  # UUIDs, so `content_id` alone identifies the record whatever its type. The
+  # consent read is authorized as the list's actor, which every editor passes
+  # (`KilnCMS.CMS.Consent` policies), and tenant-scoped like the list.
+  defp consent_missing_filter(nil), do: nil
+
+  defp consent_missing_filter(kind) do
+    kind = String.to_existing_atom(kind)
+    expr(not exists(KilnCMS.CMS.Consent, kind == ^kind and content_id == parent(id)))
   end
 
   defp health_filter(nil), do: nil

@@ -49,6 +49,17 @@ defmodule KilnCMSWeb.EditorLiveViewsTest do
 
   defp uniq, do: System.unique_integer([:positive])
 
+  defp a_consent(content, kind, org_id \\ Accounts.default_org_id()) do
+    Ash.Seed.seed!(KilnCMS.CMS.Consent, %{
+      org_id: org_id,
+      content_type: "post",
+      content_id: content.id,
+      kind: kind,
+      grantor: "reviewer",
+      granted_at: DateTime.utc_now()
+    })
+  end
+
   # Every title carries `prefix` so a test can scope the list with `q=` and
   # ignore whatever else the shared sandbox holds.
   defp a_post(prefix, attrs \\ %{}) do
@@ -154,6 +165,50 @@ defmodule KilnCMSWeb.EditorLiveViewsTest do
 
       {:ok, _lv, html} = live(conn, ~p"/editor?q=#{p}&health=due")
       assert visible_ids(html) == [due.id]
+    end
+
+    test "never reviewed and missing consent narrow the list", %{conn: conn} do
+      editor = authed_user(:editor)
+      p = prefix()
+
+      reviewed = a_post(p, %{last_reviewed_at: DateTime.utc_now()})
+      signed_off = a_post(p)
+      other_kind = a_post(p)
+
+      a_consent(signed_off, :reviewer_signoff)
+      a_consent(other_kind, :licensing)
+
+      # Another site's consent naming this post's id does not clear it here:
+      # the consent lookup is tenant-scoped like the list it narrows.
+      other_org =
+        Ash.Seed.seed!(KilnCMS.Accounts.Organization, %{
+          name: "elsewhere",
+          slug: "elsewhere-#{uniq()}",
+          status: :active
+        })
+
+      a_consent(reviewed, :reviewer_signoff, other_org.id)
+
+      conn = log_in(conn, editor)
+
+      {:ok, _lv, html} = live(conn, ~p"/editor?q=#{p}&reviewed=never")
+      assert Enum.sort(visible_ids(html)) == Enum.sort([signed_off.id, other_kind.id])
+      assert html =~ "Never reviewed"
+
+      # A consent of another kind does not count; the reviewed post has none.
+      {:ok, _lv, html} = live(conn, ~p"/editor?q=#{p}&consent_missing=reviewer_signoff")
+      assert Enum.sort(visible_ids(html)) == Enum.sort([reviewed.id, other_kind.id])
+      assert html =~ "No Reviewer signoff consent"
+
+      # The two combine: never reviewed AND no sign-off.
+      {:ok, _lv, html} =
+        live(conn, ~p"/editor?q=#{p}&reviewed=never&consent_missing=reviewer_signoff")
+
+      assert visible_ids(html) == [other_kind.id]
+
+      # An unconfigured kind reads as absent rather than listing nothing.
+      {:ok, _lv, html} = live(conn, ~p"/editor?q=#{p}&consent_missing=nope&reviewed=sometimes")
+      assert length(visible_ids(html)) == 3
     end
 
     test "values that cannot be valid read as absent", %{conn: conn} do

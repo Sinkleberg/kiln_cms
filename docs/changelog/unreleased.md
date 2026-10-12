@@ -26,6 +26,25 @@ carries the reasoning.
   type and the Elixir client's `KilnClient.Webhook` documents the key.
   ([#1925](https://github.com/The-Verscienta/kiln_cms/issues/1925))
 
+<a id="review-work-queues"></a>
+
+- **The content list filters on records never reviewed (`?reviewed=never`) and
+  on records missing a consent kind (`?consent_missing=<kind>`); the governance
+  dashboard links both as work queues.** The Content health panel answers
+  "what is late", which cannot cover a first-pass review: a record without a
+  cadence is always `:fresh`, and a cadenced record never reviewed counts from
+  `published_at`, so it reads as an ordinary re-review. `reviewed=never` matches
+  a nil `last_reviewed_at`. `consent_missing` matches records with no consent of
+  a configured kind; consents reference content by id only, so the filter is an
+  unrelated `exists` over `KilnCMS.CMS.Consent`, authorized as the viewer and
+  scoped to the current site. Both are facets under *More filters*, combine
+  with the rest (e.g. `?type=herb&consent_missing=medical_review`), and can be
+  saved as views. The dashboard's **Work queues** line links Review due, Never
+  reviewed and one missing-consent list per kind. The `HealthSummary` moduledoc
+  pointed at `/editor?health=overdue`, which the list ignores; it now says
+  `health=due`. Sorting by a type's own field (a catalogue's toxicity level,
+  say) is left to the overlay.
+
 <a id="mix-kilnpluginsdoctor-notes-a-plugin-with-no-summary0-or-the-generators-todo"></a>
 
 - **`mix kiln.plugins.doctor` notes a plugin with no `summary/0` (or the

@@ -9,6 +9,7 @@ defmodule KilnCMSWeb.GovernanceLive do
 
   alias KilnCMS.Compliance
   alias KilnCMS.Governance
+  alias KilnCMSWeb.EditorLive.Filters
 
   @impl true
   def mount(_params, _session, socket) do
@@ -348,6 +349,31 @@ defmodule KilnCMSWeb.GovernanceLive do
           </span>
         </li>
       </ul>
+
+      <%!-- The panel answers "what is late"; these are the full lists to work
+           through, in the content list where they can be narrowed by type and
+           saved as views. "Never reviewed" is the question the counts above
+           cannot answer: a record without a cadence is always fresh. --%>
+      <nav
+        class="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-base-content/10 pt-3 text-sm"
+        data-role="review-queues"
+        aria-label={gettext("Review work queues")}
+      >
+        <span class="text-base-content/60">{gettext("Work queues:")}</span>
+        <.link :if={@health.in_use?} navigate={~p"/editor?health=due"} class="link">
+          {gettext("Review due")}
+        </.link>
+        <.link navigate={~p"/editor?reviewed=never"} class="link">
+          {gettext("Never reviewed")}
+        </.link>
+        <.link
+          :for={kind <- Filters.consent_kinds()}
+          navigate={~p"/editor?#{%{consent_missing: kind}}"}
+          class="link"
+        >
+          {gettext("No %{kind} consent", kind: Filters.consent_kind_label(kind))}
+        </.link>
+      </nav>
     </section>
     """
   end

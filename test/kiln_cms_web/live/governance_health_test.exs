@@ -72,6 +72,24 @@ defmodule KilnCMSWeb.GovernanceHealthTest do
     refute html =~ "Everything with a cadence is inside it"
   end
 
+  test "links the review work queues, never-reviewed included even with no cadence",
+       %{conn: conn} do
+    admin = authed_user(:admin)
+
+    {:ok, lv, _html} = conn |> log_in(admin) |> live(~p"/editor/governance")
+
+    queues = lv |> element("[data-role=review-queues]") |> render()
+
+    assert queues =~ ~s(href="/editor?reviewed=never")
+
+    for kind <- KilnCMS.CMS.Consent.kinds() do
+      assert queues =~ ~s(href="/editor?consent_missing=#{kind}")
+    end
+
+    # Nothing carries a cadence, so there is no "due" list to offer.
+    refute queues =~ "health=due"
+  end
+
   test "reports a clean bill only when something is actually tracked", %{conn: conn} do
     admin = authed_user(:admin)
 
