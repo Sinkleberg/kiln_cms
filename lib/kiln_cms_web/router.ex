@@ -1208,6 +1208,11 @@ defmodule KilnCMSWeb.Router do
       # different worktree's — the orphan-server trap where every spec fails
       # at sign-in. Same compile-time gating and :prod refusal as the mailbox.
       forward "/e2e-identity", KilnCMSWeb.Plugs.E2EIdentity
+
+      # Turns the CRDT co-editing prototype on for the one spec that drives
+      # it (e2e/tests/collab.spec.js); the rest of the suite stays on the
+      # solo editor production runs. Same gating and :prod refusal.
+      forward "/e2e-collab", KilnCMSWeb.Plugs.E2ECollab
     end
   end
 

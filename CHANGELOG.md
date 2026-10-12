@@ -54,6 +54,12 @@ Long form: [docs/changelog/unreleased.md](docs/changelog/unreleased.md) —
 the Unreleased entries as they were written when each change merged.
 Every summary line below that was shortened links to its own entry there.
 
+### Changed
+
+- **The browser suite now drives live co-editing: two peers type into one
+  rich-text block and each sees the other's words and caret.**
+  ([long form](docs/changelog/unreleased.md#collab-e2e))
+
 ### Security
 
 - **prosemirror-view 1.42.6 for GHSA-c8x8-7fp4-3x9w: pasting HTML into the
