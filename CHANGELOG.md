@@ -54,6 +54,12 @@ Long form: [docs/changelog/unreleased.md](docs/changelog/unreleased.md) —
 the Unreleased entries as they were written when each change merged.
 Every summary line below that was shortened links to its own entry there.
 
+### Security
+
+- **prosemirror-view 1.42.6 for GHSA-c8x8-7fp4-3x9w: pasting HTML into the
+  rich-text editor can no longer run script.**
+  ([long form](docs/changelog/unreleased.md#prosemirror-view-paste-xss))
+
 ## [1.3.0] - 2026-10-12
 
 Long form: [docs/changelog/v1.3.0.md](docs/changelog/v1.3.0.md) —
