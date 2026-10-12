@@ -5,7 +5,16 @@ before 1.0 a minor bump may change behaviour and says so here. Releases are
 tagged `kiln_client-vX.Y.Z` in the
 [KilnCMS repository](https://github.com/The-Verscienta/kiln_cms).
 
-## Unreleased
+## 0.4.0
+
+### Added
+
+- **`KilnClient.Webhook` documents `data.affected`** (kiln_cms#1925): on a
+  content event, Kiln 1.3.0 and later list the published documents whose
+  fired artifacts embed the changed one, each
+  `%{"type", "id", "slug", "locale"}`, so a cache can drop those pages in the
+  same step as the document itself. The decoded payload is a plain map, so
+  nothing in the client's API changes.
 
 ### Changed
 
