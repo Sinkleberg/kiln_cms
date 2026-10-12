@@ -48,6 +48,14 @@ defmodule Kiln.ImageBackend do
 
   Answering `:unsupported` keeps Kiln's own pipeline for that request: the
   variants are encoded locally and stored in the backend through `store/2`.
+
+  ## Adopting images it already holds
+
+  A library imported from elsewhere can arrive as rows that only carry a URL
+  into the backend — Kiln holds no file for them, so it can't rotate, derive
+  or delete them. `key_for_url/1` lets `mix kiln.media.adopt_image_backend`
+  recognise those URLs and hand the rows to the backend
+  (`KilnCMS.Media.Adoption`).
   """
 
   @typedoc """
@@ -106,6 +114,12 @@ defmodule Kiln.ImageBackend do
   @callback render_url(key :: String.t(), spec()) :: {:ok, String.t()} | :unsupported
 
   @doc """
+  The key of the image `url` names in this backend, or `:error` when it names
+  none — for adopting rows imported by URL. The default recognises nothing.
+  """
+  @callback key_for_url(url :: String.t()) :: {:ok, String.t()} | :error
+
+  @doc """
   Origins the browser must be allowed to load images from (`img-src`), e.g.
   `["https://imagedelivery.net"]`.
   """
@@ -121,7 +135,10 @@ defmodule Kiln.ImageBackend do
       @impl Kiln.ImageBackend
       def csp_hosts, do: []
 
-      defoverridable render_url: 2, csp_hosts: 0
+      @impl Kiln.ImageBackend
+      def key_for_url(_url), do: :error
+
+      defoverridable render_url: 2, csp_hosts: 0, key_for_url: 1
     end
   end
 end

@@ -26,6 +26,9 @@ carries the reasoning.
   Kiln's own signing, allowlist and policy checks. A backend that can't render
   falls back to Kiln's encoder. The selected backend's delivery origin joins
   `img-src`. `mix kiln.plugins.doctor` checks the contract and the name, and
-  System → Plugins says whether a backend is receiving uploads. The Cloudflare
+  System → Plugins says whether a backend is receiving uploads.
+  `mix kiln.media.adopt_image_backend` hands the backend the rows imported by
+  URL whose images it already holds (`key_for_url/1`), through a new
+  system-only `adopt_into_image_backend` action on media items. The Cloudflare
   Images plugin itself ships separately.
   ([#1955](https://github.com/The-Verscienta/kiln_cms/issues/1955))

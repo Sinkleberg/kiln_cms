@@ -296,4 +296,109 @@ defmodule KilnCMS.Media.ImageBackendTest do
       end
     end
   end
+
+  describe "adoption (#1955)" do
+    alias KilnCMS.Media.Adoption
+
+    # A row as an import by URL leaves it: a URL, no file Kiln holds.
+    defp imported(url) do
+      Ash.Seed.seed!(KilnCMS.CMS.MediaItem, %{filename: "imported.png", url: url})
+    end
+
+    defp held_by_fixture(width, height) do
+      key = "imported-#{System.unique_integer([:positive])}"
+      {:ok, ^key} = Fixture.store(key, png(width, height))
+      key
+    end
+
+    test "hands the backend the rows whose images it holds, and derives them" do
+      select_backend()
+      key = held_by_fixture(1200, 800)
+      ours = imported("https://images.fixture.test/#{key}/public")
+      elsewhere = imported("https://cdn.example.com/photo.jpg")
+
+      assert {:ok, %{scanned: 2, adopted: 1, failed: 0}} =
+               Adoption.run(KilnCMS.Accounts.default_org_id())
+
+      adopted = CMS.get_media_item!(ours.id, authorize?: false)
+      assert adopted.image_backend == "fixture_images"
+      assert adopted.storage_key == key
+      assert adopted.url == Fixture.url(key)
+
+      assert CMS.get_media_item!(elsewhere.id, authorize?: false).image_backend == nil
+
+      assert_enqueued worker: VariantWorker, args: %{media_item_id: ours.id}
+      assert :ok = perform_job(VariantWorker, %{media_item_id: ours.id, org_id: adopted.org_id})
+
+      derived = CMS.get_media_item!(ours.id, authorize?: false)
+      assert {derived.width, derived.height} == {1200, 800}
+      assert derived.variants["thumb"]["url"] =~ "https://images.fixture.test/#{key}/w=400"
+    end
+
+    test "a dry run counts and writes nothing" do
+      select_backend()
+      ours = imported("https://images.fixture.test/#{held_by_fixture(10, 10)}/public")
+
+      assert {:ok, %{adopted: 1}} =
+               Adoption.run(KilnCMS.Accounts.default_org_id(), dry_run?: true)
+
+      assert CMS.get_media_item!(ours.id, authorize?: false).image_backend == nil
+      refute_enqueued worker: VariantWorker
+    end
+
+    test "a row Kiln holds a file for is never re-pointed", %{root: root} do
+      {:ok, local} = upload(png(50, 50), "local.png")
+      assert File.exists?(Path.join(root, local.storage_key))
+      select_backend()
+
+      # Even a URL the backend would claim: a stored file is the row's truth.
+      Ash.Seed.update!(local, %{url: "https://images.fixture.test/#{local.storage_key}/public"})
+
+      assert {:ok, %{scanned: 0}} = Adoption.run(KilnCMS.Accounts.default_org_id())
+
+      assert {:error, %Ash.Error.Invalid{}} =
+               CMS.adopt_media_item_into_image_backend(
+                 CMS.get_media_item!(local.id, authorize?: false),
+                 %{image_backend: "fixture_images", storage_key: "x"},
+                 actor: KilnCMS.Media.system(),
+                 tenant: local.org_id
+               )
+    end
+
+    test "is the media pipeline's act, not an editor's" do
+      item = imported("https://images.fixture.test/whatever/public")
+
+      editor =
+        Ash.Seed.seed!(KilnCMS.Accounts.User, %{
+          email: "ib-editor-#{System.unique_integer([:positive])}@example.com",
+          hashed_password: Bcrypt.hash_pwd_salt("password123456"),
+          confirmed_at: DateTime.utc_now(),
+          role: :editor
+        })
+
+      assert {:error, %Ash.Error.Forbidden{}} =
+               CMS.adopt_media_item_into_image_backend(
+                 item,
+                 %{image_backend: "fixture_images", storage_key: "whatever"},
+                 actor: editor,
+                 tenant: item.org_id
+               )
+    end
+
+    test "needs an active backend" do
+      assert Adoption.run(KilnCMS.Accounts.default_org_id()) == {:error, :no_active_backend}
+
+      select_backend(configured?: false)
+      assert Adoption.run(KilnCMS.Accounts.default_org_id()) == {:error, :no_active_backend}
+    end
+  end
+
+  describe "a narrow read" do
+    test "can't say where a file is without image_backend, so it refuses to guess" do
+      item = backend_item(10, 10)
+      narrow = %{item | image_backend: %Ash.NotLoaded{field: :image_backend, type: :attribute}}
+
+      assert Storage.locate(narrow) == {:error, {:image_backend, :not_loaded}}
+    end
+  end
 end

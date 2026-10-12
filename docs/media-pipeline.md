@@ -1056,3 +1056,19 @@ result in the backend.
 **CSP.** The selected backend's delivery origin is added to `img-src`
 automatically. If you move to another backend while the old one still holds
 images, keep the old origin in `CSP_IMG_SRC`, or its images render blank.
+
+**Adopting images a backend already holds.** A library imported from another
+CMS can arrive as rows carrying only a URL into the backend — no file in Kiln,
+so no variants, rotation or transforms, and deleting the row leaves the image
+behind. Once the backend is selected and configured,
+
+```bash
+mix kiln.media.adopt_image_backend --dry-run   # count, write nothing
+mix kiln.media.adopt_image_backend             # --org <uuid> for another site
+```
+
+hands it every row with no stored file whose URL it recognises as its own
+(`key_for_url/1`), and enqueues each one's variants, which read its
+dimensions back from the backend. A row Kiln holds a file for is never
+touched. Content already published keeps the URL its snapshot recorded, which
+the backend still serves.

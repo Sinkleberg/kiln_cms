@@ -367,6 +367,36 @@ defmodule KilnCMS.CMS.MediaItem do
       require_atomic? false
     end
 
+    # System-only (#1955): `KilnCMS.Media.Adoption` hands an image backend a
+    # row whose image it already holds — imported by URL, so Kiln has no file
+    # for it and can't rotate, derive or delete it. Only such a row: one with
+    # no `storage_key` and no backend yet. Everything else got its store at
+    # upload and keeps it (`:create`'s comment), so this never moves a file
+    # Kiln holds and never re-points one a backend already has.
+    update :adopt_into_image_backend do
+      accept [:image_backend, :storage_key, :url]
+      require_atomic? false
+
+      validate fn changeset, _context ->
+        cond do
+          not is_nil(changeset.data.storage_key) ->
+            {:error, field: :storage_key, message: "already names a stored file"}
+
+          not is_nil(changeset.data.image_backend) ->
+            {:error, field: :image_backend, message: "is already set"}
+
+          is_nil(Ash.Changeset.get_attribute(changeset, :image_backend)) ->
+            {:error, field: :image_backend, message: "is required"}
+
+          is_nil(Ash.Changeset.get_attribute(changeset, :storage_key)) ->
+            {:error, field: :storage_key, message: "is required"}
+
+          true ->
+            :ok
+        end
+      end
+    end
+
     # The quarantined rows `KilnCMS.Media.QuarantineReaper` removes: every
     # site's, older than `cutoff`. Cross-org by nature, so it is one of the
     # sanctioned `multitenancy :bypass` reads; a tenant-less read of the
@@ -557,7 +587,7 @@ defmodule KilnCMS.CMS.MediaItem do
     # actions, never `:update` (which can gate an item) or `:update_metadata`.
     policy action_type([:create, :update]) do
       authorize_if KilnCMS.CMS.Checks.OrgEditor
-      forbid_unless action([:record_processing, :release_quarantine])
+      forbid_unless action([:record_processing, :release_quarantine, :adopt_into_image_backend])
       authorize_if {KilnCMS.Checks.SystemActor, subsystem: :media}
     end
 
@@ -592,6 +622,12 @@ defmodule KilnCMS.CMS.MediaItem do
     # be publishing an unstripped upload. Recording what the pipeline derived
     # is likewise the pipeline's (an editor edits through `:update`).
     policy action([:release_quarantine, :record_processing]) do
+      authorize_if {KilnCMS.Checks.SystemActor, subsystem: :media}
+    end
+
+    # Adopting a row into an image backend (#1955) is the media pipeline's
+    # bulk act, run by `mix kiln.media.adopt_image_backend` — not an editor's.
+    policy action(:adopt_into_image_backend) do
       authorize_if {KilnCMS.Checks.SystemActor, subsystem: :media}
     end
   end

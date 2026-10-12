@@ -200,6 +200,11 @@ defmodule KilnCMS.Storage do
   # whatever the row's other columns say. A backend that is no longer
   # installed is a failure, never a quiet fall-through to the operator's
   # store, which doesn't have the file.
+  # Unselected by a narrow read: the row can't say whether a backend holds its
+  # file, and guessing "no" would send a backend item's reads to the wrong
+  # store — the same refusal `SiteProfiles.for_item/1` makes.
+  def locate(%{image_backend: %Ash.NotLoaded{}}), do: {:error, {:image_backend, :not_loaded}}
+
   def locate(%{image_backend: name}) when is_binary(name) do
     case ImageBackends.fetch(name) do
       {:ok, module} -> {:ok, BackendTarget.for(module)}

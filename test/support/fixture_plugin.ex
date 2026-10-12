@@ -439,6 +439,18 @@ defmodule KilnCMS.FixturePlugin.ImageBackend do
   @impl true
   def csp_hosts, do: [@host]
 
+  # Recognises its own delivery URLs, variant segment or none — the shape an
+  # import that recorded them would carry.
+  @impl true
+  def key_for_url(@host <> "/" <> rest) do
+    case String.split(rest, "/") do
+      [key | _variant] when key != "" -> {:ok, key}
+      _ -> :error
+    end
+  end
+
+  def key_for_url(_url), do: :error
+
   @doc "Whether the backend holds `key` — for assertions."
   def stored?(key), do: File.exists?(file(key))
 
