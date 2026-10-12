@@ -59,7 +59,7 @@ src/
 ## Prerequisites
 
 - **A running, seeded KilnCMS** (see the walkthrough below).
-- **Node.js 18+** and npm.
+- **Node.js 22.12+** and npm (Astro 7's floor).
 
 ## Headless setup walkthrough
 
