@@ -319,6 +319,89 @@ defmodule KilnCMS.ImageProcessor do
       {:error, e}
   end
 
+  @typedoc """
+  A variant `process/3` would write, described instead of encoded: its map
+  key, the output size, the crop window in source pixels (`nil` for the whole
+  frame) and the encoding. What an image backend renders (#1955).
+  """
+  @type planned :: %{
+          label: String.t(),
+          width: pos_integer(),
+          height: pos_integer(),
+          crop: {non_neg_integer(), non_neg_integer(), pos_integer(), pos_integer()} | nil,
+          format: atom(),
+          content_type: String.t()
+        }
+
+  @doc """
+  The variants `process/3` would write for a `width`×`height` source with
+  extension `ext` and focal point `focal` — the same labels, sizes and
+  formats, with nothing decoded or encoded. An image backend
+  (`Kiln.ImageBackend`) renders each one from a URL instead, so its items
+  carry the variant map every client already reads.
+  """
+  @spec plan(pos_integer(), pos_integer(), String.t(), focal()) :: [planned()]
+  def plan(width, height, ext, focal \\ %{x: 0.5, y: 0.5})
+      when is_integer(width) and width > 0 and is_integer(height) and height > 0 do
+    source = source_format(ext)
+
+    responsive =
+      for {label, target} <- @targets, target < width do
+        # `Image.thumbnail/2`'s integer target is the LONGEST side.
+        scale = target / max(width, height)
+        {to_string(label), nil, {max(1, round(width * scale)), max(1, round(height * scale))}}
+      end
+
+    crops =
+      for {label, {tw, th}} <- @cropped, width >= tw and height >= th do
+        {to_string(label), focal_window(width, height, focal, {tw, th}), {tw, th}}
+      end
+
+    full =
+      for format <- plan_alternates(source),
+          do: planned("full.#{format}", nil, {width, height}, format)
+
+    variants =
+      Enum.flat_map(responsive ++ crops, fn {label, crop, dims} ->
+        [
+          planned(label, crop, dims, source)
+          | for(
+              format <- plan_alternates(source),
+              do: planned("#{label}.#{format}", crop, dims, format)
+            )
+        ]
+      end)
+
+    variants ++ full
+  end
+
+  @doc """
+  The `{width, height}` of the image at `path`, under the same pixel cap
+  `process/3` applies — the header is read, the pixels are not decoded.
+  """
+  @spec dimensions(Path.t()) :: {:ok, {pos_integer(), pos_integer()}} | {:error, term()}
+  def dimensions(path) do
+    with {:ok, image} <- Image.open(path),
+         :ok <- within_pixel_limit(image) do
+      {:ok, {Image.width(image), Image.height(image)}}
+    end
+  rescue
+    e -> {:error, e}
+  end
+
+  defp plan_alternates(:gif), do: []
+  defp plan_alternates(source), do: Enum.reject(variant_formats(), &(&1 == source))
+
+  defp planned(label, crop, {w, h}, format),
+    do: %{
+      label: label,
+      width: w,
+      height: h,
+      crop: crop,
+      format: format,
+      content_type: content_type(format)
+    }
+
   @doc """
   Applies a geometric edit to the (validated) image at `path`, writing the
   result to a temp file with extension `ext`. Returns the temp path and the
@@ -485,7 +568,10 @@ defmodule KilnCMS.ImageProcessor do
     end)
   end
 
-  defp focal_crop(image, w, h, focal, label, {tw, th}, ext) do
+  # The window `focal_crop/7` cuts — and `plan/4` describes — for a `{tw, th}`
+  # target: the target's aspect ratio, as large as the source allows,
+  # centered on the focal point and clamped to the bounds.
+  defp focal_window(w, h, focal, {tw, th}) do
     aspect = tw / th
 
     {crop_w, crop_h} =
@@ -495,6 +581,11 @@ defmodule KilnCMS.ImageProcessor do
 
     left = clamp(round(focal.x * w - crop_w / 2), 0, w - crop_w)
     top = clamp(round(focal.y * h - crop_h / 2), 0, h - crop_h)
+    {left, top, crop_w, crop_h}
+  end
+
+  defp focal_crop(image, w, h, focal, label, {tw, th}, ext) do
+    {left, top, crop_w, crop_h} = focal_window(w, h, focal, {tw, th})
 
     with {:ok, cropped} <- Image.crop(image, left, top, crop_w, crop_h),
          {:ok, resized} <- Image.thumbnail(cropped, tw),

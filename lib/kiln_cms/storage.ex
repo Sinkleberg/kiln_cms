@@ -28,9 +28,20 @@ defmodule KilnCMS.Storage do
 
   `nil` (the default) is the operator's store, so every existing call and every
   existing row behave exactly as before.
+
+  ## An image backend (#1955)
+
+  An image can live in an external image service instead
+  (`Kiln.ImageBackend`, contributed by a plugin). The row records it in
+  `MediaItem.image_backend`, and `locate/1` resolves that to a
+  `KilnCMS.Storage.BackendTarget` — so the same rule holds: pass the item, and
+  the call reaches the backend that holds its file. A backend has no private
+  storage (images are never gated): the private functions refuse it with
+  `{:error, :private_unsupported}`.
   """
 
-  alias KilnCMS.Storage.{Profile, S3, SiteProfiles}
+  alias Kiln.ImageBackend.Registry, as: ImageBackends
+  alias KilnCMS.Storage.{BackendTarget, Profile, S3, SiteProfiles}
 
   @doc "Persist the file at `source_path` under `key`; returns `{:ok, key}`."
   @callback store(key :: String.t(), source_path :: String.t()) ::
@@ -169,16 +180,32 @@ defmodule KilnCMS.Storage do
   operator's store, which doesn't have the file. `url/2` takes only `nil` or a
   resolved profile: it returns a string, so it has no way to fail.
   """
-  @type at :: Profile.t() | map() | nil
+  @type at :: Profile.t() | BackendTarget.t() | map() | nil
+
+  @typedoc "What `locate/1` resolves `t:at/0` to."
+  @type store :: Profile.t() | BackendTarget.t() | nil
 
   @doc """
   Resolves `at` (see `t:at/0`) to `nil` (the operator's store) or a site's
   `Profile` — once, for a caller about to make several calls against the same
   item's store.
   """
-  @spec locate(at()) :: {:ok, Profile.t() | nil} | {:error, {:site_storage, term()}}
+  @spec locate(at()) ::
+          {:ok, store()} | {:error, {:site_storage, term()} | {:image_backend, term()}}
   def locate(nil), do: {:ok, nil}
   def locate(%Profile{} = profile), do: {:ok, profile}
+  def locate(%BackendTarget{} = backend), do: {:ok, backend}
+
+  # Checked before the site's profile: a backend item's file is in the backend
+  # whatever the row's other columns say. A backend that is no longer
+  # installed is a failure, never a quiet fall-through to the operator's
+  # store, which doesn't have the file.
+  def locate(%{image_backend: name}) when is_binary(name) do
+    case ImageBackends.fetch(name) do
+      {:ok, module} -> {:ok, BackendTarget.for(module)}
+      {:error, reason} -> {:error, {:image_backend, reason}}
+    end
+  end
 
   def locate(item) when is_map(item) do
     case SiteProfiles.for_item(item) do
@@ -206,16 +233,29 @@ defmodule KilnCMS.Storage do
   end
 
   @doc "The profile id to record on a media row for `at`: `nil` for the operator's store."
-  @spec profile_id(Profile.t() | nil) :: Ash.UUID.t() | nil
+  @spec profile_id(store()) :: Ash.UUID.t() | nil
   def profile_id(nil), do: nil
   def profile_id(%Profile{id: id}), do: id
+  def profile_id(%BackendTarget{}), do: nil
+
+  @doc "The image backend name to record on a media row for `at`: `nil` unless it is one."
+  @spec image_backend(store()) :: String.t() | nil
+  def image_backend(%BackendTarget{name: name}), do: name
+  def image_backend(_store), do: nil
 
   @spec store(String.t(), String.t(), at()) :: {:ok, String.t()} | {:error, term()}
   def store(key, source_path, at \\ nil),
-    do: run(at, fn -> adapter().store(key, source_path) end, &S3.store(key, source_path, &1))
+    do:
+      run(
+        at,
+        fn -> adapter().store(key, source_path) end,
+        &S3.store(key, source_path, &1),
+        & &1.module.store(key, source_path)
+      )
 
   @spec fetch(String.t(), at()) :: {:ok, binary()} | {:error, term()}
-  def fetch(key, at \\ nil), do: run(at, fn -> adapter().fetch(key) end, &S3.fetch(key, &1))
+  def fetch(key, at \\ nil),
+    do: run(at, fn -> adapter().fetch(key) end, &S3.fetch(key, &1), & &1.module.fetch(key))
 
   @doc """
   Remove the blob at `key` — except in demo mode, where the delete of an
@@ -233,14 +273,16 @@ defmodule KilnCMS.Storage do
           do: KilnCMS.Demo.Blobs.defer(key),
           else: adapter().delete(key)
       end,
-      &S3.delete(key, &1)
+      &S3.delete(key, &1),
+      & &1.module.delete(key)
     )
   end
 
-  @spec url(String.t(), Profile.t() | nil) :: String.t()
+  @spec url(String.t(), store()) :: String.t()
   def url(key, site \\ nil)
   def url(key, nil), do: adapter().url(key)
   def url(key, %Profile{} = profile), do: S3.url(key, profile)
+  def url(key, %BackendTarget{module: module}), do: module.url(key)
 
   @spec store_private(String.t(), String.t(), at()) :: {:ok, String.t()} | {:error, term()}
   def store_private(key, source_path, at \\ nil),
@@ -248,12 +290,19 @@ defmodule KilnCMS.Storage do
       run(
         at,
         fn -> adapter().store_private(key, source_path) end,
-        &S3.store_private(key, source_path, &1)
+        &S3.store_private(key, source_path, &1),
+        &private_unsupported/1
       )
 
   @spec fetch_private(String.t(), at()) :: {:ok, binary()} | {:error, term()}
   def fetch_private(key, at \\ nil),
-    do: run(at, fn -> adapter().fetch_private(key) end, &S3.fetch_private(key, &1))
+    do:
+      run(
+        at,
+        fn -> adapter().fetch_private(key) end,
+        &S3.fetch_private(key, &1),
+        &private_unsupported/1
+      )
 
   @doc "`delete/2` for private storage — deferred in demo mode the same way."
   @spec delete_private(String.t(), at()) :: :ok | {:error, term()}
@@ -265,7 +314,8 @@ defmodule KilnCMS.Storage do
           do: KilnCMS.Demo.Blobs.defer(key),
           else: adapter().delete_private(key)
       end,
-      &S3.delete_private(key, &1)
+      &S3.delete_private(key, &1),
+      &private_unsupported/1
     )
   end
 
@@ -278,6 +328,7 @@ defmodule KilnCMS.Storage do
   def private_available?(at \\ nil) do
     case locate(at) do
       {:ok, nil} -> adapter().private_available?()
+      {:ok, %BackendTarget{}} -> false
       {:ok, profile} -> S3.private_available?(profile)
       {:error, _reason} -> false
     end
@@ -299,6 +350,9 @@ defmodule KilnCMS.Storage do
 
         Code.ensure_loaded?(adapter) and function_exported?(adapter, :presign_private_put, 3) and
           adapter.private_available?()
+
+      {:ok, %BackendTarget{}} ->
+        false
 
       {:ok, profile} ->
         S3.private_available?(profile)
@@ -334,7 +388,8 @@ defmodule KilnCMS.Storage do
       run(
         at,
         fn -> adapter().fetch_range(key, first, last) end,
-        &S3.fetch_range(key, first, last, &1)
+        &S3.fetch_range(key, first, last, &1),
+        &backend_range(&1, key, first, last)
       )
 
   @spec fetch_private_range(String.t(), non_neg_integer(), non_neg_integer() | :eof, at()) ::
@@ -344,16 +399,39 @@ defmodule KilnCMS.Storage do
       run(
         at,
         fn -> adapter().fetch_private_range(key, first, last) end,
-        &S3.fetch_private_range(key, first, last, &1)
+        &S3.fetch_private_range(key, first, last, &1),
+        &private_unsupported/1
       )
 
-  # Resolve `at` once, then run the operator's or the site's half.
-  defp run(at, operator, site) do
+  # Resolve `at` once, then run the operator's, the site's or the backend's half.
+  defp run(at, operator, site, backend) do
     case locate(at) do
       {:ok, nil} -> operator.()
+      {:ok, %BackendTarget{} = target} -> backend.(target)
       {:ok, profile} -> site.(profile)
       {:error, _reason} = error -> error
     end
+  end
+
+  defp private_unsupported(%BackendTarget{}), do: {:error, :private_unsupported}
+
+  # A backend serves whole images, not ranges, and has no reason to: they are
+  # capped at the image upload size (`Media.Ingest`), so the whole original is
+  # small enough to slice here. Same shape and edge rules as
+  # `KilnCMS.Storage.Local`'s, unsatisfiable empty file included.
+  defp backend_range(%BackendTarget{module: module}, key, first, last) do
+    with {:ok, bytes} <- module.fetch(key), do: slice(bytes, first, last)
+  end
+
+  defp slice(bytes, first, _last) when byte_size(bytes) == 0 or first >= byte_size(bytes),
+    do: {:error, {:range_not_satisfiable, byte_size(bytes)}}
+
+  defp slice(bytes, first, last) do
+    total = byte_size(bytes)
+    last = if last == :eof, do: total - 1, else: min(last, total - 1)
+
+    {:ok,
+     %{bytes: binary_part(bytes, first, last - first + 1), first: first, last: last, total: total}}
   end
 
   # Bytes held in memory at once by `copy_to_file/3`.

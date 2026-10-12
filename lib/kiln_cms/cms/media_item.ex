@@ -171,8 +171,9 @@ defmodule KilnCMS.CMS.MediaItem do
   #
   # `:storage_profile_id` (#1559) likewise: which store the file went to is
   # decided once, by `Ingest` at upload, and never changes after — every later
-  # write keeps its files in the same store.
-  @create_accept @writable_fields ++ [:quarantined, :storage_profile_id]
+  # write keeps its files in the same store. `:image_backend` (#1955) is the
+  # same decision for an image an external backend took.
+  @create_accept @writable_fields ++ [:quarantined, :storage_profile_id, :image_backend]
 
   actions do
     # Not atomic: the `BustMediaCache` after-action runs an in-BEAM side effect.
@@ -747,6 +748,13 @@ defmodule KilnCMS.CMS.MediaItem do
     # — they are all the operator's, which is what `nil` says. No foreign key
     # for the same reason: validating one scans the whole table under a lock.
     attribute :storage_profile_id, :uuid, public?: false
+
+    # The image backend holding this item's file (#1955) — a
+    # `Kiln.ImageBackend.name/0`, resolved by `KilnCMS.Storage.locate/1`.
+    # `nil` for every file in the operator's or a site's own store, which is
+    # every row that predates it: nullable, no default, so adding it rewrote
+    # nothing. A name, not a module: rows outlive module renames.
+    attribute :image_backend, :string, public?: false, constraints: [max_length: 64]
 
     # #1122. `true` while a deferred A/V metadata strip is pending: the blob is
     # in PRIVATE storage under `storage_key`, `url` points at nothing yet, and

@@ -1010,3 +1010,49 @@ link-local or metadata address (checked at save and on every connection, and
 the connection goes to the address that was checked), use plain `http://`, or
 have the operator's credentials used for their bucket — a request to a site's
 bucket is built from the site's settings alone.
+
+## Image backends (#1955)
+
+An image can live in an external image service — Cloudflare Images, imgix,
+Bunny Optimizer — instead of in the bucket above. The service comes from a
+plugin, which contributes a `Kiln.ImageBackend` from its `image_backends/0`;
+the operator picks it in `config/runtime.exs`:
+
+```elixir
+config :kiln_cms, :image_backend, MyPlugin.ImageBackend
+```
+
+Installing the plugin changes nothing until then, and a selected backend that
+is missing its own settings (`configured?/0` false) is never offered an
+upload. **System → Plugins** says which backend is receiving uploads, and
+`mix kiln.plugins.doctor` fails on a selected backend no installed plugin
+declares.
+
+**What goes to it.** A new image upload bound for the operator's store, after
+its metadata is stripped, when the backend `accepts?/1` it. Not documents,
+video or audio; not an upload to a site's own bucket (above) — the backend is
+the operator's choice, the bucket is the site's; and not an image whose
+metadata strip failed. That one is kept in the operator's store, as every
+image upload already is, rather than handed to a third party unstripped.
+Images can never be gated, so a backend needs no private storage.
+
+**Every later operation follows the row.** The item records the backend's
+name (`image_backend`), and everything that happens to it — downloads,
+rotation, variants, transforms, deletion — goes to that backend, whichever is
+selected later. An item whose backend has been uninstalled fails those
+operations rather than reaching for the operator's store, which doesn't have
+the file; reinstall the plugin to reach it again.
+
+**Variants and transforms come from the backend.** The variant worker records
+the backend's URL for each variant the encoder would have written — the same
+labels, sizes and content types — so the `variants` map and every `srcset`
+built from it read as they always have. `/media/:id/t/<ops>` checks the
+signature, the allowlist, the read policy and the pixel cap as usual, then
+redirects (`302`) to the backend's rendering with the same `Cache-Control` and
+`ETag` the image would have carried. A backend that can't render a given
+output answers `:unsupported`, and Kiln encodes it as before, storing the
+result in the backend.
+
+**CSP.** The selected backend's delivery origin is added to `img-src`
+automatically. If you move to another backend while the old one still holds
+images, keep the old origin in `CSP_IMG_SRC`, or its images render blank.

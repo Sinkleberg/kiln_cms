@@ -18,6 +18,11 @@ defmodule Kiln.Plugin do
     * `spam_checks/0` — `Kiln.Forms.SpamCheck` modules (#477): a plugin's own
       heuristic (or an external-provider check) run alongside the core scorer
       on every public form submission, appended after the core checks.
+    * `image_backends/0` — `Kiln.ImageBackend` modules (#1955): an external
+      image service (Cloudflare Images, imgix, …) that new image uploads can
+      go to instead of the operator's store. Installing one changes nothing
+      until the operator selects it
+      (`config :kiln_cms, :image_backend, Module`).
     * `nav_items/0` — links in the admin top nav
       (`%{label: "...", path: "/editor/...", role: :editor | :admin}`).
     * `admin_routes/0` — LiveViews mounted in the admin-gated live session
@@ -82,6 +87,7 @@ defmodule Kiln.Plugin do
   @callback field_types() :: [module()]
   @callback advisories() :: [module()]
   @callback spam_checks() :: [module()]
+  @callback image_backends() :: [module()]
   @callback nav_items() :: [nav_item()]
   @callback admin_routes() :: [admin_route()]
   @callback editor_routes() :: [admin_route()]
@@ -128,6 +134,9 @@ defmodule Kiln.Plugin do
       def spam_checks, do: []
 
       @impl Kiln.Plugin
+      def image_backends, do: []
+
+      @impl Kiln.Plugin
       def nav_items, do: []
 
       @impl Kiln.Plugin
@@ -154,6 +163,7 @@ defmodule Kiln.Plugin do
                      field_types: 0,
                      advisories: 0,
                      spam_checks: 0,
+                     image_backends: 0,
                      nav_items: 0,
                      admin_routes: 0,
                      editor_routes: 0,

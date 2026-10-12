@@ -121,6 +121,20 @@ defmodule KilnCMS.Storage.SiteStorageRoutingTest do
     assert path == "/site-bucket/#{item.storage_key}"
   end
 
+  # The image backend (#1955) is the operator's choice; a site that brought its
+  # own bucket chose where its files live, images included.
+  test "a selected image backend doesn't take a site's own-store upload", %{org: org} = ctx do
+    Application.put_env(:kiln_cms, :image_backend, KilnCMS.FixturePlugin.ImageBackend)
+    on_exit(fn -> Application.delete_env(:kiln_cms, :image_backend) end)
+    row = save!(org)
+
+    assert {:ok, item} = upload(org, ctx.actor)
+
+    assert item.storage_profile_id == row.profile_id
+    assert item.image_backend == nil
+    assert_received {:s3, "PUT", "s3.site.example", _path}
+  end
+
   test "a site without its own store uploads as before: operator store, no profile",
        %{org: org} = ctx do
     assert {:ok, item} = upload(org, ctx.actor)

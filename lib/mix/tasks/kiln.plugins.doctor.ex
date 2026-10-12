@@ -16,6 +16,10 @@ defmodule Mix.Tasks.Kiln.Plugins.Doctor do
     * field-type modules implement `Kiln.FieldType` and their names don't
       collide (across core, the built-in types, and all plugins);
     * plugin Oban queues don't redefine core queues;
+    * image backends (#1955) implement `Kiln.ImageBackend` with a usable,
+      unique `name/0` — it is recorded on every image the backend holds — and
+      the backend selected in `config :kiln_cms, :image_backend` is one an
+      installed plugin declares;
     * nav paths and admin routes are well-formed (`/editor/...`);
     * a block's `:json` render agrees with its exported schema (#937) —
       the same conformance check `test/kiln/block/json_schema_test.exs` runs
@@ -63,6 +67,7 @@ defmodule Mix.Tasks.Kiln.Plugins.Doctor do
         block_collisions(plugins, blocks_by_plugin) ++
         field_type_problems(plugins, field_types_by_plugin) ++
         queue_collisions(plugins) ++
+        image_backend_problems(plugins, Application.get_env(:kiln_cms, :image_backend)) ++
         block_schema_problems(plugins, blocks_by_plugin) ++
         field_type_schema_problems(plugins, field_types_by_plugin) ++
         field_type_hook_problems(plugins, field_types_by_plugin)
@@ -271,6 +276,83 @@ defmodule Mix.Tasks.Kiln.Plugins.Doctor do
       end
     end)
   end
+
+  # ── image backends (#1955) ──────────────────────────────────────────────────
+  #
+  # `name/0` is the one thing that has to be right forever: it is written on
+  # every row the backend holds, and an item whose name no installed backend
+  # answers to cannot be read until one does. Hence a usable, unique name, and
+  # a selected backend that a plugin actually declares — a module wired
+  # straight into config works, but the System page and this check can't see
+  # where it came from.
+  @doc false
+  def image_backend_problems(plugins, selected) do
+    declared =
+      for plugin <- plugins,
+          function_exported?(plugin, :image_backends, 0),
+          mod <- plugin.image_backends(),
+          do: {plugin, mod}
+
+    {backends, contract} =
+      Enum.split_with(declared, fn {_plugin, mod} -> Kiln.ImageBackend.Registry.backend?(mod) end)
+
+    contract =
+      for {plugin, mod} <- contract do
+        "#{plugin.name()}: image backend #{inspect(mod)} does not implement Kiln.ImageBackend"
+      end
+
+    named = for {plugin, mod} <- backends, do: {plugin, mod, backend_name(mod)}
+
+    names =
+      for {plugin, mod, name} <- named, not usable_backend_name?(name) do
+        "#{plugin.name()}: image backend #{inspect(mod)} needs a name/0 of 1-64 characters, " <>
+          "got #{inspect(name)}"
+      end
+
+    collisions =
+      named
+      |> Enum.filter(fn {_plugin, _mod, name} -> usable_backend_name?(name) end)
+      |> Enum.uniq_by(fn {_plugin, mod, _name} -> mod end)
+      |> Enum.group_by(fn {_plugin, _mod, name} -> name end)
+      |> Enum.flat_map(fn
+        {_name, [_one]} ->
+          []
+
+        {name, _many} ->
+          ["image backend name #{inspect(name)} is declared by more than one module"]
+      end)
+
+    contract ++ names ++ collisions ++ selected_backend_problems(selected, backends)
+  end
+
+  defp selected_backend_problems(nil, _backends), do: []
+
+  defp selected_backend_problems(selected, backends) do
+    cond do
+      not Kiln.ImageBackend.Registry.backend?(selected) ->
+        [
+          "config :kiln_cms, :image_backend — #{inspect(selected)} does not implement Kiln.ImageBackend"
+        ]
+
+      not Enum.any?(backends, fn {_plugin, mod} -> mod == selected end) ->
+        [
+          "config :kiln_cms, :image_backend — #{inspect(selected)} is not declared by any " <>
+            "installed plugin's image_backends/0"
+        ]
+
+      true ->
+        []
+    end
+  end
+
+  defp backend_name(mod) do
+    mod.name()
+  rescue
+    error -> {:raised, Exception.message(error)}
+  end
+
+  defp usable_backend_name?(name),
+    do: is_binary(name) and String.trim(name) != "" and String.length(name) <= 64
 
   # ── block :json render vs exported schema (#937) ───────────────────────────
   #

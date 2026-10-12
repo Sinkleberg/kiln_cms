@@ -375,6 +375,80 @@ defmodule KilnCMS.FixturePlugin.Counter do
   def start_link(_opts), do: Agent.start_link(fn -> 0 end, name: __MODULE__)
 end
 
+defmodule KilnCMS.FixturePlugin.ImageBackend do
+  @moduledoc """
+  A plugin-contributed image backend (test fixture, #1955). Keeps images as
+  files in a temp directory — files rather than process state, because the
+  variant worker and the transform controller reach it from other processes.
+
+  Inert until a test selects it (`config :kiln_cms, :image_backend`), and
+  steered per test through `:fixture_image_backend`:
+
+    * `configured?: false` — installed and selected, but missing settings;
+    * `accepts?: false` — declines every upload;
+    * `renders?: false` — `render_url/2` answers `:unsupported`.
+  """
+  use Kiln.ImageBackend
+
+  @host "https://images.fixture.test"
+
+  @impl true
+  def name, do: "fixture_images"
+
+  @impl true
+  def configured?, do: opt(:configured?, true)
+
+  @impl true
+  def accepts?(%{content_type: "image/" <> _}), do: opt(:accepts?, true)
+  def accepts?(_candidate), do: false
+
+  @impl true
+  def store(key, path) do
+    File.mkdir_p!(root())
+    File.cp!(path, file(key))
+    {:ok, key}
+  end
+
+  @impl true
+  def fetch(key), do: File.read(file(key))
+
+  @impl true
+  def delete(key) do
+    File.rm(file(key))
+    :ok
+  end
+
+  @impl true
+  def url(key), do: "#{@host}/#{key}/public"
+
+  @impl true
+  def render_url(key, spec) do
+    if opt(:renders?, true) do
+      trim =
+        case spec.crop do
+          nil -> ""
+          {l, t, w, h} -> ",trim=#{l}:#{t}:#{w}:#{h}"
+        end
+
+      {:ok, "#{@host}/#{key}/w=#{spec.width},h=#{spec.height},f=#{spec.format}#{trim}"}
+    else
+      :unsupported
+    end
+  end
+
+  @impl true
+  def csp_hosts, do: [@host]
+
+  @doc "Whether the backend holds `key` — for assertions."
+  def stored?(key), do: File.exists?(file(key))
+
+  defp root, do: Path.join(System.tmp_dir!(), "kiln-fixture-image-backend")
+  defp file(key), do: Path.join(root(), Path.basename(key))
+
+  defp opt(key, default),
+    do: :kiln_cms |> Application.get_env(:fixture_image_backend, []) |> Keyword.get(key, default)
+end
+
 defmodule KilnCMS.FixturePlugin do
   @moduledoc """
   The test-suite plugin (D18): registered in `config/test.exs`, it exercises
@@ -409,6 +483,9 @@ defmodule KilnCMS.FixturePlugin do
       KilnCMS.FixturePlugin.FieldTypes.Exploding,
       KilnCMS.FixturePlugin.FieldTypes.Lookup
     ]
+
+  @impl true
+  def image_backends, do: [KilnCMS.FixturePlugin.ImageBackend]
 
   @impl true
   def nav_items, do: [%{label: "Fixture", path: "/editor/fixture", role: :admin}]

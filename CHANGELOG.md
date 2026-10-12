@@ -54,6 +54,13 @@ Long form: [docs/changelog/unreleased.md](docs/changelog/unreleased.md) —
 the Unreleased entries as they were written when each change merged.
 Every summary line below that was shortened links to its own entry there.
 
+### Added
+
+- **A plugin can contribute an image backend (`Kiln.ImageBackend`) — an
+  external service such as Cloudflare Images that takes new image uploads and
+  renders their variants and transforms from URLs.**
+  ([long form](docs/changelog/unreleased.md#image-backends))
+
 ## [1.3.0] - 2026-10-12
 
 Long form: [docs/changelog/v1.3.0.md](docs/changelog/v1.3.0.md) —

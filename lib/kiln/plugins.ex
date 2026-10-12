@@ -39,6 +39,14 @@ defmodule Kiln.Plugins do
   """
   def spam_checks, do: Enum.flat_map(all(), & &1.spam_checks())
 
+  @doc """
+  Image backends contributed by plugins (`Kiln.ImageBackend`, #1955). Which
+  one new uploads use is the operator's choice — see
+  `Kiln.ImageBackend.Registry`.
+  """
+  @spec image_backends() :: [module()]
+  def image_backends, do: Enum.flat_map(all(), & &1.image_backends())
+
   @doc "Every plugin-declared admin nav item."
   @spec nav_items() :: [Kiln.Plugin.nav_item()]
   def nav_items, do: Enum.flat_map(all(), & &1.nav_items())
@@ -83,6 +91,7 @@ defmodule Kiln.Plugins do
           field_types: [module()],
           advisories: [module()],
           spam_checks: [module()],
+          image_backends: [module()],
           nav_items: non_neg_integer(),
           admin_routes: non_neg_integer(),
           editor_routes: non_neg_integer(),
@@ -113,6 +122,7 @@ defmodule Kiln.Plugins do
       field_types: plugin.field_types(),
       advisories: plugin.advisories(),
       spam_checks: plugin.spam_checks(),
+      image_backends: plugin.image_backends(),
       nav_items: length(plugin.nav_items()),
       admin_routes: length(plugin.admin_routes()),
       editor_routes: length(plugin.editor_routes()),
