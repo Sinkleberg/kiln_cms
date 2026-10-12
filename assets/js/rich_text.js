@@ -10,8 +10,8 @@
 //     the block editor, inserts a new Kiln block below (B3 — one "/" for both)
 //   * list detection: "•" or "1)" typed, bullets pasted as characters, and
 //     Word's list paragraphs become real lists (list_detect.js)
-//   * links: the Link mark StarterKit v2 leaves out, plus the ⌘K popover that
-//     authors them and one href gate mirroring the server's (#823)
+//   * links: our own configured Link mark, plus the ⌘K popover that authors
+//     them and one href gate mirroring the server's (#823)
 //
 // Every command here produces only tags already on the server-side allowlist
 // (KilnCMS.HTMLSanitizer.RichText) — including the code-block language class,
@@ -20,13 +20,19 @@ import {Editor, Extension} from "@tiptap/core"
 import {Plugin, PluginKey} from "@tiptap/pm/state"
 import StarterKit from "@tiptap/starter-kit"
 import Link from "@tiptap/extension-link"
-import Table from "@tiptap/extension-table"
-import TableRow from "@tiptap/extension-table-row"
-import TableHeader from "@tiptap/extension-table-header"
-import TableCell from "@tiptap/extension-table-cell"
+import {Table, TableRow, TableHeader, TableCell} from "@tiptap/extension-table"
 import {markdownPaste} from "./markdown_paste"
 import {ListDetect} from "./list_detect"
 import {EmptyHeadings} from "./empty_headings"
+
+// StarterKit v3 bundles Link, Underline, ListKeymap and TrailingNode. Link is
+// switched off here because LINK_EXTENSIONS registers its own, gated by
+// `safeHref` — two Link marks would be a duplicate-extension error. Underline
+// stays on: the server stores and renders it (`<u>`), and before v3 the editor
+// had no such mark and dropped an API-authored underline on load. TrailingNode
+// is off: it appends an empty paragraph after a closing table or code block,
+// which would save as a blank line the author never typed.
+const STARTER_KIT = {link: false, trailingNode: false}
 
 // Tables (#475): StarterKit doesn't include them, so every editor mount adds
 // this set. Column resizing stays off in v1 — colwidths wouldn't survive the
@@ -141,9 +147,10 @@ const LinkOnPaste = Extension.create({
   },
 })
 
-// Links (#823). StarterKit v2 has no Link mark — it only moved into StarterKit
-// in v3 — so before this every editor mount parsed the anchors out of the HTML
-// it was seeded with, and the autosave persisted prose with the links gone.
+// Links (#823). StarterKit v2 had no Link mark, so before this every editor
+// mount parsed the anchors out of the HTML it was seeded with, and the
+// autosave persisted prose with the links gone. v3's StarterKit has one, but
+// it is disabled (STARTER_KIT) in favour of this configured one.
 //
 // `autolink` stays OFF deliberately: it rewrites what the author typed, turning
 // a bare "example.com" mentioned in passing into a live link nobody asked for.
@@ -778,7 +785,14 @@ export function mount(hook) {
   } else {
     buildEditor(
       hook,
-      [StarterKit, ...LINK_EXTENSIONS, ...TABLE_EXTENSIONS, ListDetect, EmptyHeadings, ...bodyImageExtensions(hook)],
+      [
+        StarterKit.configure(STARTER_KIT),
+        ...LINK_EXTENSIONS,
+        ...TABLE_EXTENSIONS,
+        ListDetect,
+        EmptyHeadings,
+        ...bodyImageExtensions(hook),
+      ],
       hook.el.dataset.content || ""
     )
   }
@@ -789,11 +803,11 @@ export function mount(hook) {
 // XmlFragment. Only the first peer seeds an empty fragment from the stored
 // HTML — later joiners take their content from the CRDT.
 async function mountCollab(hook, {token, topic, fragment}) {
-  const [{acquireDoc}, {default: Collaboration}, {default: CollaborationCursor}] =
+  const [{acquireDoc}, {default: Collaboration}, {default: CollaborationCaret}] =
     await Promise.all([
       import("./collab.js"),
       import("@tiptap/extension-collaboration"),
-      import("@tiptap/extension-collaboration-cursor"),
+      import("@tiptap/extension-collaboration-caret"),
     ])
 
   const handle = acquireDoc(topic, token)
@@ -806,7 +820,7 @@ async function mountCollab(hook, {token, topic, fragment}) {
 
   buildEditor(hook, [
     // Yjs owns undo/redo semantics under collaboration.
-    StarterKit.configure({history: false}),
+    StarterKit.configure({...STARTER_KIT, undoRedo: false}),
     ...LINK_EXTENSIONS,
     ...TABLE_EXTENSIONS,
     ListDetect,
@@ -815,7 +829,7 @@ async function mountCollab(hook, {token, topic, fragment}) {
     Collaboration.configure({document: handle.doc, field: fragment}),
     // Remote carets labeled with each collaborator's initials, in the same
     // color as their roster chip / lock badges.
-    CollaborationCursor.configure({
+    CollaborationCaret.configure({
       provider: {awareness: handle.awareness},
       user: {
         name: hook.el.dataset.collabUser || "?",
@@ -828,7 +842,7 @@ async function mountCollab(hook, {token, topic, fragment}) {
   // first peer seeds the empty fragment explicitly — as a normal transaction
   // (emitUpdate: true), which both syncs it into the CRDT and refreshes the
   // HTML mirror.
-  if (seed) hook.editor.commands.setContent(seed, true)
+  if (seed) hook.editor.commands.setContent(seed, {emitUpdate: true})
 }
 
 // In-context editing (#354): mount TipTap directly into a rendered-page region.
@@ -846,7 +860,13 @@ export function mountInline(hook) {
 
   const editor = new Editor({
     element: hook.el,
-    extensions: [StarterKit, ...LINK_EXTENSIONS, ...TABLE_EXTENSIONS, ListDetect, EmptyHeadings],
+    extensions: [
+      StarterKit.configure(STARTER_KIT),
+      ...LINK_EXTENSIONS,
+      ...TABLE_EXTENSIONS,
+      ListDetect,
+      EmptyHeadings,
+    ],
     content: seed,
     editorProps: {
       attributes: {
@@ -1062,7 +1082,13 @@ function buildEditor(hook, extensions, content = null) {
     // `data-locked` is kept in sync by LiveView even inside the ignore host;
     // the hook's updated() follows later changes.
     editable: hook.el.dataset.locked !== "true",
+    // Under collaboration the Yjs binding (TipTap 3's y-tiptap) renders the
+    // shared doc synchronously inside `new Editor`, so these callbacks can
+    // fire before the slash menu and toolbar below exist. That render is the
+    // server's own state, not an edit, so there is nothing to push either.
+    // Throwing here would abort the constructor and leave the block unsynced.
     onUpdate: () => {
+      if (!hook.slash) return
       hook.slash.update()
       syncToolbar()
       // Debounced push so the live preview reflects rich-text edits.
@@ -1072,6 +1098,7 @@ function buildEditor(hook, extensions, content = null) {
       hook._debounce = setTimeout(pushBody, 300)
     },
     onSelectionUpdate: () => {
+      if (!hook.slash) return
       hook.slash.update()
       syncToolbar()
     },
@@ -1116,7 +1143,9 @@ function buildEditor(hook, extensions, content = null) {
     if (now === hook._serverVersion) {
       if (hook._everEdited) pushBody()
     } else {
-      hook.editor.commands.setContent(hook.el.dataset.content || "", false)
+      // v3's setContent emits an update by default; this reload must not, or
+      // onUpdate would push the server's own words back as a fresh edit.
+      hook.editor.commands.setContent(hook.el.dataset.content || "", {emitUpdate: false})
       if (hook._everEdited) hook.pushEvent("rich_text_superseded", {})
       hook._everEdited = false
       hook._pendingPush = false
@@ -1165,11 +1194,11 @@ function buildEditor(hook, extensions, content = null) {
 
     const chain = hook.editor.chain().focus()
     if (mode === "replace") {
-      // `emitUpdate: true` — setContent defaults to setting `preventUpdate` on
-      // the transaction, so onUpdate never fires and the toolbar's active-mark
-      // state and the slash menu keep describing the discarded document until
-      // the next keystroke. Same argument, same reason, as the collab seed above.
-      chain.setContent({type: "doc", content}, true).run()
+      // `emitUpdate: true` (v3's default, spelled out): without it onUpdate
+      // never fires and the toolbar's active-mark state and the slash menu
+      // keep describing the discarded document until the next keystroke. Same
+      // reason as the collab seed above.
+      chain.setContent({type: "doc", content}, {emitUpdate: true}).run()
     } else {
       chain.insertContent(content).run()
     }

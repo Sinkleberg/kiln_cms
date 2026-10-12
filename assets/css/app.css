@@ -1856,10 +1856,11 @@ pre.highlight .gs {
   background: var(--color-base-200);
 }
 
-/* Collaborative-editing carets (CRDT prototype): TipTap's CollaborationCursor
+/* Collaborative-editing carets (CRDT prototype): TipTap's CollaborationCaret
    renders a colored caret + a small label with the collaborator's initials.
-   Colors come inline from the extension (the user's roster-chip color). */
-.collaboration-cursor__caret {
+   Colors come inline from the extension (the user's roster-chip color; it
+   must be six-digit hex, or TipTap 3 paints the caret transparent). */
+.collaboration-carets__caret {
   border-left: 1px solid;
   border-right: 1px solid;
   margin-left: -1px;
@@ -1869,7 +1870,7 @@ pre.highlight .gs {
   word-break: normal;
 }
 
-.collaboration-cursor__label {
+.collaboration-carets__label {
   border-radius: 3px 3px 3px 0;
   color: white;
   font-size: 10px;

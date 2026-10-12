@@ -169,8 +169,10 @@ defmodule KilnCMSWeb.CollabChannel do
   # the current ProseMirror node set is refused: y-prosemirror deletes nodes
   # its schema doesn't know from the shared doc, so one stale tab (e.g. open
   # across a deploy) would silently destroy newer content — tables, at v2 —
-  # for every peer. Refused clients degrade to solo editing with autosave.
-  @schema_vsn 2
+  # for every peer. At v3 (TipTap 3) the schema gained the underline mark,
+  # which a v2 bundle would strip. Refused clients degrade to solo editing
+  # with autosave.
+  @schema_vsn 3
 
   @impl true
   def join("collab:" <> key, params, socket) do

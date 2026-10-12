@@ -61,6 +61,17 @@ Every summary line below that was shortened links to its own entry there.
   renders their variants and transforms from URLs.**
   ([long form](docs/changelog/unreleased.md#image-backends))
 
+### Security
+
+- **prosemirror-view 1.42.6 for GHSA-c8x8-7fp4-3x9w: pasting HTML into the
+  rich-text editor can no longer run script.**
+  ([long form](docs/changelog/unreleased.md#prosemirror-view-paste-xss))
+
+- **The rich-text editor moves to TipTap 3 for GHSA-cp6q-959q-f8rh, and keeps
+  underlines it used to drop; a co-editing tab still on the old bundle edits
+  solo until it reloads.**
+  ([long form](docs/changelog/unreleased.md#tiptap-3))
+
 ## [1.3.0] - 2026-10-12
 
 Long form: [docs/changelog/v1.3.0.md](docs/changelog/v1.3.0.md) —
