@@ -3,7 +3,7 @@ defmodule Kiln.ImageBackend.Registry do
   Finds image backends (`Kiln.ImageBackend`, #1955): the one new uploads go
   to, and the one a stored item names.
 
-  Backends come from plugins (`Kiln.Plugin.image_backends/0`); the operator
+  Backends come from plugins (`c:Kiln.Plugin.image_backends/0`); the operator
   picks one of them for new uploads:
 
       config :kiln_cms, :image_backend, MyPlugin.ImageBackend
