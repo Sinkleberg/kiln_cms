@@ -33,6 +33,18 @@ KilnCMS.CMS.record_consent!(
 )
 ```
 
+## Finding what has none
+
+The content list filters on a missing consent: `/editor?consent_missing=<kind>`
+lists the records with no consent of that kind, and the **Missing consent**
+facet under *More filters* offers every configured kind. Combine it with a type
+(`&type=post`) and **Never reviewed** (`&reviewed=never`) for a first-pass
+review queue, and save it as a view. The governance dashboard links each kind's
+list under **Work queues**.
+
+The lookup runs as the person viewing the list and on the current site only, so
+another site's consent naming the same id does not count.
+
 ## The publish gate
 
 Off by default. A deployment can require consent kinds before any content may be

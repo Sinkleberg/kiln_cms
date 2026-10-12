@@ -35,7 +35,7 @@ defmodule KilnCMS.CMS.SavedView do
 
   # The query parameters the content list understands — the only keys a view
   # can store. `KilnCMSWeb.EditorLive.Filters` reads the same list.
-  @param_keys ~w(status type q author category tag locale from to health scheduled sort)
+  @param_keys ~w(status type q author category tag locale from to health scheduled reviewed consent_missing sort)
 
   # Each value is a short token, an id or a search string; none needs more.
   @max_param_length 200

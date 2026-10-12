@@ -65,6 +65,11 @@ Every summary line below that was shortened links to its own entry there.
   generator's `TODO:` placeholder) without failing the run.**
   ([#1942](https://github.com/The-Verscienta/kiln_cms/issues/1942))
 
+- **The content list filters on records never reviewed (`?reviewed=never`) and
+  on records missing a consent kind (`?consent_missing=<kind>`); the governance
+  dashboard links both as work queues.**
+  ([long form](docs/changelog/unreleased.md#review-work-queues))
+
 ### Changed
 
 - **The path forward's wedge minors are 1.3 to 1.8: v1.2.0 shipped the

@@ -8713,6 +8713,11 @@ msgstr "Genere una clave arriba para conceder acceso headless o MCP."
 msgid "Missing alt text"
 msgstr "Falta el texto alternativo"
 
+#: lib/kiln_cms_web/live/editor_live.ex
+#, elixir-autogen, elixir-format
+msgid "Missing consent"
+msgstr "Sin consentimiento"
+
 #: lib/kiln_cms_web/live/organize_live.ex
 #, elixir-autogen, elixir-format
 msgid "Missing hub page"
@@ -9026,6 +9031,12 @@ msgstr "Ni el autor ni el responsable de respaldo es editor, así que nadie podr
 msgid "Network"
 msgstr "Red"
 
+#: lib/kiln_cms_web/live/editor_live/filters.ex
+#: lib/kiln_cms_web/live/governance_live.ex
+#, elixir-autogen, elixir-format
+msgid "Never reviewed"
+msgstr "Nunca revisado"
+
 #: lib/kiln_cms_web/live/locale_settings_live.ex
 #, elixir-autogen, elixir-format
 msgid "Never — show nothing"
@@ -9185,6 +9196,12 @@ msgstr "Semana siguiente"
 #, elixir-autogen, elixir-format
 msgid "No"
 msgstr "No"
+
+#: lib/kiln_cms_web/live/editor_live.ex
+#: lib/kiln_cms_web/live/governance_live.ex
+#, elixir-autogen, elixir-format
+msgid "No %{kind} consent"
+msgstr "Sin consentimiento de %{kind}"
 
 #: lib/kiln_cms_web/live/translations_live.ex
 #, elixir-autogen, elixir-format
@@ -12367,6 +12384,7 @@ msgstr "Revisión y seguimiento"
 #: lib/kiln_cms_web/components/core_components.ex
 #: lib/kiln_cms_web/live/calendar_live.ex
 #: lib/kiln_cms_web/live/editor_live/filters.ex
+#: lib/kiln_cms_web/live/governance_live.ex
 #, elixir-autogen, elixir-format
 msgid "Review due"
 msgstr "Revisión pendiente"
@@ -12380,6 +12398,11 @@ msgstr "Revisión próxima"
 #, elixir-autogen, elixir-format
 msgid "Review every (days)"
 msgstr "Revisar cada (días)"
+
+#: lib/kiln_cms_web/live/editor_live.ex
+#, elixir-autogen, elixir-format
+msgid "Review history"
+msgstr "Historial de revisión"
 
 #: lib/kiln_cms_web/controllers/manifest_controller.ex
 #, elixir-autogen, elixir-format
@@ -12406,6 +12429,11 @@ msgstr "Aquí llegan las solicitudes de revisión, los comentarios, las mencione
 #, elixir-autogen, elixir-format
 msgid "Review tags"
 msgstr "Revisar etiquetas"
+
+#: lib/kiln_cms_web/live/governance_live.ex
+#, elixir-autogen, elixir-format
+msgid "Review work queues"
+msgstr "Colas de trabajo de revisión"
 
 #: lib/kiln_cms_web/controllers/manifest_controller.ex
 #, elixir-autogen, elixir-format
@@ -17414,6 +17442,11 @@ msgstr "Palabras"
 #, elixir-autogen, elixir-format
 msgid "Words: the state badge, the date an item publishes or unpublishes, and “Missing translations” when a language is still to do."
 msgstr "Palabras: la etiqueta de estado, la fecha en que un elemento se publica o se despublica, y «Faltan traducciones» cuando queda un idioma por hacer."
+
+#: lib/kiln_cms_web/live/governance_live.ex
+#, elixir-autogen, elixir-format
+msgid "Work queues:"
+msgstr "Colas de trabajo:"
 
 #: lib/kiln_cms_web/live/field_definition_live.ex
 #, elixir-autogen, elixir-format
