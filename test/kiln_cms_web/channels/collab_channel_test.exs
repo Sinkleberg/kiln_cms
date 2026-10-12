@@ -19,7 +19,7 @@ defmodule KilnCMSWeb.CollabChannelTest do
   @endpoint KilnCMSWeb.Endpoint
 
   # Must track SCHEMA_VSN in assets/js/collab.js / @schema_vsn in the channel.
-  @schema_vsn 2
+  @schema_vsn 3
 
   setup do
     # RESTORE, don't delete: `config/test.exs` sets this at boot, so deleting the

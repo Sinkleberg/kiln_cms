@@ -18,3 +18,26 @@ carries the reasoning.
   bundle, `clients/js` moves to vitest 5 (critical and high advisories in its
   test-only tinypool, vite and esbuild) and `examples/astro-blog` to Astro 7;
   both report no advisories now.
+
+<a id="tiptap-3"></a>
+
+- **The rich-text editor moves to TipTap 3 for GHSA-cp6q-959q-f8rh, and keeps
+  underlines it used to drop; a co-editing tab still on the old bundle edits
+  solo until it reloads.** The advisory (MODERATE) is in TipTap's
+  `mergeAttributes()`: an attribute object with an own `__proto__` key turns
+  into inherited DOM attributes, a path to script in the editor. It is fixed
+  only in TipTap 3. StarterKit 3 bundles Link, Underline, ListKeymap and
+  TrailingNode. Kiln keeps its own `safeHref`-gated Link and turns
+  StarterKit's off, and turns TrailingNode off so a closing table or code
+  block does not save an empty paragraph after it. Underline stays on: the
+  server already stored and rendered underline marks, but the old editor had
+  no such mark and stripped one from API-authored prose the next time the
+  block was edited. Ctrl/⌘U now applies it. The shared Yjs schema gains that
+  mark, so the collab schema version goes from 2 to 3, and a tab open across
+  the deploy is refused from the room ("stale bundle") instead of stripping
+  its peers' underlines. It keeps editing solo with autosave. Under the hood:
+  `@tiptap/extension-collaboration-cursor` becomes `-caret`, the table
+  row/cell/header packages fold into `@tiptap/extension-table`,
+  `y-prosemirror` gives way to `@tiptap/y-tiptap`, and `setContent` takes an
+  options object (v3 emits an update by default, so the reconnect reload now
+  passes `emitUpdate: false` explicitly).

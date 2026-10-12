@@ -38,12 +38,14 @@ export {Y, Awareness, applyAwarenessUpdate, encodeAwarenessUpdate}
 
 const REMOTE_ORIGIN = "kiln-collab-remote"
 
-// The editor's ProseMirror node-set version, bumped whenever the schema grows
-// (2 = tables, #475). Sent on join so the server can refuse peers running an
-// older bundle: y-prosemirror DELETES nodes its schema doesn't know from the
-// shared doc, so one stale tab would silently destroy every peer's tables.
+// The editor's ProseMirror schema version, bumped whenever the schema grows
+// (2 = tables, #475; 3 = TipTap 3, whose StarterKit adds the underline mark).
+// Sent on join so the server can refuse peers running an older bundle: the
+// Yjs binding DELETES nodes its schema doesn't know from the shared doc, and
+// drops marks it doesn't know, so one stale tab would silently destroy every
+// peer's tables or underlines.
 // A refused join falls back to solo editing below — safe, just not live.
-export const SCHEMA_VSN = 2
+export const SCHEMA_VSN = 3
 
 // Awareness (caret/selection/name) pushes are coalesced to one frame per this
 // many ms — the latest local state wins, so nothing is lost by waiting — which
