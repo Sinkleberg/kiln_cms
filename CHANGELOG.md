@@ -60,6 +60,11 @@ Every summary line below that was shortened links to its own entry there.
   rich-text editor can no longer run script.**
   ([long form](docs/changelog/unreleased.md#prosemirror-view-paste-xss))
 
+- **The rich-text editor moves to TipTap 3 for GHSA-cp6q-959q-f8rh, and keeps
+  underlines it used to drop; a co-editing tab still on the old bundle edits
+  solo until it reloads.**
+  ([long form](docs/changelog/unreleased.md#tiptap-3))
+
 ## [1.3.0] - 2026-10-12
 
 Long form: [docs/changelog/v1.3.0.md](docs/changelog/v1.3.0.md) —
