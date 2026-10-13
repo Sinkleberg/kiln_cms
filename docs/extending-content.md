@@ -251,8 +251,11 @@ drop the definition) when querying or indexing demands it.
 ## 5. Plugins (D18)
 
 For everything beyond one project's content model, package your extension as
-a **plugin** — compile-time OTP code in a `projects/` directory (not a Hex or
-git dependency, see #1909) with one entry module and one config line:
+a **plugin** — compile-time OTP code with one entry module and one config
+line, either in a `projects/` directory or, when it needs nothing from the core
+but the [`kiln_plugin`](https://github.com/The-Verscienta/kiln_cms/blob/main/sdk/kiln_plugin/README.md) contract (blocks, field
+types, spam checks, image backends), as a Hex, git or `path:` dependency
+(#1909). The generator scaffolds the `projects/` shape:
 
 ```bash
 mix kiln.gen.plugin Ratings --block star_rating --field stars

@@ -29,7 +29,12 @@
           "apps/*/lib/",
           "apps/*/src/",
           "apps/*/test/",
-          "apps/*/web/"
+          "apps/*/web/",
+          # The plugin SDK (#1909): moved out of lib/, still held to this
+          # config. Its own CI job runs credo too, but against Credo's defaults.
+          "sdk/kiln_plugin/lib/",
+          "sdk/kiln_plugin/test/",
+          "sdk/fixtures/"
         ],
         excluded: [~r"/_build/", ~r"/deps/", ~r"/node_modules/"]
       },

@@ -27,6 +27,28 @@ jump without `--allow-major` precisely because it's promised to mean "your
 subproject needs work" — bumping major for a merely large release trains
 people to pass the flag reflexively.
 
+### The plugin SDK (`kiln_plugin`)
+
+The plugin contract ships in its own package,
+[`sdk/kiln_plugin`](https://github.com/The-Verscienta/kiln_cms/blob/main/sdk/kiln_plugin/README.md) (#1909), released from its
+own `kiln_plugin-vX.Y.Z` tags by `release-clients.yml`, not by a core release.
+The core always builds against the copy in this repository, so a core release
+needs nothing from Hex. Two things tie the two together:
+
+- **A core release that changed `sdk/kiln_plugin` publishes the package too**:
+  bump its `@version` and CHANGELOG in the same release PR, and tag
+  `kiln_plugin-vX.Y.Z` after the core tag. Third-party plugins resolve the
+  contract from Hex, and `mix kiln.plugins.doctor` checks their requirement
+  against the bundled version, so a core that bundles an unpublished
+  `kiln_plugin` version can't be targeted by anyone else.
+- **Publish `kiln_plugin` before the core's docs are next published.** The
+  core's reference no longer contains the contract modules: every
+  `Kiln.Plugin`/`Kiln.Block`/`Kiln.FieldType` reference in it links to
+  hexdocs.pm/kiln_plugin, which 404s until the first publish.
+
+SemVer for the package mirrors the core's contract: a minor adds (a callback
+with a default, a DSL option), a major only alongside a core major.
+
 ## Cutting a release
 
 1. **Confirm CI is green on `main`.** The `overlay_drift` job is the one that

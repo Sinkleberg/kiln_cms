@@ -23,4 +23,49 @@ defmodule Kiln.Plugins.CompileEdges do
       end
     end
   end
+
+  @doc false
+  # The compiled identity of every module the registries bake from: each
+  # configured plugin and each block and field type it contributes, by its
+  # beam's MD5. The input to `Kiln.Plugins.__mix_recompile__?/0`, which compares
+  # it with the digest taken when `Kiln.Plugins` last compiled.
+  #
+  # The MD5 rather than only the `blocks/0`/`field_types/0` lists: a field
+  # added to a dependency plugin's block leaves the lists alone but changes
+  # what the core derives from the block at compile time (its storage union
+  # member, its GraphQL/JSON:API types). A module that no longer loads
+  # (removed, renamed) hashes to a fresh reference, so the answer is
+  # "recompile" and the compiler reports the real problem.
+  @spec digest([module()]) :: integer() | reference()
+  def digest(plugins) do
+    :erlang.phash2(
+      for plugin <- plugins,
+          module <- [plugin | plugin.blocks() ++ plugin.field_types()],
+          do: {module, md5(module)}
+    )
+  rescue
+    _ in [UndefinedFunctionError, ArgumentError] -> make_ref()
+  end
+
+  # The MD5 of the module's .beam on disk, which is what Mix just wrote, and
+  # which is the same value `module_info(:md5)` reports for the code the file
+  # holds. Read from disk rather than from the loaded module because
+  # `mix test --cover` replaces loaded modules with cover-compiled ones, whose
+  # MD5 differs; that would make the digest look stale in every covered run.
+  # A module with no file (compiled in memory) falls back to the loaded MD5.
+  defp md5(module) do
+    with path when is_list(path) and path != [] <- beam_path(module),
+         {:ok, {^module, md5}} <- :beam_lib.md5(path) do
+      md5
+    else
+      _ -> module.module_info(:md5)
+    end
+  end
+
+  defp beam_path(module) do
+    case :code.which(module) do
+      :cover_compiled -> :code.where_is_file(~c"#{module}.beam")
+      path -> path
+    end
+  end
 end

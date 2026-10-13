@@ -1,7 +1,8 @@
-# Publishes the two official SDKs — `@kiln-cms/client` to npm and
-# `kiln_client` to Hex — when their own release tag is pushed. The clients'
-# READMEs ("Releasing") are the surrounding checklist, including the one-time
-# registry setup a maintainer has to do before the first run can succeed.
+# Publishes the official SDKs — `@kiln-cms/client` to npm, and `kiln_client`
+# and the plugin SDK `kiln_plugin` (#1909) to Hex — when their own release tag
+# is pushed. Each package's README ("Releasing") is the surrounding checklist,
+# including the one-time registry setup a maintainer has to do before the
+# first run can succeed.
 #
 # Why its own workflow rather than jobs in `release.yml`: the SDKs version
 # independently of the CMS (a client fix should not need a core release, and
@@ -24,6 +25,7 @@ on:
     tags:
       - "client-js-v*.*.*"
       - "kiln_client-v*.*.*"
+      - "kiln_plugin-v*.*.*"
 
 # A second push of the same tag would race itself to the registry. Not
 # cancel-in-progress: a half-finished publish is worse than a queued run, and
@@ -305,6 +307,142 @@ jobs:
         # fails instead of publishing something the attestation doesn't cover.
         env:
           TARBALL: ${{ needs.hex-build.outputs.tarball }}
+        run: |
+          mix hex.build --output rebuilt.tar
+          cmp "$GITHUB_WORKSPACE/attested/$TARBALL" rebuilt.tar
+          rm rebuilt.tar
+
+      - name: Publish package and docs
+        env:
+          HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
+        run: mix hex.publish --yes
+
+  # ── kiln_plugin (Hex) ─────────────────────────────────────────────────────
+  #
+  # The same pair as kiln_client's above, for the plugin SDK. Its tag can
+  # never trigger the kiln_client jobs or the reverse: each job's `if:` names
+  # its own prefix, and `kiln_plugin-v` and `kiln_client-v` differ by more
+  # than the `startsWith` either job tests.
+
+  plugin-build:
+    name: Verify and build kiln_plugin
+    if: startsWith(github.ref_name, 'kiln_plugin-v')
+    runs-on: ubuntu-24.04
+
+    defaults:
+      run:
+        working-directory: sdk/kiln_plugin
+
+    outputs:
+      tarball: ${{ steps.build.outputs.tarball }}
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Elixir/OTP
+        uses: erlef/setup-beam@v1
+        with:
+          # Same toolchain as `ci.yml`'s `plugin_sdk` job.
+          version-file: .tool-versions
+          version-type: strict
+
+      - name: Tag version must equal mix.exs version
+        # As for kiln_client: sed, before `deps.get`, on the one
+        # `@version "X.Y.Z"` line; an empty match fails the comparison.
+        env:
+          REF: ${{ github.ref_name }}
+        run: |
+          tag_version="${REF#kiln_plugin-v}"
+          project_version="$(sed -n 's/^  @version "\(.*\)"$/\1/p' mix.exs)"
+          if [ "$tag_version" != "$project_version" ]; then
+            echo "::error::Tag $REF says $tag_version but sdk/kiln_plugin/mix.exs says $project_version"
+            exit 1
+          fi
+
+      # The same gate as `ci.yml`'s `plugin_sdk` job, for a tag on a commit
+      # that never went through a pull request.
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Check formatting
+        run: mix format --check-formatted
+
+      - name: Compile (warnings as errors)
+        run: mix compile --warnings-as-errors
+
+      - name: Run tests
+        run: mix test
+
+      - name: Compile the fixture plugin against only the SDK
+        working-directory: sdk/fixtures/dep_plugin
+        run: |
+          mix deps.get
+          mix compile --warnings-as-errors
+
+      - name: Build the Hex tarball
+        id: build
+        run: |
+          version="$(sed -n 's/^  @version "\(.*\)"$/\1/p' mix.exs)"
+          tarball="kiln_plugin-$version.tar"
+          mix hex.build --output "$tarball"
+          echo "tarball=$tarball" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: kiln-plugin-hex-tarball
+          path: sdk/kiln_plugin/${{ steps.build.outputs.tarball }}
+          if-no-files-found: error
+          retention-days: 7
+
+  plugin-publish:
+    name: Publish kiln_plugin to Hex
+    needs: plugin-build
+    runs-on: ubuntu-24.04
+
+    # The same `hex` environment and pause point as kiln_client. Its
+    # deployment-tag rule must allow `kiln_plugin-v*` as well (see
+    # sdk/kiln_plugin/README.md, "Releasing").
+    environment:
+      name: hex
+      url: https://hex.pm/packages/kiln_plugin
+
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+
+    defaults:
+      run:
+        working-directory: sdk/kiln_plugin
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Elixir/OTP
+        uses: erlef/setup-beam@v1
+        with:
+          version-file: .tool-versions
+          version-type: strict
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: kiln-plugin-hex-tarball
+          path: attested
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: attested/${{ needs.plugin-build.outputs.tarball }}
+
+      - name: Install dependencies
+        # Dev deps included: `mix hex.publish` builds the HexDocs with ex_doc.
+        run: mix deps.get
+
+      - name: Prove the publish builds the attested bytes
+        # See kiln_client's identical step: Hex tarballs are reproducible, so a
+        # rebuild from the same commit must equal the attested file.
+        env:
+          TARBALL: ${{ needs.plugin-build.outputs.tarball }}
         run: |
           mix hex.build --output rebuilt.tar
           cmp "$GITHUB_WORKSPACE/attested/$TARBALL" rebuilt.tar

@@ -1,0 +1,21 @@
+defmodule KilnDepFixture.Plugin do
+  @moduledoc """
+  The entry module of a plugin compiled as a Mix dependency (#1909): one
+  block and one field type, the two contributions the core bakes into
+  compile-time registries, so the suite proves both reach them from a
+  dependency.
+  """
+  use Kiln.Plugin
+
+  @impl Kiln.Plugin
+  def summary, do: "Test fixture: a plugin compiled as a Mix dependency."
+
+  # `scripts/ci/check_plugin_dep_recompile.sh` rewrites this line (adding
+  # `KilnDepFixture.Ribbon`) to prove an edit here reaches the core's block
+  # registry without `mix compile --force`. Keep it on one line.
+  @impl Kiln.Plugin
+  def blocks, do: [KilnDepFixture.Badge]
+
+  @impl Kiln.Plugin
+  def field_types, do: [KilnDepFixture.FieldTypes.Stars]
+end

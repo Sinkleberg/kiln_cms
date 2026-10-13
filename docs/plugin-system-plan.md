@@ -40,8 +40,9 @@ exactly what the project plan called for.
 ## 2. Decision D18 — the plugin contract
 
 > **D18. Plugins are compile-time OTP code registered by one config entry.**
-> A plugin is a module (`use Kiln.Plugin`) shipped as a `projects/`
-> directory, declared in `config :kiln_cms, :plugins, [...]`.
+> A plugin is a module (`use Kiln.Plugin`) shipped as a Mix dependency
+> (Hex, git or path) or as a `projects/` directory, declared in
+> `config :kiln_cms, :plugins, [...]`.
 > It contributes through **explicit callbacks** — blocks, nav items,
 > supervision children, Oban queues, admin routes — while domains keep the
 > existing config registration (`:ash_domains`/`:content_domains`), because
@@ -49,17 +50,33 @@ exactly what the project plan called for.
 > compile-time (D4's stance): no dynamic module loading; the "marketplace"
 > future is installers, not runtime code.
 
-> **Amended (#1909): `projects/` only, not a Hex or git dependency.** D18 as
-> first written also allowed "a hex dep". That cannot compile: Mix builds a
-> dependency before the project that uses it, with only the dependency's own
-> deps loaded, so `use Kiln.Plugin` (a macro) fails with `module Kiln.Plugin is
-> not loaded and could not be found`. A plugin can't fix that by depending
-> on `kiln_cms`: the core isn't on Hex, and in the overlay layout `kiln_cms`
-> *is* the root project, so a git/`path:` dependency on it would be a
-> cycle. A plugin is shared as a git repository that a site vendors or
-> submodules into `projects/<name>/`. A separately published plugin SDK
-> (`Kiln.Plugin`, `Kiln.Block`, `Kiln.FieldType` in their own package) would
-> lift this for plugins that don't define content types; #1909 tracks it.
+> **Amended twice (#1909).** D18 as first written allowed "a hex dep", which
+> could not compile: Mix builds a dependency before the project that uses
+> it, with only the dependency's own deps loaded, so `use Kiln.Plugin` (a
+> macro) failed with `module Kiln.Plugin is not loaded and could not be
+> found`, and a plugin can't depend on `kiln_cms` (not on Hex, and the root
+> project in the overlay layout, so a cycle). The first amendment said
+> `projects/` only.
+>
+> The second extracted the compile-time contract into its own package,
+> [`kiln_plugin`](https://github.com/The-Verscienta/kiln_cms/blob/main/sdk/kiln_plugin/README.md): `Kiln.Plugin`, `Kiln.Block`
+> and `Kiln.Block.*`, `Kiln.FieldType`, `Kiln.Tokens`,
+> `Kiln.Forms.SpamCheck` and `Kiln.ImageBackend`, under the same names. The
+> core depends on it as a `path:` dependency (`override: true`), so overlays
+> see no change, and a plugin that depends on it can be a Hex, git or path
+> dependency. What such a plugin can contribute is bounded by what it can
+> build from that package alone: blocks, field types (without colocated
+> hooks), spam checks, image backends, nav items, children and queues.
+> Content types (`KilnCMS.CMS.Content`), domains, advisory checks
+> (`Kiln.Advisory`'s context is computed by the core) and LiveViews on
+> `KilnCMSWeb` still need the core, so those plugins stay `projects/`
+> overlays. A dependency plugin is still added to the core's `mix.exs`, which
+> edits the pin; an overlay-level hook for that is open in #1909.
+>
+> The SDK versions separately from the core (`kiln_plugin-vX.Y.Z` tags). It
+> is under the same 1.x contract (minors add; a major only with a core
+> major), and because the core overrides it, Mix doesn't check a plugin's
+> requirement on it: `mix kiln.plugins.doctor` does.
 
 ```elixir
 defmodule MyApp.Plugin do
@@ -97,9 +114,11 @@ the block union and the router need the list during compilation.
    blocks ++ every plugin's `blocks/0`, keyed by each module's `Kiln.Block`
    name. `TypedBlocks`' `@block_modules` / `@type_atoms` switch to the same
    source; the editor palette and serializer dispatch are already
-   registry-driven. (Compile-order is safe: the compiler tracks the
-   module references; plugins compile in the same pass from `projects/` or
-   as deps, which compile first.)
+   registry-driven. (Compile-order is safe: a `projects/` plugin compiles
+   in the same pass and the compiler tracks the references; a dependency
+   plugin compiles first, and `Kiln.Plugins.__mix_recompile__?/0` recompiles
+   the registries when one changes, since Mix tracks no compile-time edge
+   into a dependency, #1909.)
 2. **Admin nav.** `nav_links/1` appends `Kiln.Plugins.nav_items()` (runtime
    read), each gated by its declared role.
 3. **Supervision + queues.** `application.ex` appends
@@ -136,8 +155,9 @@ the block union and the router need the list during compilation.
   runtime `KnownFieldType` validation (replacing the `one_of` constraint),
   editor + fields-admin rendering, doctor contract/collision checks, and
   `mix kiln.gen.plugin --field <name>`.
-- **Marketplace/discovery** — the plan marks it "future"; vendoring a
-  plugin's repo into `projects/` is the v1 distribution story (#1909). Scoped in
+- **Marketplace/discovery** — the plan marks it "future"; a dependency on a
+  plugin built on `kiln_plugin`, or vendoring a plugin's repo into
+  `projects/` when it needs the core, is the v1 distribution story (#1909). Scoped in
   `docs/plugin-extensibility.md` (decision #333): **no runtime hot-loading of
   arbitrary code** (the BEAM has no in-process sandbox); the marketplace is
   vetted, compile-time, git-distributed plugins carrying cheap catalog
@@ -161,7 +181,7 @@ the block union and the router need the list during compilation.
 2. **Seam closures + fixture plugin.** ✅ **Done.** `BlockUnion` and
    `TypedBlocks` derive from `KilnCMS.Blocks.union_types/0` (core + plugin,
    compile-time; the runtime `modules/0` scan also merges plugin blocks,
-   written for hex-dep plugins, which can't compile today, see #1909); nav appends role-gated plugin items;
+   which also covers dependency plugins on `kiln_plugin`, #1909); nav appends role-gated plugin items;
    `application.ex` appends plugin children and merges plugin Oban queues at
    boot; `KilnCMSWeb.PluginRouter.plugin_admin_routes/0` expands plugin
    panels inside the admin live_session (`alias: false` — plugin modules are

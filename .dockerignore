@@ -24,6 +24,13 @@ _build_*
 deps
 cover
 doc
+# The same for the plugin SDK's standalone build (#1909); these patterns are
+# anchored at the context root, so the ones above don't reach it.
+sdk/*/_build
+sdk/*/deps
+sdk/*/doc
+sdk/*/priv/plts
+sdk/fixtures
 
 # Dialyzer PLTs live under priv/, which the Dockerfile COPYs wholesale. They are
 # large, host-specific, and of no use at runtime.

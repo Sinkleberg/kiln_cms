@@ -84,6 +84,10 @@ COPY mix.exs mix.lock ./
 # decide its dep list (#1321), so both have
 # to be in the image before the first `mix` command that loads the project.
 COPY config/ml_flag.exs config/strict_test_flag.exs config/
+# The plugin SDK is a `path:` dependency of the core (#1909), so `deps.get`
+# needs its source. Only the package itself: `sdk/fixtures/` is a test-only
+# dependency that a prod `deps.get` never reads.
+COPY sdk/kiln_plugin sdk/kiln_plugin
 RUN mix deps.get --only $MIX_ENV
 
 COPY config/config.exs config/${MIX_ENV}.exs config/

@@ -57,7 +57,7 @@ hard-blocked on this write surface.
       `mix kiln.plugins.list` for local discovery, alongside the existing
       `mix kiln.gen.plugin` → `projects/` dir + config line → `mix kiln.plugins.doctor`
       install flow. "Marketplace" here means a catalog of vetted, git-
-      distributed, **compile-time** plugins vendored into `projects/` (#1909) — installers, not a code-execution
+      distributed, **compile-time** plugins — Mix dependencies on `kiln_plugin`, or vendored into `projects/` when they need the core (#1909) — installers, not a code-execution
       sandbox.
 
 **What #333 now tracks** is the genuinely different project the above ruled out:

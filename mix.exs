@@ -193,7 +193,11 @@ defmodule KilnCMS.MixProject do
         # be rewritten to keep this passing.
         "KilnCMS.CMS.TypedBlocks.to_legacy/1",
         "KilnCMS.CMS.TypedBlocks.from_legacy/1",
-        "KilnCMS.CMS.Block"
+        "KilnCMS.CMS.Block",
+        # Mix's recompile hook (`@doc false`, it is Mix's API rather than the
+        # module's), named by docs/plugin-system-plan.md for how a dependency
+        # plugin's edit reaches the compile-time registries (#1909).
+        "Kiln.Plugins.__mix_recompile__?/0"
       ],
       extras: extras(),
       # The committed API specs (`mix kiln.api.specs`) ship with the docs build,
@@ -704,6 +708,18 @@ defmodule KilnCMS.MixProject do
       {:ash_phoenix, "~> 2.0"},
       {:ash_postgres, "~> 2.0"},
       {:ash, "~> 3.0"},
+      # The compile-time plugin contract (`Kiln.Plugin`, `Kiln.Block`,
+      # `Kiln.FieldType`, …) lives in its own package so a plugin can depend on
+      # it without depending on the core, and so ship as a Hex, git or path
+      # dependency (#1909; sdk/kiln_plugin/README.md). The core always builds
+      # against the copy in this repository. `override: true` is what lets a
+      # plugin's own `{:kiln_plugin, "~> 1.0"}` (Hex) converge on this path
+      # dependency instead of failing as "diverged" — and it also stops Mix
+      # checking that requirement, so `mix kiln.plugins.doctor` checks it.
+      {:kiln_plugin, path: "sdk/kiln_plugin", override: true},
+      # A plugin compiled as a dependency (#1909), registered in
+      # config/test.exs: the suite runs with one, so that path stays tested.
+      {:kiln_dep_fixture, path: "sdk/fixtures/dep_plugin", only: :test},
       # Yjs CRDTs on the BEAM (collab-editing prototype — see the spike doc).
       {:y_ex, "~> 0.10.5"},
       {:phoenix, "~> 1.8.8"},
