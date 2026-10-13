@@ -72,6 +72,12 @@ Every summary line below that was shortened links to its own entry there.
   solo until it reloads.**
   ([long form](docs/changelog/unreleased.md#tiptap-3))
 
+### Fixed
+
+- **Clicking a rich-text block's toolbar button keeps the caret in the text, so
+  the first letters typed straight after Bold are no longer lost.**
+  ([long form](docs/changelog/unreleased.md#toolbar-keeps-editor-focus))
+
 ## [1.3.0] - 2026-10-12
 
 Long form: [docs/changelog/v1.3.0.md](docs/changelog/v1.3.0.md) —

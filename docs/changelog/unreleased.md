@@ -69,3 +69,15 @@ carries the reasoning.
   `y-prosemirror` gives way to `@tiptap/y-tiptap`, and `setContent` takes an
   options object (v3 emits an update by default, so the reconnect reload now
   passes `emitUpdate: false` explicitly).
+
+<a id="toolbar-keeps-editor-focus"></a>
+
+- **Clicking a rich-text block's toolbar button keeps the caret in the text, so
+  the first letters typed straight after Bold are no longer lost.** The block
+  editor's toolbar let the browser move focus to the button on mousedown. The
+  button's `chain().focus()` hands focus back to the editor only on the next
+  animation frame, so keystrokes in that gap went to the button: click Bold,
+  type "heavy" at once, and the block held a bold "avy". Each click also blurred
+  the editor, which released the block's field lock and took it again. The
+  toolbar now cancels mousedown, as the page editor's floating toolbar already
+  did. The language select still opens.

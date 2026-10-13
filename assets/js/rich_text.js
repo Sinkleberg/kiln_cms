@@ -984,6 +984,14 @@ function syncInlineToolbar(hook) {
 // owns the document (TipTap ignores the option there anyway — see mountCollab).
 function buildEditor(hook, extensions, content = null) {
   const toolbarEl = hook.el.querySelector("[data-toolbar]")
+  // Same guard as the inline toolbar: a button must not take focus from the
+  // editor on mousedown. If it did, the click's `chain().focus()` would hand
+  // focus back only on the next animation frame, and whatever the author typed
+  // in between went to the button — the first letters after Bold were dropped
+  // and the rest came out bold. The blur also cycled field_blur/field_focus,
+  // releasing and re-taking this block's lock on every toolbar click. The
+  // language select fences itself off (its mousedown has to run to open).
+  toolbarEl.addEventListener("mousedown", e => e.preventDefault())
 
   // Prose flows to the server as the TipTap document via a debounced
   // rich_text_body push (converted to Portable Text there) — NOT through a
