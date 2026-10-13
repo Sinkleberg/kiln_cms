@@ -44,4 +44,15 @@ defmodule KilnCMSWeb.CspImgSrcTest do
 
     assert csp(conn) =~ "img-src 'self' data: blob: https://images.unsplash.com;"
   end
+
+  # #1955: a selected image backend's delivery origin is image-only — it joins
+  # `img-src`, never `media-src`.
+  test "a selected image backend admits its hosts to img-src only", %{conn: conn} do
+    Application.put_env(:kiln_cms, :image_backend, KilnCMS.FixturePlugin.ImageBackend)
+    on_exit(fn -> Application.delete_env(:kiln_cms, :image_backend) end)
+
+    policy = csp(conn)
+    assert policy =~ "img-src 'self' data: blob: https://images.fixture.test;"
+    refute policy =~ ~r/media-src[^;]*images\.fixture\.test/
+  end
 end

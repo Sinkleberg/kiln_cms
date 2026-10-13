@@ -60,6 +60,7 @@ defmodule Kiln.PluginsTest do
     # plugin contributing only a check is invisible to the catalog otherwise.
     assert manifest.advisories == []
     assert manifest.spam_checks == []
+    assert manifest.image_backends == [FixturePlugin.ImageBackend]
 
     assert manifest.nav_items == 1
     assert manifest.admin_routes == 1
@@ -87,7 +88,7 @@ defmodule Kiln.PluginsTest do
       assert output =~ "Test fixture exercising every plugin seam."
       assert output =~ "https://example.com/fixture-plugin"
       # Contribution summary is pluralized and omits zero-count kinds.
-      assert output =~ "5 blocks, 4 field types, 1 nav item, 1 admin route"
+      assert output =~ "5 blocks, 4 field types, 1 image backend, 1 nav item, 1 admin route"
     end
 
     test "the contribution summary counts every route kind" do
@@ -133,6 +134,7 @@ defmodule Kiln.PluginsTest do
           field_types: [],
           advisories: [],
           spam_checks: [],
+          image_backends: [],
           nav_items: 0,
           admin_routes: 0,
           editor_routes: 0,
@@ -408,6 +410,67 @@ defmodule Kiln.PluginsTest do
       assert error.message =~ "redefines a core Oban queue"
       assert error.message =~ "must be absolute"
       assert error.message =~ "must live under /editor"
+    end
+
+    # #1955: `name/0` is written on every image a backend holds, so the doctor
+    # holds it to the contract, and the selected backend to an installed plugin.
+    test "flags image backends that break the contract, share a name, or aren't installed" do
+      defmodule NotABackend do
+        def name, do: "not_a_backend"
+      end
+
+      defmodule NamelessBackend do
+        use Kiln.ImageBackend
+        def name, do: ""
+        def configured?, do: true
+        def accepts?(_candidate), do: true
+        def store(key, _path), do: {:ok, key}
+        def fetch(_key), do: {:error, :enoent}
+        def delete(_key), do: :ok
+        def url(key), do: key
+      end
+
+      defmodule ImpostorBackend do
+        use Kiln.ImageBackend
+        def name, do: "fixture_images"
+        def configured?, do: true
+        def accepts?(_candidate), do: true
+        def store(key, _path), do: {:ok, key}
+        def fetch(_key), do: {:error, :enoent}
+        def delete(_key), do: :ok
+        def url(key), do: key
+      end
+
+      defmodule BackendPlugin do
+        use Kiln.Plugin
+        def image_backends, do: [NotABackend, NamelessBackend, ImpostorBackend]
+      end
+
+      problems =
+        Mix.Tasks.Kiln.Plugins.Doctor.image_backend_problems(
+          [KilnCMS.FixturePlugin, BackendPlugin],
+          KilnCMS.Media.ImageBackendTest
+        )
+
+      assert Enum.any?(problems, &(&1 =~ "NotABackend does not implement Kiln.ImageBackend"))
+      assert Enum.any?(problems, &(&1 =~ "NamelessBackend needs a name/0 of 1-64 characters"))
+      assert Enum.any?(problems, &(&1 =~ ~s(name "fixture_images" is declared by more than one)))
+
+      assert Enum.any?(
+               problems,
+               &(&1 =~ ":image_backend — KilnCMS.Media.ImageBackendTest does not")
+             )
+
+      # A real backend no plugin declares is reported as exactly that.
+      assert [problem] =
+               Mix.Tasks.Kiln.Plugins.Doctor.image_backend_problems([], ImpostorBackend)
+
+      assert problem =~ "is not declared by any installed plugin"
+
+      assert Mix.Tasks.Kiln.Plugins.Doctor.image_backend_problems(
+               [KilnCMS.FixturePlugin],
+               KilnCMS.FixturePlugin.ImageBackend
+             ) == []
     end
 
     # #937: `test/kiln/block/json_schema_test.exs` proves the *core* render/schema

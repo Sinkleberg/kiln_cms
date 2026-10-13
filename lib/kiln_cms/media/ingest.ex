@@ -311,6 +311,7 @@ defmodule KilnCMS.Media.Ingest do
     {source, stripped?} = stripped_source(path, ext)
 
     try do
+      opts = image_target(opts, source, content_type, stripped?)
       store_and_create(source, ext, content_type, filename, opts)
     after
       if stripped?, do: File.rm(source)
@@ -408,6 +409,28 @@ defmodule KilnCMS.Media.Ingest do
   # to strip, and no reason to hand it to ffmpeg.
   defp persist(path, %{ext: ext, content_type: content_type}, filename, opts),
     do: store_and_create(path, ext, content_type, filename, opts)
+
+  # An image bound for the operator's store goes to the image backend instead
+  # when one is active and takes it (#1955). Two things keep it here:
+  #
+  #   * a site's own store (#1559) — the site chose where its files live, and
+  #     the backend is the operator's choice, not the site's;
+  #   * a strip that failed. Kept locally that is the same compromise every
+  #     image upload already makes (a valid file still saves); handing the
+  #     unstripped original to a third-party service is not.
+  defp image_target(opts, source, content_type, stripped?) do
+    with nil <- opts[:storage_target],
+         true <- stripped?,
+         backend when not is_nil(backend) <-
+           Kiln.ImageBackend.Registry.accepting(%{
+             content_type: content_type,
+             byte_size: stored_size(source) || 0
+           }) do
+      Keyword.put(opts, :storage_target, KilnCMS.Storage.BackendTarget.for(backend))
+    else
+      _stays -> opts
+    end
+  end
 
   # #1122. Stage the upload as it arrived, privately, and hand the strip to the
   # worker. The size cap was checked on the received bytes already; the worker
@@ -625,6 +648,7 @@ defmodule KilnCMS.Media.Ingest do
         url: Storage.url(key, opts[:storage_target])
       }
       |> put_present(:storage_profile_id, Storage.profile_id(opts[:storage_target]))
+      |> put_present(:image_backend, Storage.image_backend(opts[:storage_target]))
       |> put_present(:alt, opts[:alt])
       |> put_present(:caption, opts[:caption])
       |> put_present(:decorative, opts[:decorative])

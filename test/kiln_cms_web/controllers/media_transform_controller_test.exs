@@ -352,4 +352,72 @@ defmodule KilnCMSWeb.MediaTransformControllerTest do
       assert get(conn, "/media/#{item.id}/t/w_640").status == 404
     end
   end
+
+  describe "an image backend's item (#1955)" do
+    alias KilnCMS.FixturePlugin.ImageBackend, as: Fixture
+
+    setup do
+      on_exit(fn -> Application.delete_env(:kiln_cms, :fixture_image_backend) end)
+    end
+
+    defp backend_image! do
+      src = Path.join(System.tmp_dir!(), "txc-#{System.unique_integer([:positive])}.png")
+      {:ok, image} = Image.new(1200, 800, color: :green)
+      {:ok, _} = Image.write(image, src)
+      key = "orig-#{System.unique_integer([:positive])}.png"
+      {:ok, ^key} = Fixture.store(key, src)
+      File.rm(src)
+
+      Ash.Seed.seed!(KilnCMS.CMS.MediaItem, %{
+        filename: "hero.png",
+        url: Fixture.url(key),
+        storage_key: key,
+        content_type: "image/png",
+        width: 1200,
+        height: 800,
+        image_backend: Fixture.name()
+      })
+    end
+
+    test "redirects to the backend's rendering, with the headers the bytes would carry",
+         %{conn: conn} do
+      item = backend_image!()
+      conn = get(conn, "/media/#{item.id}/t/w_640,v_#{ImageTransform.version(item)}")
+
+      assert conn.status == 302
+
+      assert header(conn, "location") ==
+               "https://images.fixture.test/#{item.storage_key}/w=640,h=427,f=png"
+
+      assert header(conn, "x-kiln-transform") == "backend"
+      assert header(conn, "cache-control") == "public, max-age=31536000, immutable"
+      assert header(conn, "etag")
+      assert header(conn, "content-type") == nil
+      # Nothing was rendered, so nothing was kept.
+      assert CMS.list_media_derivatives!(item.id, authorize?: false) == []
+    end
+
+    # Signing and the allowlist are Kiln's to enforce: a backend URL that
+    # answered any size would make the allowlist advisory.
+    test "an unsigned size off the allowlist is refused before any redirect", %{conn: conn} do
+      item = backend_image!()
+      conn = get(conn, "/media/#{item.id}/t/w_641")
+
+      assert conn.status == 400
+      assert conn.resp_body =~ "needs a signed URL"
+      assert header(conn, "location") == nil
+    end
+
+    test "a backend that can't render it is rendered here, from the backend's original",
+         %{conn: conn} do
+      Application.put_env(:kiln_cms, :fixture_image_backend, renders?: false)
+      item = backend_image!()
+
+      conn = get(conn, "/media/#{item.id}/t/w_640")
+
+      assert conn.status == 200
+      assert header(conn, "x-kiln-transform") == "miss"
+      assert decoded(conn) == {640, 427}
+    end
+  end
 end

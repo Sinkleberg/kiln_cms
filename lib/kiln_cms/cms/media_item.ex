@@ -171,8 +171,9 @@ defmodule KilnCMS.CMS.MediaItem do
   #
   # `:storage_profile_id` (#1559) likewise: which store the file went to is
   # decided once, by `Ingest` at upload, and never changes after — every later
-  # write keeps its files in the same store.
-  @create_accept @writable_fields ++ [:quarantined, :storage_profile_id]
+  # write keeps its files in the same store. `:image_backend` (#1955) is the
+  # same decision for an image an external backend took.
+  @create_accept @writable_fields ++ [:quarantined, :storage_profile_id, :image_backend]
 
   actions do
     # Not atomic: the `BustMediaCache` after-action runs an in-BEAM side effect.
@@ -366,6 +367,36 @@ defmodule KilnCMS.CMS.MediaItem do
       require_atomic? false
     end
 
+    # System-only (#1955): `KilnCMS.Media.Adoption` hands an image backend a
+    # row whose image it already holds — imported by URL, so Kiln has no file
+    # for it and can't rotate, derive or delete it. Only such a row: one with
+    # no `storage_key` and no backend yet. Everything else got its store at
+    # upload and keeps it (`:create`'s comment), so this never moves a file
+    # Kiln holds and never re-points one a backend already has.
+    update :adopt_into_image_backend do
+      accept [:image_backend, :storage_key, :url]
+      require_atomic? false
+
+      validate fn changeset, _context ->
+        cond do
+          not is_nil(changeset.data.storage_key) ->
+            {:error, field: :storage_key, message: "already names a stored file"}
+
+          not is_nil(changeset.data.image_backend) ->
+            {:error, field: :image_backend, message: "is already set"}
+
+          is_nil(Ash.Changeset.get_attribute(changeset, :image_backend)) ->
+            {:error, field: :image_backend, message: "is required"}
+
+          is_nil(Ash.Changeset.get_attribute(changeset, :storage_key)) ->
+            {:error, field: :storage_key, message: "is required"}
+
+          true ->
+            :ok
+        end
+      end
+    end
+
     # The quarantined rows `KilnCMS.Media.QuarantineReaper` removes: every
     # site's, older than `cutoff`. Cross-org by nature, so it is one of the
     # sanctioned `multitenancy :bypass` reads; a tenant-less read of the
@@ -556,7 +587,7 @@ defmodule KilnCMS.CMS.MediaItem do
     # actions, never `:update` (which can gate an item) or `:update_metadata`.
     policy action_type([:create, :update]) do
       authorize_if KilnCMS.CMS.Checks.OrgEditor
-      forbid_unless action([:record_processing, :release_quarantine])
+      forbid_unless action([:record_processing, :release_quarantine, :adopt_into_image_backend])
       authorize_if {KilnCMS.Checks.SystemActor, subsystem: :media}
     end
 
@@ -591,6 +622,12 @@ defmodule KilnCMS.CMS.MediaItem do
     # be publishing an unstripped upload. Recording what the pipeline derived
     # is likewise the pipeline's (an editor edits through `:update`).
     policy action([:release_quarantine, :record_processing]) do
+      authorize_if {KilnCMS.Checks.SystemActor, subsystem: :media}
+    end
+
+    # Adopting a row into an image backend (#1955) is the media pipeline's
+    # bulk act, run by `mix kiln.media.adopt_image_backend` — not an editor's.
+    policy action(:adopt_into_image_backend) do
       authorize_if {KilnCMS.Checks.SystemActor, subsystem: :media}
     end
   end
@@ -747,6 +784,13 @@ defmodule KilnCMS.CMS.MediaItem do
     # — they are all the operator's, which is what `nil` says. No foreign key
     # for the same reason: validating one scans the whole table under a lock.
     attribute :storage_profile_id, :uuid, public?: false
+
+    # The image backend holding this item's file (#1955) — a
+    # `Kiln.ImageBackend.name/0`, resolved by `KilnCMS.Storage.locate/1`.
+    # `nil` for every file in the operator's or a site's own store, which is
+    # every row that predates it: nullable, no default, so adding it rewrote
+    # nothing. A name, not a module: rows outlive module renames.
+    attribute :image_backend, :string, public?: false, constraints: [max_length: 64]
 
     # #1122. `true` while a deferred A/V metadata strip is pending: the blob is
     # in PRIVATE storage under `storage_key`, `url` points at nothing yet, and
