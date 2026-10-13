@@ -427,6 +427,7 @@ defmodule KilnCMSWeb.SystemLiveTest do
       assert contribution_counts(html) == %{
                "Blocks" => "5",
                "Field types" => "4",
+               "Image backends" => "1",
                "Nav items" => "1",
                "Admin routes" => "1",
                "Background queues" => "1",
@@ -449,6 +450,9 @@ defmodule KilnCMSWeb.SystemLiveTest do
       assert panel =~ "Fixture"
       assert length(String.split(panel, "/editor/fixture")) == 2
       assert panel =~ "1 worker"
+      # Installed is not in use: the fixture backend is never selected here.
+      assert panel =~ "Image backend"
+      assert panel =~ "Installed, not selected"
     end
 
     test "reports rather than offers to install", %{conn: conn} do

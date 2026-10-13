@@ -63,6 +63,7 @@ defmodule Mix.Tasks.Kiln.Plugins.List do
         count("field type", length(m.field_types)),
         count("advisory", length(m.advisories)),
         count("spam check", length(m.spam_checks)),
+        count("image backend", length(m.image_backends)),
         count("nav item", m.nav_items),
         count("admin route", m.admin_routes),
         # Every route kind is its own seam (admin-gated, editor-gated, public);

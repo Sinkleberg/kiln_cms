@@ -5,6 +5,34 @@ The long-form entries behind the Unreleased section of
 merged. `CHANGELOG.md` carries the one-line summary of each; this file
 carries the reasoning.
 
+<a id="image-backends"></a>
+
+- **A plugin can contribute an image backend (`Kiln.ImageBackend`) — an
+  external service such as Cloudflare Images that takes new image uploads and
+  renders their variants and transforms from URLs.** A new plugin callback,
+  `image_backends/0`, and an operator setting,
+  `config :kiln_cms, :image_backend, Module`, which selects one; installing a
+  plugin changes nothing until it is selected and reports itself configured.
+  A new image upload bound for the operator's store goes to the backend when
+  it accepts it — after metadata stripping, and never an image whose strip
+  failed. Documents, video, audio and a site's own bucket (#1559) are
+  untouched. The row records the backend's name in the new nullable
+  `media_items.image_backend` column, and `KilnCMS.Storage` resolves it, so
+  downloads, rotation, deletion and every other operation on that item reach
+  the backend that holds it, whichever is selected later. The variant worker
+  records the backend's URLs for the same labels, sizes and types the encoder
+  would have written (`ImageProcessor.plan/4`), so the `variants` map reads
+  the same to every client; `/media/:id/t/…` redirects to the backend after
+  Kiln's own signing, allowlist and policy checks. A backend that can't render
+  falls back to Kiln's encoder. The selected backend's delivery origin joins
+  `img-src`. `mix kiln.plugins.doctor` checks the contract and the name, and
+  System → Plugins says whether a backend is receiving uploads.
+  `mix kiln.media.adopt_image_backend` hands the backend the rows imported by
+  URL whose images it already holds (`key_for_url/1`), through a new
+  system-only `adopt_into_image_backend` action on media items. The Cloudflare
+  Images plugin itself ships separately.
+  ([#1955](https://github.com/The-Verscienta/kiln_cms/issues/1955))
+
 <a id="prosemirror-view-paste-xss"></a>
 
 - **prosemirror-view 1.42.6 for GHSA-c8x8-7fp4-3x9w: pasting HTML into the
@@ -41,6 +69,18 @@ carries the reasoning.
   `y-prosemirror` gives way to `@tiptap/y-tiptap`, and `setContent` takes an
   options object (v3 emits an update by default, so the reconnect reload now
   passes `emitUpdate: false` explicitly).
+
+<a id="toolbar-keeps-editor-focus"></a>
+
+- **Clicking a rich-text block's toolbar button keeps the caret in the text, so
+  the first letters typed straight after Bold are no longer lost.** The block
+  editor's toolbar let the browser move focus to the button on mousedown. The
+  button's `chain().focus()` hands focus back to the editor only on the next
+  animation frame, so keystrokes in that gap went to the button: click Bold,
+  type "heavy" at once, and the block held a bold "avy". Each click also blurred
+  the editor, which released the block's field lock and took it again. The
+  toolbar now cancels mousedown, as the page editor's floating toolbar already
+  did. The language select still opens.
 
 <a id="collab-e2e"></a>
 

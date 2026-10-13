@@ -1369,9 +1369,12 @@ defmodule KilnCMSWeb.Router do
     # blocks). Empty when the feature is off, which is the default.
     storage_hosts = Application.get_env(:kiln_cms, :csp_img_src, [])
 
+    # An installed image backend's delivery hosts (#1955) are image-only, so
+    # they widen `img-src` and not `media-src`, like the thumbnail hosts.
     img_hosts =
       Enum.uniq(
         storage_hosts ++
+          Kiln.ImageBackend.Registry.csp_hosts() ++
           KilnCMS.Unsplash.csp_img_src() ++
           KilnCMS.OEmbed.Provider.thumbnail_hosts()
       )

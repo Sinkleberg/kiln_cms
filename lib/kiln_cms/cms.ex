@@ -360,6 +360,7 @@ defmodule KilnCMS.CMS do
       # The media pipeline's own writes and scan (#1659) — `KilnCMS.Media.system/0`.
       define :record_media_processing, action: :record_processing
       define :release_media_quarantine, action: :release_quarantine
+      define :adopt_media_item_into_image_backend, action: :adopt_into_image_backend
       define :list_expired_quarantined_media, action: :quarantine_expired, args: [:cutoff]
     end
 

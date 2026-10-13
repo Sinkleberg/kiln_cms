@@ -35,6 +35,7 @@ defmodule KilnCMS.Media.VariantWorker do
 
   alias KilnCMS.{CMS, ImageProcessor, Media, Storage}
   alias KilnCMS.Media.Ingest
+  alias KilnCMS.Storage.BackendTarget
 
   @topic "media:updated"
 
@@ -79,6 +80,11 @@ defmodule KilnCMS.Media.VariantWorker do
       {:error, {:site_storage, _reason}} = error ->
         error
 
+      # The image backend holding it isn't installed (#1955): the same "the
+      # original is there, the way to it is not".
+      {:error, {:image_backend, _reason}} = error ->
+        error
+
       # Original isn't readable (e.g. removed) — nothing to do; keep the original.
       {:error, _} ->
         :ok
@@ -88,37 +94,111 @@ defmodule KilnCMS.Media.VariantWorker do
   defp generate(item, path, ext, tenant, site) do
     focal = %{x: item.focal_x || 0.5, y: item.focal_y || 0.5}
 
-    with {:ok, %{width: width, height: height, variants: files} = result} <-
-           ImageProcessor.process(path, ext, focal),
-         variants = store_variants(files, site),
-         :ok <- refuse_empty(variants, item) do
-      previous = item.variants || %{}
-
-      {:ok, _item} =
-        CMS.record_media_processing(
+    case rendered_by_backend(site, item.storage_key, path, ext, focal) do
+      {:ok, %{width: width, height: height, variants: variants}} ->
+        record(
           item,
-          %{
-            width: width,
-            height: height,
-            variants: variants,
-            # Rewritten every run, not merged (#1000): a libvips upgrade that
-            # gains an encoder, or a re-crop that brings the source under a
-            # dimension ceiling, has to be able to CLEAR a failure. A merged map
-            # would remember "impossible" for ever and permanently opt the item
-            # out of the repair it just became eligible for.
-            variant_failures: failure_map(result)
-          },
-          actor: Media.system(),
-          tenant: tenant
+          %{width: width, height: height, variants: variants, variant_failures: %{}},
+          tenant,
+          site
         )
 
-      reclaim(previous, variants, site)
-    else
-      # Not a processable raster image, or a run that produced nothing — keep
-      # what is already stored.
-      _ -> :ok
+      :encode_here ->
+        with {:ok, %{width: width, height: height, variants: files} = result} <-
+               ImageProcessor.process(path, ext, focal),
+             variants = store_variants(files, site),
+             :ok <- refuse_empty(variants, item) do
+          record(
+            item,
+            %{
+              width: width,
+              height: height,
+              variants: variants,
+              # Rewritten every run, not merged (#1000): a libvips upgrade that
+              # gains an encoder, or a re-crop that brings the source under a
+              # dimension ceiling, has to be able to CLEAR a failure. A merged map
+              # would remember "impossible" for ever and permanently opt the item
+              # out of the repair it just became eligible for.
+              variant_failures: failure_map(result)
+            },
+            tenant,
+            site
+          )
+        else
+          # Not a processable raster image, or a run that produced nothing — keep
+          # what is already stored.
+          _ -> :ok
+        end
+
+      :error ->
+        :ok
     end
   end
+
+  defp record(item, attrs, tenant, site) do
+    previous = item.variants || %{}
+
+    {:ok, _item} =
+      CMS.record_media_processing(item, attrs, actor: Media.system(), tenant: tenant)
+
+    reclaim(previous, attrs.variants, site)
+  end
+
+  # An image backend (#1955) that renders every planned variant from a URL
+  # gets those URLs — the same labels, sizes and content types the encoder
+  # would have written, so the map reads the same to every client, and
+  # `Regeneration.current?/1` agrees it is complete. No `"key"`: there is no
+  # blob per variant, so nothing for `reclaim/3` or a purge to delete.
+  #
+  # A backend that can't render even one of them keeps the whole run here,
+  # encoded locally and stored in the backend through `Storage.store/3` — one
+  # map is never half URLs and half files.
+  defp rendered_by_backend(%BackendTarget{module: backend}, key, path, ext, focal) do
+    with {:ok, {width, height}} <- ImageProcessor.dimensions(path),
+         {:ok, variants} <- backend_variants(backend, key, {width, height}, ext, focal) do
+      {:ok, %{width: width, height: height, variants: variants}}
+    else
+      :unsupported -> :encode_here
+      {:error, _not_an_image} -> :error
+    end
+  end
+
+  defp rendered_by_backend(_store, _key, _path, _ext, _focal), do: :encode_here
+
+  defp backend_variants(backend, key, {width, height}, ext, focal) do
+    width
+    |> ImageProcessor.plan(height, ext, focal)
+    |> Enum.reduce_while({:ok, %{}}, fn planned, {:ok, acc} ->
+      spec = %{
+        source: {width, height},
+        crop: planned.crop,
+        width: planned.width,
+        height: planned.height,
+        format: planned.format,
+        quality: quality(planned.format)
+      }
+
+      case backend.render_url(key, spec) do
+        {:ok, url} when is_binary(url) ->
+          entry = %{
+            "url" => url,
+            "width" => planned.width,
+            "height" => planned.height,
+            "content_type" => planned.content_type
+          }
+
+          {:cont, {:ok, Map.put(acc, planned.label, entry)}}
+
+        _unsupported ->
+          {:halt, :unsupported}
+      end
+    end)
+  end
+
+  # Kiln's own encoder settings, so a backend's WebP is the WebP an operator
+  # configured. Lossless formats have no quality (see `ImageProcessor.quality/1`).
+  defp quality(format) when format in [:jpg, :webp, :avif], do: ImageProcessor.quality(format)
+  defp quality(_format), do: nil
 
   # A run that writes *no* variants for an item that has some is a failure, not
   # a result: an encoder that rejects a misconfigured quality fails every write,

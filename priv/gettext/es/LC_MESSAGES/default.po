@@ -7475,6 +7475,11 @@ msgstr "Si la cuenta tiene la autenticación de dos factores activada, el inicio
 msgid "Image URL"
 msgstr "URL de la imagen"
 
+#: lib/kiln_cms_web/live/system_live.ex
+#, elixir-autogen, elixir-format
+msgid "Image backends"
+msgstr "Servicios de imágenes"
+
 #: lib/kiln_cms_web/live/content_editor/inspector_settings_component.ex
 #, elixir-autogen, elixir-format
 msgid "Image shown when this page is shared on social media."
@@ -7752,6 +7757,11 @@ msgstr "Insertar:"
 #, elixir-autogen, elixir-format
 msgid "Inspector"
 msgstr "Inspector"
+
+#: lib/kiln_cms_web/live/system_live.ex
+#, elixir-autogen, elixir-format
+msgid "Installed, not selected"
+msgstr "Instalado, no seleccionado"
 
 #: lib/kiln_cms_web/live/site_search_live.ex
 #: lib/kiln_cms_web/live/social_live.ex
@@ -11556,6 +11566,11 @@ msgstr "Reconstruir la página y la búsqueda"
 msgid "Receives unpublished content"
 msgstr "Recibe contenido no publicado"
 
+#: lib/kiln_cms_web/live/system_live.ex
+#, elixir-autogen, elixir-format
+msgid "Receiving new image uploads"
+msgstr "Recibe las nuevas imágenes subidas"
+
 #: lib/kiln_cms_web/live/social_live.ex
 #, elixir-autogen, elixir-format
 msgid "Recent announcements"
@@ -13221,6 +13236,11 @@ msgstr "Seleccionar este envío"
 #, elixir-autogen, elixir-format
 msgid "Select two to see what changed between them."
 msgstr "Selecciona dos para ver qué cambió entre ellas."
+
+#: lib/kiln_cms_web/live/system_live.ex
+#, elixir-autogen, elixir-format
+msgid "Selected but not configured"
+msgstr "Seleccionado pero sin configurar"
 
 #: lib/kiln_cms_web/components/block_components.ex
 #, elixir-autogen, elixir-format

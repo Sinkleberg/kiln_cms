@@ -54,6 +54,13 @@ Long form: [docs/changelog/unreleased.md](docs/changelog/unreleased.md) —
 the Unreleased entries as they were written when each change merged.
 Every summary line below that was shortened links to its own entry there.
 
+### Added
+
+- **A plugin can contribute an image backend (`Kiln.ImageBackend`) — an
+  external service such as Cloudflare Images that takes new image uploads and
+  renders their variants and transforms from URLs.**
+  ([long form](docs/changelog/unreleased.md#image-backends))
+
 ### Changed
 
 - **The browser suite now drives live co-editing: two peers type into one
@@ -70,6 +77,12 @@ Every summary line below that was shortened links to its own entry there.
   underlines it used to drop; a co-editing tab still on the old bundle edits
   solo until it reloads.**
   ([long form](docs/changelog/unreleased.md#tiptap-3))
+
+### Fixed
+
+- **Clicking a rich-text block's toolbar button keeps the caret in the text, so
+  the first letters typed straight after Bold are no longer lost.**
+  ([long form](docs/changelog/unreleased.md#toolbar-keeps-editor-focus))
 
 ## [1.3.0] - 2026-10-12
 

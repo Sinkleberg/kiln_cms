@@ -493,6 +493,7 @@ defmodule KilnCMSWeb.SystemLive do
       {gettext("Field types"), length(manifest.field_types)},
       {gettext("Advisories"), length(manifest.advisories)},
       {gettext("Spam checks"), length(manifest.spam_checks)},
+      {gettext("Image backends"), length(manifest.image_backends)},
       {gettext("Nav items"), manifest.nav_items},
       {gettext("Admin routes"), manifest.admin_routes},
       {gettext("Editor routes"), manifest.editor_routes},
@@ -518,6 +519,7 @@ defmodule KilnCMSWeb.SystemLive do
       {gettext("Field types"), Enum.map(manifest.field_types, &{&1.label(), &1.description()})},
       {gettext("Editor checks"), Enum.map(manifest.advisories, &{module_title(&1), nil})},
       {gettext("Spam checks"), Enum.map(manifest.spam_checks, &{module_title(&1), nil})},
+      {gettext("Image backends"), Enum.map(manifest.image_backends, &image_backend_feature/1)},
       {gettext("Console pages"), console_pages(plugin)},
       {gettext("Public pages"), Enum.map(plugin.public_routes(), &route_feature/1)},
       {gettext("Background queues"),
@@ -562,6 +564,24 @@ defmodule KilnCMSWeb.SystemLive do
   end
 
   defp route_feature({path, _live_view, _action}), do: {path, nil}
+
+  # Installed is not in use: say which backend new uploads actually go to, so
+  # an operator who installed one and forgot its credentials can tell.
+  defp image_backend_feature(backend) do
+    detail =
+      cond do
+        Kiln.ImageBackend.Registry.active() == backend ->
+          gettext("Receiving new image uploads")
+
+        Kiln.ImageBackend.Registry.configured() == backend ->
+          gettext("Selected but not configured")
+
+        true ->
+          gettext("Installed, not selected")
+      end
+
+    {module_title(backend), detail}
+  end
 
   # `Example.Catalog.TeamMember` → "Team member".
   defp module_title(module) do

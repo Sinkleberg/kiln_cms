@@ -30,10 +30,21 @@ defmodule KilnCMSWeb.MediaTransformController do
   the current image is served for five minutes. An item outside the `:public`
   audience is `private, no-store`, like its download. `fm_auto` adds
   `Vary: Accept`.
+
+  ## An image backend's item (#1955)
+
+  When the item lives in an image backend (`Kiln.ImageBackend`) that can render
+  the plan itself, step 6 is a `302` to the backend's URL instead: no render,
+  no derivative, no render budget spent. Everything before it still runs here
+  — the signature, the allowlist, the read policy and the pixel cap are
+  Kiln's to enforce, not the backend's — and the redirect carries the same
+  `Cache-Control` and `ETag` the bytes would have.
   """
   use KilnCMSWeb, :controller
 
   alias KilnCMS.Media.{Derivatives, ImageTransform}
+  alias KilnCMS.Storage
+  alias KilnCMS.Storage.BackendTarget
   alias KilnCMSWeb.{MediaDownloadController, RateLimit}
 
   @immutable "public, max-age=31536000, immutable"
@@ -63,11 +74,45 @@ defmodule KilnCMSWeb.MediaTransformController do
   end
 
   defp serve(conn, item, plan) do
-    case Derivatives.lookup(item, plan) do
-      {:ok, bytes} -> send_image(conn, "hit", bytes)
-      :miss -> render_miss(conn, item, plan)
+    case backend_url(item, plan) do
+      {:ok, url} ->
+        conn
+        |> delete_resp_header("content-type")
+        |> put_resp_header("location", url)
+        |> put_resp_header("x-kiln-transform", "backend")
+        |> send_resp(302, "")
+
+      :here ->
+        case Derivatives.lookup(item, plan) do
+          {:ok, bytes} -> send_image(conn, "hit", bytes)
+          :miss -> render_miss(conn, item, plan)
+        end
     end
   end
+
+  # The plan in `Kiln.ImageBackend.spec()` terms. Any answer but a URL — an
+  # item in Kiln's own storage, a backend that can't render this, one that is
+  # no longer installed — renders here, which is what happened before backends
+  # existed.
+  defp backend_url(%{width: width, height: height} = item, plan)
+       when is_integer(width) and is_integer(height) do
+    with {:ok, %BackendTarget{module: backend}} <- Storage.locate(item),
+         {:ok, url} when is_binary(url) <-
+           backend.render_url(item.storage_key, %{
+             source: {width, height},
+             crop: plan.crop,
+             width: plan.width,
+             height: plan.height,
+             format: plan.format,
+             quality: plan.quality
+           }) do
+      {:ok, url}
+    else
+      _render_here -> :here
+    end
+  end
+
+  defp backend_url(_item, _plan), do: :here
 
   defp render_miss(conn, item, plan) do
     case RateLimit.check(:media_render, RateLimit.client_key(conn.remote_ip)) do

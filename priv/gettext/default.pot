@@ -7475,6 +7475,11 @@ msgstr ""
 msgid "Image URL"
 msgstr ""
 
+#: lib/kiln_cms_web/live/system_live.ex
+#, elixir-autogen, elixir-format
+msgid "Image backends"
+msgstr ""
+
 #: lib/kiln_cms_web/live/content_editor/inspector_settings_component.ex
 #, elixir-autogen, elixir-format
 msgid "Image shown when this page is shared on social media."
@@ -7751,6 +7756,11 @@ msgstr ""
 #: lib/kiln_cms_web/components/content_editor/inspector_components.ex
 #, elixir-autogen, elixir-format
 msgid "Inspector"
+msgstr ""
+
+#: lib/kiln_cms_web/live/system_live.ex
+#, elixir-autogen, elixir-format
+msgid "Installed, not selected"
 msgstr ""
 
 #: lib/kiln_cms_web/live/site_search_live.ex
@@ -11556,6 +11566,11 @@ msgstr ""
 msgid "Receives unpublished content"
 msgstr ""
 
+#: lib/kiln_cms_web/live/system_live.ex
+#, elixir-autogen, elixir-format
+msgid "Receiving new image uploads"
+msgstr ""
+
 #: lib/kiln_cms_web/live/social_live.ex
 #, elixir-autogen, elixir-format
 msgid "Recent announcements"
@@ -13220,6 +13235,11 @@ msgstr ""
 #: lib/kiln_cms_web/live/content_editor/inspector_history_component.ex
 #, elixir-autogen, elixir-format
 msgid "Select two to see what changed between them."
+msgstr ""
+
+#: lib/kiln_cms_web/live/system_live.ex
+#, elixir-autogen, elixir-format
+msgid "Selected but not configured"
 msgstr ""
 
 #: lib/kiln_cms_web/components/block_components.ex
