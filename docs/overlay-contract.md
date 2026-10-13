@@ -70,6 +70,17 @@ you*).
 | Environment variables | The name and meaning of every variable in [Environment variables](environment-variables.md). The promise is that a minor leaves your tree *booting*, and a deployment boots from these |
 | `mix kiln.update`, `mix kiln.plugins.doctor`, `mix kiln.search.check` | The task names and their documented flags: the checks *Protecting your overlay in CI* below tells your pipeline to run. Every other `mix kiln.*` task is operator or developer tooling, and is not |
 
+Since #1909, `Kiln.Plugin`, `Kiln.Block` and its `Kiln.Block.*` modules,
+`Kiln.FieldType`, `Kiln.Tokens`, `Kiln.Forms.SpamCheck` (with its `Context`)
+and `Kiln.ImageBackend` ship in the [`kiln_plugin`](https://github.com/The-Verscienta/kiln_cms/blob/main/sdk/kiln_plugin/README.md)
+package, which the core takes as a `path:` dependency, so that a plugin can
+depend on them without depending on the core. The names did not change and
+the promises above apply unchanged; an overlay compiles exactly as before.
+The package versions on its own (`kiln_plugin-vX.Y.Z`) under the same rule:
+minors add, and a major comes only with a core major. `Kiln.Plugins`,
+`Kiln.Advisory`, `Kiln.Version`, `Kiln.Updates` and the three registries stay
+in the core.
+
 Delivery URLs, GraphQL field names and JSON:API routes are derived from `:type`
 and `:plural`, so they inherit the promise above — but the HTTP contract has
 its own, stricter policy, including a versioned-prefix migration path. See

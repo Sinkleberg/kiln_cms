@@ -2,9 +2,9 @@ defmodule Kiln.Plugin do
   @moduledoc """
   The KilnCMS **plugin contract** (decision D18, `docs/plugin-system-plan.md`).
 
-  A plugin is compile-time OTP code in a `projects/<name>/` directory whose
-  entry module `use`s this and overrides only the callbacks it needs. One
-  config line activates it:
+  A plugin is compile-time OTP code — a `projects/<name>/` directory, or a Mix
+  dependency (see below) — whose entry module `use`s this and overrides only
+  the callbacks it needs. One config line activates it:
 
       config :kiln_cms, :plugins, [MyPlugin]
 
@@ -58,13 +58,27 @@ defmodule Kiln.Plugin do
   repository / README — `homepage/0` is the pointer to them, so the running
   node carries a URL, not a media library.
 
-  ## Not a Mix dependency
+  ## As a Mix dependency, or as a `projects/` overlay
 
-  A plugin can't be a Hex or `git:`/`path:` dependency. Mix compiles a
-  dependency before `kiln_cms` itself, with only the dependency's own deps
-  loaded, so `use Kiln.Plugin` fails with "module Kiln.Plugin is not loaded".
-  Share a plugin as a git repository that a site vendors into `projects/`
-  (#1909).
+  This module ships in the `kiln_plugin` package (#1909), which the core
+  depends on, so a plugin that depends on `{:kiln_plugin, "~> 1.0"}` can be a
+  Hex, `git:` or `path:` dependency of a KilnCMS project. Mix compiles a
+  dependency before the project that uses it, with only the dependency's own
+  dependencies loaded, so what a dependency plugin can contribute is what it
+  can build from this package alone:
+
+    * blocks, field types, spam checks and image backends;
+    * nav items, supervision children and Oban queues;
+    * routes, but only to a LiveView that depends on `phoenix_live_view`
+      directly — one that does `use KilnCMSWeb, :live_view` needs the core.
+
+  A plugin that defines content types (`use KilnCMS.CMS.Content`) or Ash
+  domains, contributes advisory checks (`Kiln.Advisory` stays in the core,
+  with the context its checks match on), uses `KilnCMSWeb`, or gives a field
+  type a colocated client hook has to be a `projects/<name>/` overlay, which
+  is compiled inside the core. A dependency plugin also needs a line in the
+  core's `mix.exs`, which edits the pinned core; see
+  `docs/plugin-extensibility.md`.
   """
 
   @type nav_item :: %{label: String.t(), path: String.t(), role: :editor | :admin}

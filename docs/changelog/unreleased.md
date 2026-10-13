@@ -5,6 +5,48 @@ The long-form entries behind the Unreleased section of
 merged. `CHANGELOG.md` carries the one-line summary of each; this file
 carries the reasoning.
 
+<a id="plugin-sdk-docker"></a>
+
+- **A Dockerfile that runs `mix deps.get` before copying the whole core must
+  first `COPY sdk/kiln_plugin sdk/kiln_plugin`; the core's own Dockerfile does.**
+  The plugin SDK is a `path:` dependency of the core now (see the next
+  entry), so `mix deps.get` reads its `mix.exs`. A build that copies the
+  pinned core in one step, as `projects/README.md` shows, needs nothing. One
+  modelled on the core's Dockerfile, which copies `mix.exs` and `mix.lock`
+  alone to cache the dependency layer, fails at `deps.get` until it copies
+  `sdk/kiln_plugin` too. `sdk/fixtures/` is a test-only dependency, which a
+  prod `deps.get` doesn't read.
+  ([#1909](https://github.com/The-Verscienta/kiln_cms/issues/1909))
+
+<a id="plugin-sdk"></a>
+
+- **Plugins can ship as Hex, git or `path:` dependencies: the plugin contract
+  moved, under the same module names, into its own package, `kiln_plugin`.**
+  A plugin's entry module does `use Kiln.Plugin`, a macro, and Mix compiles a
+  dependency before the project that uses it, so with the contract inside the
+  core a plugin added as a dependency failed with "module Kiln.Plugin is not
+  loaded". `Kiln.Plugin`, `Kiln.Block` and `Kiln.Block.*`, `Kiln.FieldType`,
+  `Kiln.Tokens`, `Kiln.Forms.SpamCheck` (with its `Context`) and
+  `Kiln.ImageBackend` now live in `sdk/kiln_plugin`, which the core takes as a
+  `path:` dependency with `override: true`; the modules are unchanged, so
+  overlays compile as before. A plugin that depends on `{:kiln_plugin,
+  "~> 1.0"}` can contribute blocks, field types (without a colocated client
+  hook), spam checks, image backends, nav items, children and queues. Content
+  types, domains, advisory checks and LiveViews on `KilnCMSWeb` need the core,
+  so those plugins stay `projects/` overlays. Adding a dependency plugin still
+  means a line in the core's `mix.exs`. Because the core overrides the
+  package, Mix no longer checks a plugin's requirement on it, so
+  `mix kiln.plugins.doctor` does. `Kiln.Plugins` gains a
+  `__mix_recompile__?/0` over its plugins' compiled modules, so an edit to a
+  dependency plugin reaches the registries the core bakes at compile time
+  without `--force`. CI builds and tests the package on its own, compiles a
+  fixture plugin against only the package, and runs the suite with that
+  fixture installed as a dependency. The package is versioned and tagged on
+  its own (`kiln_plugin-v1.0.0`) and published to Hex from
+  `release-clients.yml`; until that first publish, links into its docs from
+  the core's reference 404.
+  ([#1909](https://github.com/The-Verscienta/kiln_cms/issues/1909))
+
 <a id="image-backends"></a>
 
 - **A plugin can contribute an image backend (`Kiln.ImageBackend`) — an

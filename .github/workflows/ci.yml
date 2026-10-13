@@ -253,6 +253,14 @@ jobs:
       - name: Sobelow (security scan)
         run: mix sobelow --config
 
+      - name: Check a dependency plugin's edit reaches the core without --force
+        # #1909: the fixture plugin in sdk/fixtures/dep_plugin is a `path:`
+        # dependency here, and Mix tracks no compile-time edge into a
+        # dependency's modules on its own. The script adds a block to the
+        # fixture's `blocks/0`, runs a plain `mix compile`, and asks a registry
+        # the core bakes at compile time; it restores the fixture on exit.
+        run: scripts/ci/check_plugin_dep_recompile.sh
+
   test:
     name: Test (shard ${{ matrix.partition }})
     runs-on: ubuntu-24.04
@@ -530,7 +538,7 @@ jobs:
   ci:
     name: Compile, lint, scan & test
     runs-on: ubuntu-24.04
-    needs: [build, test, coverage, dialyzer]
+    needs: [build, test, coverage, dialyzer, plugin_sdk]
     # `!cancelled()` is load-bearing. The default (`success()`) SKIPS this job
     # when a dependency failed, and a skipped required check is not a failed
     # one: the ruleset would sit waiting on a check that never reports, and
@@ -769,6 +777,85 @@ jobs:
 
       - name: Run tests
         run: mix test
+
+  # The plugin SDK (#1909) on its own: the package a third-party plugin
+  # depends on, built and tested with none of the core around it, then the
+  # fixture plugin compiled against only that package. The last step is the
+  # one the issue was about: before the SDK existed, compiling a
+  # `use Kiln.Plugin` module outside the core failed with "module Kiln.Plugin
+  # is not loaded", and nothing in CI ever tried. The core-side half — the
+  # same fixture compiled as a dependency *of the core* and run through the
+  # suite — is in `build` and `test`, which compile it under MIX_ENV=test.
+  plugin_sdk:
+    name: Plugin SDK (kiln_plugin)
+    runs-on: ubuntu-24.04
+
+    defaults:
+      run:
+        working-directory: sdk/kiln_plugin
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Elixir/OTP
+        uses: erlef/setup-beam@v1
+        with:
+          # .tool-versions, the single source of truth (#600) — as `client`.
+          version-file: .tool-versions
+          version-type: strict
+
+      - name: Cache deps, _build and PLTs
+        uses: actions/cache@v5
+        with:
+          path: |
+            sdk/kiln_plugin/deps
+            sdk/kiln_plugin/_build
+            sdk/kiln_plugin/priv/plts
+            sdk/fixtures/dep_plugin/deps
+            sdk/fixtures/dep_plugin/_build
+          key: ${{ runner.os }}-plugin-sdk-${{ hashFiles('.tool-versions') }}-${{ hashFiles('sdk/kiln_plugin/mix.lock', 'sdk/fixtures/dep_plugin/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-plugin-sdk-${{ hashFiles('.tool-versions') }}-
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Check formatting
+        run: mix format --check-formatted
+
+      - name: Compile (warnings as errors)
+        run: mix compile --warnings-as-errors
+
+      - name: Run tests
+        run: mix test
+
+      - name: Credo
+        run: mix credo --strict
+
+      - name: Dialyzer
+        # The core's dialyzer sees this package only as a PLT dependency, so
+        # this is the one run that analyses its code.
+        run: mix dialyzer
+
+      - name: Docs (warnings as errors)
+        # `ex_doc` is a dev-only dependency, as in the core's `docs` job.
+        env:
+          MIX_ENV: dev
+        run: |
+          mix deps.get
+          mix docs --warnings-as-errors
+
+      - name: Build the Hex package
+        # What `release-clients.yml` publishes; failing here is cheaper than
+        # failing on a tag.
+        run: mix hex.build
+
+      - name: Compile the fixture plugin against only the SDK
+        working-directory: sdk/fixtures/dep_plugin
+        run: |
+          mix deps.get
+          mix format --check-formatted
+          mix compile --warnings-as-errors
 
   client-js:
     name: JS client (@kiln-cms/client)

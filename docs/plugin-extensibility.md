@@ -12,7 +12,7 @@ declarative editorial automation (#342).
 > **Kiln does not hot-load arbitrary plugin *code* at runtime, by design.**
 > A plugin is compile-time OTP code activated by one config line (D18). The
 > "marketplace" is a catalog of **vetted, git-distributed, compile-time
-> plugins** vendored into `projects/` — installers, not a code-execution sandbox — plus the parts of a
+> plugins** — Mix dependencies on `kiln_plugin`, or vendored into `projects/` when they need the core (#1909) — installers, not a code-execution sandbox — plus the parts of a
 > live instance that are *already* extensible without code: dynamic content
 > types (D17), the `Kiln.FieldType` registry, and declarative automation
 > rules (#342). A genuine runtime-code story (out-of-process plugins, a WASM
@@ -88,26 +88,42 @@ runtime code loading at all.**
 ### 2a. Catalog of vetted, distributable plugins
 
 A "marketplace plugin" is an ordinary `Kiln.Plugin` (D18) kept in **its own
-git repository** and installed into a site's overlay as a `projects/<name>/`
-directory. Installing one is the flow that already exists:
+git repository**. It reaches a site one of two ways, and which one depends on
+what it contributes:
 
-1. **Vendor it** — copy, `git subtree` or `git submodule` the plugin's
-   repository into `projects/<name>/` in your overlay, pinned to a tag. Not a
-   Mix dependency: neither `{:kiln_ratings, "~> 1.0"}` (Hex) nor a
-   `git:`/`path:` dep compiles, because Mix builds a dependency before
-   `kiln_cms` and `use Kiln.Plugin` then can't resolve (#1909).
+| Shape | How it's installed | What it can contribute |
+|---|---|---|
+| **Mix dependency** — Hex, `git:` or `path:` | Depends on [`kiln_plugin`](https://github.com/The-Verscienta/kiln_cms/blob/main/sdk/kiln_plugin/README.md), the package the plugin contract ships in (#1909); the site adds it to the core's `mix.exs` | Blocks, field types (no colocated client hooks), spam checks, image backends, nav items, supervision children, Oban queues; routes only to a LiveView that doesn't `use KilnCMSWeb` |
+| **`projects/<name>/` overlay** | Vendored into the overlay and compiled inside the core | Everything above, plus content types (`KilnCMS.CMS.Content`), Ash domains, advisory checks, and LiveViews built on `KilnCMSWeb` |
+
+A dependency compiles before the core and sees only its own dependencies, so
+it can build on `kiln_plugin` but not on anything that lives in the core.
+That is the whole split: a plugin that needs the core's repo, domains,
+policies, web layer or advisory context is an overlay.
+
+1. **Add it** — as a dependency: `{:kiln_ratings, "~> 1.0"}` (Hex) or a
+   `git:`/`path:` dep, in the core's `mix.exs`. **This edits the pinned
+   core**, and `mix kiln.update` refuses a locally patched pin, so an update
+   means reapplying the line; an overlay-level dependency hook is still open
+   in #1909. As an overlay: copy, `git subtree` or `git submodule` the
+   plugin's repository into `projects/<name>/` in your overlay, pinned to a
+   tag.
 2. **Register it** — one line: `config :kiln_cms, :plugins, [Ratings.Plugin]`
    (plus its domains in `:ash_domains`/`:content_domains` if it ships content
    types — Ash's own mix tasks read those keys directly).
 3. **Verify** — `mix kiln.plugins.doctor` (already gates precommit) asserts the
    contract holds: domains registered, no block/field-type/queue name
-   collisions, well-formed routes.
+   collisions, well-formed routes, and, for a dependency, that its
+   `kiln_plugin` requirement accepts the version the core bundles. (The core
+   takes `kiln_plugin` with `override: true`, so Mix itself never checks it.)
 4. **Discover what's installed** — `mix kiln.plugins.list` prints every
    installed plugin with its catalog metadata and contribution surface.
 
-The `mix kiln.gen.plugin <Name>` scaffold already produces a
-distribution-shaped skeleton in `projects/<name>/`; a marketplace plugin is
-that directory, filled in and published as its own git repository.
+The `mix kiln.gen.plugin <Name>` scaffold produces a distribution-shaped
+skeleton in `projects/<name>/`; an overlay plugin is that directory, filled in
+and published as its own git repository. A dependency plugin is an ordinary
+Mix project depending on `kiln_plugin`; `sdk/fixtures/dep_plugin` is a worked,
+CI-compiled example.
 
 ### 2b. Catalog metadata (the "registry")
 
@@ -133,7 +149,8 @@ not a code feature: a docs table (or, later, a hosted static index) listing
 approved plugins with their git coordinates (repository + tag) and homepage. Vetting is a
 human review that a package is safe to compile in, exactly the bar core code
 clears. This keeps the security property intact: nothing is "installed" until a
-maintainer vendors it into `projects/` and re-releases.
+maintainer adds it to the build (a dependency line or a vendored `projects/`
+directory) and re-releases.
 
 **A hosted index** — that governance artifact, built out as a public catalog on
 kilncms.dev with a submission path, a compile-and-`doctor` verification

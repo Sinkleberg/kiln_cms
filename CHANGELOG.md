@@ -54,7 +54,17 @@ Long form: [docs/changelog/unreleased.md](docs/changelog/unreleased.md) —
 the Unreleased entries as they were written when each change merged.
 Every summary line below that was shortened links to its own entry there.
 
+### Upgrade notes
+
+- **A Dockerfile that runs `mix deps.get` before copying the whole core must
+  first `COPY sdk/kiln_plugin sdk/kiln_plugin`; the core's own Dockerfile does.**
+  ([long form](docs/changelog/unreleased.md#plugin-sdk-docker))
+
 ### Added
+
+- **Plugins can ship as Hex, git or `path:` dependencies: the plugin contract
+  moved, under the same module names, into its own package, `kiln_plugin`.**
+  ([long form](docs/changelog/unreleased.md#plugin-sdk))
 
 - **A plugin can contribute an image backend (`Kiln.ImageBackend`) — an
   external service such as Cloudflare Images that takes new image uploads and

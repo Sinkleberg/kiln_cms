@@ -30,7 +30,13 @@ defmodule Mix.Tasks.Kiln.Plugins.Doctor do
     * a field type's client hook (`c:Kiln.FieldType.input_hook/1`, #1918)
       was actually bundled: the name it returns is registered in LiveView's
       colocated-hook manifest. A typo, or a `<script>` in a template that never
-      compiled, otherwise surfaces only as a silent no-op in the browser.
+      compiled, otherwise surfaces only as a silent no-op in the browser;
+    * every dependency that requires `kiln_plugin` (a plugin shipped as a
+      Hex, git or `path:` dependency, #1909) accepts the version this core
+      bundles. The core takes the package with `override: true`, which is
+      what lets a plugin's Hex requirement converge on the bundled copy, and
+      Mix does not check an overridden dependency's requirements, so this
+      does.
 
   Exits non-zero with every violation listed, so it can gate CI/precommit.
 
@@ -70,7 +76,8 @@ defmodule Mix.Tasks.Kiln.Plugins.Doctor do
         image_backend_problems(plugins, Application.get_env(:kiln_cms, :image_backend)) ++
         block_schema_problems(plugins, blocks_by_plugin) ++
         field_type_schema_problems(plugins, field_types_by_plugin) ++
-        field_type_hook_problems(plugins, field_types_by_plugin)
+        field_type_hook_problems(plugins, field_types_by_plugin) ++
+        sdk_requirement_problems(sdk_version(), sdk_requirements(declared_deps()))
 
     # Printed before the verdict so a failing run still shows them, and never
     # a problem: a missing description is a gap for operators, not a fault.
@@ -166,6 +173,58 @@ defmodule Mix.Tasks.Kiln.Plugins.Doctor do
         "config/project.exs replaces the core list, so restate every domain in " <>
         "config/config.exs; otherwise mix ash.codegen offers to DROP its tables"
     end
+  end
+
+  @doc false
+  # `{app, requirement}` for every dependency that declares one on
+  # `kiln_plugin`. Takes `{app, [{child_app, requirement}]}` pairs (what
+  # `declared_deps/0` reads) so the test can hand it any shape.
+  @spec sdk_requirements([{atom(), [{atom(), String.t() | nil}]}]) :: [{atom(), String.t()}]
+  def sdk_requirements(declared) do
+    for {app, children} <- declared,
+        {:kiln_plugin, requirement} <- children,
+        is_binary(requirement),
+        do: {app, requirement}
+  end
+
+  @doc false
+  # Each loaded dependency with the requirements it declares on its own
+  # dependencies, from the dependency graph Mix already resolved for this
+  # build. `Mix.Dep` is Mix's own (undocumented) graph. The public alternative,
+  # `Mix.Project.in_project/3` on each dependency's mix.exs, `cd`s the whole VM
+  # into that directory, which breaks every async test that reads a relative
+  # path while this task runs.
+  @spec declared_deps() :: [{atom(), [{atom(), String.t() | nil}]}]
+  def declared_deps do
+    for dep <- Mix.Dep.cached(), do: {dep.app, Enum.map(dep.deps, &{&1.app, &1.requirement})}
+  end
+
+  @doc false
+  # Public so it can be tested with any version and requirement list.
+  @spec sdk_requirement_problems(String.t(), [{atom(), String.t()}]) :: [String.t()]
+  def sdk_requirement_problems(sdk_version, requirements) do
+    for {app, requirement} <- requirements,
+        problem = sdk_requirement_problem(sdk_version, requirement),
+        problem != nil do
+      "#{app} requires kiln_plugin #{problem}, but this core bundles kiln_plugin " <>
+        "#{sdk_version} (sdk/kiln_plugin). Use a version of #{app} built for this " <>
+        "core, or a core that bundles a matching kiln_plugin"
+    end
+  end
+
+  defp sdk_requirement_problem(sdk_version, requirement) do
+    case Version.parse_requirement(requirement) do
+      {:ok, parsed} ->
+        if Version.match?(sdk_version, parsed), do: nil, else: requirement
+
+      :error ->
+        "#{inspect(requirement)} (not a valid version requirement)"
+    end
+  end
+
+  defp sdk_version do
+    _ = Application.load(:kiln_plugin)
+    :kiln_plugin |> Application.spec(:vsn) |> to_string()
   end
 
   @doc false

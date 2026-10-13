@@ -15,6 +15,19 @@ defmodule Kiln.Plugins do
   require Kiln.Plugins.CompileEdges
   Kiln.Plugins.CompileEdges.call_configured()
 
+  # That compile-time edge only works for a plugin compiled in the same
+  # project (`projects/`). Mix does not track compile-time edges into a
+  # dependency's modules, so an edit to a plugin shipped as a `path:`
+  # dependency (#1909) recompiled the plugin and left this module, and every
+  # registry baked from it, on the old `blocks/0`. `__mix_recompile__?/0` is
+  # Mix's hook for exactly that: it is asked before each compile, and `true`
+  # recompiles this module and its compile-time dependents.
+  @contributions_digest Kiln.Plugins.CompileEdges.digest(@plugins)
+
+  @doc false
+  def __mix_recompile__?,
+    do: Kiln.Plugins.CompileEdges.digest(@plugins) != @contributions_digest
+
   @doc "The installed plugin modules, in registration order."
   @spec all() :: [module()]
   def all, do: @plugins

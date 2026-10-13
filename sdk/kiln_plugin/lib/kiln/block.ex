@@ -23,6 +23,19 @@ defmodule Kiln.Block do
   the serializers (the overridden render contract). Blocks are discovered and
   dispatched through `KilnCMS.Blocks`.
 
+  ## Outside the core
+
+  `use Kiln.Block` defines an Ash resource, so a project that compiles blocks
+  *on its own* — a plugin's own CI, this package's tests — needs the one Ash
+  setting Ash 3.34 refuses to compile a `:string` attribute without, set to
+  the core's value so a block behaves the same in both places:
+
+      # config/config.exs
+      config :ash, default_string_length_count: :codepoints
+
+  Inside a KilnCMS build the core's config applies to every dependency, and
+  already sets it.
+
   Do **not** pattern-match `%__MODULE__{}` in your `render/2` or `search_text/1`
   heads. The block's struct is built by a transformer at `@before_compile` —
   after these heads compile — so referencing it (even the bare `%__MODULE__{}`)

@@ -313,7 +313,7 @@ config :kiln_cms, KilnCMS.Collab.FieldLock, flush_ms: 400
 
 # The test-suite plugin (D18): exercises every plugin seam — block union
 # membership, admin nav/route, supervision child, Oban queue merge.
-config :kiln_cms, :plugins, [KilnCMS.FixturePlugin]
+config :kiln_cms, :plugins, [KilnCMS.FixturePlugin, KilnDepFixture.Plugin]
 
 # A fixed CORS allowlist so the CORS tests can assert both the allowed and
 # denied paths deterministically (prod default is `[]` / same-origin only).

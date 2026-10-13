@@ -180,6 +180,79 @@ defmodule Kiln.PluginsTest do
     assert Blocks.search_text(block) == "Note & well"
   end
 
+  describe "a plugin compiled as a Mix dependency (#1909)" do
+    # `KilnDepFixture` is its own Mix project (sdk/fixtures/dep_plugin) that
+    # depends only on `kiln_plugin`, taken by the core's mix.exs as a `path:`
+    # dependency, so Mix compiled it before the core. Its block and field type
+    # still reach the registries the core bakes at compile time.
+    test "is installed and its contributions are registered" do
+      assert KilnDepFixture.Plugin in Kiln.Plugins.all()
+      assert Keyword.has_key?(Blocks.union_types(), :dep_badge)
+      assert Blocks.registry()[:dep_badge] == KilnDepFixture.Badge
+      assert KilnCMS.CMS.FieldTypes.get(:stars) == KilnDepFixture.FieldTypes.Stars
+      assert :stars in KilnCMS.CMS.FieldTypes.names()
+    end
+
+    test "its block round-trips through content storage" do
+      page =
+        CMS.create_page!(
+          %{
+            title: "Dep plugged",
+            slug: "dep-plug-#{System.unique_integer([:positive])}",
+            blocks: [%{"_type" => "dep_badge", "label" => "New"}]
+          },
+          actor: admin()
+        )
+
+      [%Ash.Union{type: :dep_badge, value: block}] =
+        CMS.get_page!(page.id, authorize?: false).blocks
+
+      assert %KilnDepFixture.Badge{label: "New"} = block
+      assert %{"_type" => "dep_badge", "label" => "New"} = Blocks.render(block, :json)
+      assert Blocks.search_text(block) == "New"
+    end
+  end
+
+  describe "the recompile digest (Kiln.Plugins.__mix_recompile__?/0)" do
+    test "is current for the installed plugins" do
+      refute Kiln.Plugins.__mix_recompile__?()
+    end
+
+    # Mix tracks no compile-time edge into a dependency's modules, so the
+    # digest has to see an edit *inside* a contributed module, not only a
+    # changed `blocks/0` list. scripts/ci/check_plugin_dep_recompile.sh
+    # proves the list case end to end.
+    test "changes when a contributed module's code changes, with the same lists" do
+      plugin = Module.concat(__MODULE__, "DigestPlugin#{System.unique_integer([:positive])}")
+      block = Module.concat(plugin, Block)
+
+      Code.compile_string("""
+      defmodule #{inspect(plugin)} do
+        def blocks, do: [#{inspect(block)}]
+        def field_types, do: []
+      end
+      """)
+
+      compile_block = fn body ->
+        :code.purge(block)
+        :code.delete(block)
+        Code.compile_string("defmodule #{inspect(block)} do\n  def v, do: #{body}\nend\n")
+      end
+
+      compile_block.(1)
+      first = Kiln.Plugins.CompileEdges.digest([plugin])
+      assert first == Kiln.Plugins.CompileEdges.digest([plugin])
+
+      compile_block.(2)
+      refute Kiln.Plugins.CompileEdges.digest([plugin]) == first
+    end
+
+    test "says recompile when a plugin module no longer loads" do
+      missing = Module.concat(__MODULE__, Missing)
+      assert is_reference(Kiln.Plugins.CompileEdges.digest([missing]))
+    end
+  end
+
   test "the plugin's supervision child is running" do
     pid = Process.whereis(FixturePlugin.Counter)
     assert is_pid(pid) and Process.alive?(pid)
@@ -246,6 +319,42 @@ defmodule Kiln.PluginsTest do
 
     test "passes for the fixture plugin" do
       assert Mix.Tasks.Kiln.Plugins.Doctor.run([]) == :ok
+    end
+
+    # #1909: the core overrides `kiln_plugin` so a plugin's Hex requirement
+    # converges on the bundled copy, and Mix then checks no requirement on it.
+    test "reads each dependency's kiln_plugin requirement from the resolved graph" do
+      # The real one: sdk/fixtures/dep_plugin/mix.exs declares "~> 1.0".
+      assert {:kiln_dep_fixture, "~> 1.0"} in Mix.Tasks.Kiln.Plugins.Doctor.sdk_requirements(
+               Mix.Tasks.Kiln.Plugins.Doctor.declared_deps()
+             )
+
+      requirements =
+        Mix.Tasks.Kiln.Plugins.Doctor.sdk_requirements([
+          {:future_plugin, [{:jason, "~> 1.0"}, {:kiln_plugin, "~> 9.0"}]},
+          {:unrelated, [{:jason, "~> 1.0"}]},
+          {:pathless, [{:kiln_plugin, nil}]}
+        ])
+
+      assert requirements == [{:future_plugin, "~> 9.0"}]
+
+      assert [problem] =
+               Mix.Tasks.Kiln.Plugins.Doctor.sdk_requirement_problems("1.0.0", requirements)
+
+      assert problem =~ "future_plugin requires kiln_plugin ~> 9.0"
+      assert problem =~ "bundles kiln_plugin 1.0.0"
+    end
+
+    test "accepts a matching requirement and names an unparsable one" do
+      assert Mix.Tasks.Kiln.Plugins.Doctor.sdk_requirement_problems("1.2.0", [
+               {:a, "~> 1.0"},
+               {:b, ">= 1.2.0"}
+             ]) == []
+
+      assert [problem] =
+               Mix.Tasks.Kiln.Plugins.Doctor.sdk_requirement_problems("1.2.0", [{:c, "one"}])
+
+      assert problem =~ ~s[c requires kiln_plugin "one" (not a valid version requirement)]
     end
 
     # A plugin that doesn't say what it does is a gap for operators, not a

@@ -10,16 +10,27 @@ dynamic content types (D17, [Dynamic content types](dynamic-content-types-plan.m
 [Forms](forms.md), the [JSON API](json-api.md) and the `publish_docs.exs`
 publisher pattern that already runs against kilncms.dev.
 
-> **Blocked on [#1909](https://github.com/The-Verscienta/kiln_cms/issues/1909):
-> plugins can't be Hex or git dependencies today.** This plan assumes they
-> can (`source: hex | git`, a Hex `package`, Hex checksums and download
-> counts, an install step that adds a dep). In fact a plugin only compiles
-> as a `projects/<name>/` directory inside the core: Mix builds a dependency
-> before `kiln_cms`, so `use Kiln.Plugin` can't resolve. Until #1909 settles
-> how plugins are distributed (vendored git repos, or a published plugin
-> SDK), treat every Hex-specific field and step below as provisional. With
-> vendoring, a listing's coordinates are a git repository and a tag/SHA, and
-> "install" means vendoring into `projects/`.
+> **Partly unblocked by [#1909](https://github.com/The-Verscienta/kiln_cms/issues/1909):
+> the plugin contract now ships as its own package,
+> [`kiln_plugin`](https://github.com/The-Verscienta/kiln_cms/blob/main/sdk/kiln_plugin/README.md)**, so a plugin that depends on
+> it compiles as a Hex, `git:` or `path:` dependency, and `source: hex | git`
+> below means what it says. Two limits shape the data model:
+>
+> - **Not every plugin can be a dependency.** Blocks, field types, spam
+>   checks, image backends, nav items, children and queues can; content types
+>   (`KilnCMS.CMS.Content`), domains, advisory checks and `KilnCMSWeb`
+>   LiveViews need the core and stay `projects/<name>/` overlays. A listing
+>   therefore also needs a `shape` (`dependency` | `overlay`): an overlay's
+>   coordinates are a git repository and a tag/SHA, and "install" means
+>   vendoring it into `projects/`.
+> - **"Add the dep" edits the pinned core's `mix.exs`** until an overlay-level
+>   dependency hook exists (still open in #1909), which `mix kiln.update`
+>   refuses on update.
+>
+> The verification pipeline (§5) should also record the plugin's
+> `kiln_plugin` requirement: `mix kiln.plugins.doctor` checks it against the
+> version each Kiln release bundles, which is the compatibility data the
+> catalog wants.
 
 ## TL;DR
 
@@ -95,6 +106,7 @@ Fields, using the registered custom-field types (`KilnCMS.CMS.FieldTypes`):
 | `machine_name` | `:string` | Must equal `name/0`; globally reserved (§4) |
 | `summary` | `:string` | `summary/0` |
 | `source` | `:select` | `hex` \| `git` |
+| `shape` | `:select` | `dependency` \| `overlay` — whether it can be a Mix dependency at all (#1909) |
 | `package` | `:string` | Hex package name, when `source = hex` |
 | `repo_url` | `:url` | Canonical source repository |
 | `homepage` | `:url` | `homepage/0` — hexdocs or README |
