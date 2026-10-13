@@ -118,3 +118,10 @@ config :phoenix, :plug_init_mode, :runtime
 # outright: an e2e run must not depend on api.github.com being reachable, and
 # must not spend the instance's unauthenticated rate-limit budget.
 config :kiln_cms, Kiln.Updates, enabled: false
+
+# The collaborative-editing CRDT prototype (KilnCMS.Collab.Crdt) stays OFF
+# here, as config/prod.exs pins it, so the editor specs drive the solo
+# rich-text editor production runs. `e2e/tests/collab.spec.js` switches it on
+# for its own two peers through `/dev/e2e-collab` (KilnCMSWeb.Plugs.E2ECollab)
+# and restores it after; the flag is VM-global, which `workers: 1` makes safe.
+config :kiln_cms, :collab_prototype, false

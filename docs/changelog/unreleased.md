@@ -81,3 +81,24 @@ carries the reasoning.
   the editor, which released the block's field lock and took it again. The
   toolbar now cancels mousedown, as the page editor's floating toolbar already
   did. The language select still opens.
+
+<a id="collab-e2e"></a>
+
+- **The browser suite now drives live co-editing: two peers type into one
+  rich-text block and each sees the other's words and caret.** No spec
+  exercised the CRDT path before (`mountCollab` in `assets/js/rich_text.js`,
+  `assets/js/collab.js`): `:collab_prototype` was unset in `config/e2e.exs`,
+  so every block mounted solo. During the TipTap 3 move (#1957) that hid a
+  constructor throw that stopped every peer from syncing while all 33 editor
+  specs passed. `e2e/tests/collab.spec.js` signs in as the admin and the
+  editor in two contexts. A types, B sees it; A clicks away to release the
+  field lock, B types, A sees it. It asserts B's remote caret renders in A's
+  editor with a color and B's initials, that joining doubles no text, and
+  that neither page throws. Reverting the #1957 guard fails it, and so does a
+  joiner that seeds before the room's state arrives (`"AlphaAlphaAlpha"`).
+  The flag stays off for the rest of the suite, as production pins it, so
+  the other editor specs keep driving the solo editor and its reconnect
+  re-send. The spec switches it on and back through a new e2e-only route,
+  `POST /dev/e2e-collab` (`KilnCMSWeb.Plugs.E2ECollab`). The route is mounted
+  beside `/dev/e2e-identity` in the compile-gated dev-tools scope, which
+  `KilnCMS.Application` refuses in `:prod`.
