@@ -270,6 +270,21 @@ carries the reasoning.
   says the scan mode is the server's, and refuses the flags.
   ([#1969](https://github.com/The-Verscienta/kiln_cms/issues/1969))
 
+<a id="bandit-http2-off"></a>
+
+- **The app server answers HTTP/1.1 only: Bandit's HTTP/2 stack is off until a
+  fix for EEF-CVE-2026-105659 (an HTTP/2 flow-control DoS) is released.** In
+  Bandit 1.4.0 and later, every HTTP/2 `WINDOW_UPDATE` resets the deadline on a
+  blocked send, so a client that trickles them can pin stream processes
+  indefinitely. No fixed Bandit release exists yet, and `mix hex.audit` failed
+  CI on every branch. The endpoint now sets `http_2_options: [enabled: false]`,
+  which makes that code path unreachable, and `mix.exs` acknowledges the
+  advisory under `hex: [ignore_advisories: …]` with the reason. Kiln normally
+  runs behind a TLS-terminating proxy that keeps HTTP/2 to browsers and speaks
+  HTTP/1.1 to the app, so nothing changes there. A deployment that exposes the
+  app port directly to HTTP/2 clients loses HTTP/2 until the fix lands. Both
+  the setting and the acknowledgement come out when Bandit ships the fix.
+
 <a id="prosemirror-view-paste-xss"></a>
 
 - **prosemirror-view 1.42.6 for GHSA-c8x8-7fp4-3x9w: pasting HTML into the
