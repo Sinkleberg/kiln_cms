@@ -438,8 +438,14 @@ defmodule Mix.Tasks.Kiln.Plugins.Doctor do
   # where it came from.
   @doc false
   def image_backend_problems(plugins, selected) do
+    # `ensure_loaded?` first: `function_exported?/3` is false for a module
+    # that isn't loaded yet, which would report a plugin's backend as
+    # undeclared. Inside `mix kiln.plugins.doctor` an earlier check happens
+    # to load every plugin; a direct call (a plugin's own test) gets no such
+    # help.
     declared =
       for plugin <- plugins,
+          Code.ensure_loaded?(plugin),
           function_exported?(plugin, :image_backends, 0),
           mod <- plugin.image_backends(),
           do: {plugin, mod}
