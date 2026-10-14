@@ -40,10 +40,19 @@ defmodule Mix.Tasks.Kiln.Plugins.Doctor do
 
   Exits non-zero with every violation listed, so it can gate CI/precommit.
 
-  It also **notes**, without failing, a plugin that doesn't say what it does:
-  no `c:Kiln.Plugin.summary/0`, or the `TODO:` placeholder
-  `mix kiln.gen.plugin` scaffolds. The console's System → Plugins panel
-  still lists such a plugin's contributions, but not why it's installed.
+  It also **notes**, without failing:
+
+    * a plugin that doesn't say what it does: no `c:Kiln.Plugin.summary/0`,
+      or the `TODO:` placeholder `mix kiln.gen.plugin` scaffolds. The
+      console's System → Plugins panel still lists such a plugin's
+      contributions, but not why it's installed;
+    * a plugin installed through the overlay's `config/project_deps.exs`
+      (#1967) but missing from `config :kiln_cms, :plugins`. It compiled, but
+      nothing it contributes is active until it is listed there.
+
+  The final line names where each plugin came from: `projects/` (an overlay
+  compiled inside the core), `project_deps` (the overlay's dependency list),
+  `dependency` (one the core's own mix.exs declares) or `core`.
   """
   use Mix.Task
 
@@ -88,9 +97,18 @@ defmodule Mix.Tasks.Kiln.Plugins.Doctor do
       )
     end)
 
+    project_deps = Mix.Project.config()[:kiln_project_deps] || []
+
+    Enum.each(unregistered(project_deps, plugins), fn plugin ->
+      Mix.shell().info(
+        "note: #{inspect(plugin)} is installed from config/project_deps.exs but not " <>
+          "listed in config :kiln_cms, :plugins, so nothing it contributes is active"
+      )
+    end)
+
     case problems do
       [] ->
-        Mix.shell().info("#{length(plugins)} plugin(s) OK: #{names(plugins)}")
+        Mix.shell().info("#{length(plugins)} plugin(s) OK: #{names(plugins, project_deps)}")
 
       problems ->
         Mix.raise("""
@@ -119,8 +137,48 @@ defmodule Mix.Tasks.Kiln.Plugins.Doctor do
 
   defp blank_summary?(_summary), do: true
 
-  defp names([]), do: "(none)"
-  defp names(plugins), do: Enum.map_join(plugins, ", ", & &1.name())
+  defp names([], _project_deps), do: "(none)"
+
+  defp names(plugins, project_deps),
+    do: Enum.map_join(plugins, ", ", &"#{&1.name()} (#{source(&1, project_deps)})")
+
+  @doc false
+  # Where a plugin module came from (#1967), for the summary line. Public for
+  # testing; `project_deps` is the app list mix.exs read from the overlay.
+  @spec source(module(), [atom()]) :: String.t()
+  def source(plugin, project_deps) do
+    case :application.get_application(plugin) do
+      {:ok, :kiln_cms} -> if overlay_source?(plugin), do: "projects/", else: "core"
+      {:ok, app} -> if app in project_deps, do: "project_deps", else: "dependency"
+      :undefined -> "unknown"
+    end
+  end
+
+  defp overlay_source?(module) do
+    source = module.module_info(:compile) |> Keyword.get(:source, ~c"") |> to_string()
+    String.contains?(source, "/projects/")
+  end
+
+  @doc false
+  # Plugin entry modules shipped by the overlay's dependencies that
+  # `config :kiln_cms, :plugins` doesn't list. Public for testing.
+  @spec unregistered([atom()], [module()]) :: [module()]
+  def unregistered(project_deps, plugins) do
+    for app <- project_deps,
+        Application.load(app) in [:ok, {:error, {:already_loaded, app}}],
+        {:ok, modules} = :application.get_key(app, :modules),
+        module <- modules,
+        plugin_module?(module),
+        module not in plugins,
+        do: module
+  end
+
+  defp plugin_module?(module) do
+    Code.ensure_loaded?(module) and
+      Kiln.Plugin in (module.module_info(:attributes)
+                      |> Keyword.get_values(:behaviour)
+                      |> List.flatten())
+  end
 
   # A rescued exception's `Exception.message/1` can itself be multi-line
   # (`Protocol.UndefinedError`, for one) — only the first line would land
