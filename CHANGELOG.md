@@ -148,6 +148,10 @@ Every summary line below that was shortened links to its own entry there.
 
 ### Fixed
 
+- **`mix kiln.plugins.doctor`'s image-backend check no longer reports a
+  plugin's backend as undeclared when the plugin module isn't loaded yet.**
+  ([#1955](https://github.com/The-Verscienta/kiln_cms/issues/1955))
+
 - **Clicking a rich-text block's toolbar button keeps the caret in the text, so
   the first letters typed straight after Bold are no longer lost.**
   ([long form](docs/changelog/unreleased.md#toolbar-keeps-editor-focus))
