@@ -36,7 +36,13 @@ defmodule Mix.Tasks.Kiln.Plugins.Doctor do
       bundles. The core takes the package with `override: true`, which is
       what lets a plugin's Hex requirement converge on the bundled copy, and
       Mix does not check an overridden dependency's requirements, so this
-      does.
+      does;
+    * with an overlay dependency list (`config/project_deps.exs`, #1967),
+      every core dependency in `config/project.lock` is still at the version
+      this release's `mix.lock` pins. The overlay lock is where `mix deps.get`
+      writes once the overlay has dependencies, so an overlay dependency that
+      needs a newer shared dependency would otherwise move a core one past
+      what the release was tested with, without a word.
 
   Exits non-zero with every violation listed, so it can gate CI/precommit.
 
@@ -63,6 +69,7 @@ defmodule Mix.Tasks.Kiln.Plugins.Doctor do
   alias KilnCMS.CMS.FieldDefinition
   alias KilnCMS.JsonSchemaValidator
   alias KilnCMS.SchemaExport
+  alias Mix.Kiln.ProjectLock
 
   @requirements ["compile"]
 
@@ -86,7 +93,8 @@ defmodule Mix.Tasks.Kiln.Plugins.Doctor do
         block_schema_problems(plugins, blocks_by_plugin) ++
         field_type_schema_problems(plugins, field_types_by_plugin) ++
         field_type_hook_problems(plugins, field_types_by_plugin) ++
-        sdk_requirement_problems(sdk_version(), sdk_requirements(declared_deps()))
+        sdk_requirement_problems(sdk_version(), sdk_requirements(declared_deps())) ++
+        project_lock_problems(File.cwd!())
 
     # Printed before the verdict so a failing run still shows them, and never
     # a problem: a missing description is a gap for operators, not a fault.
@@ -141,6 +149,32 @@ defmodule Mix.Tasks.Kiln.Plugins.Doctor do
 
   defp names(plugins, project_deps),
     do: Enum.map_join(plugins, ", ", &"#{&1.name()} (#{source(&1, project_deps)})")
+
+  @doc false
+  # Core entries of the overlay lock that moved away from mix.lock (#1967).
+  # Public so the test can point it at any directory.
+  @spec project_lock_problems(Path.t()) :: [String.t()]
+  def project_lock_problems(root) do
+    if ProjectLock.present?(root) do
+      root
+      |> ProjectLock.lock_path()
+      |> ProjectLock.read()
+      |> ProjectLock.drift(root |> ProjectLock.core_lock_path() |> ProjectLock.read())
+      |> Enum.map(fn {app, project_entry, core_entry} ->
+        "config/project.lock has #{app} at #{lock_version(project_entry)}, but this " <>
+          "release's mix.lock pins #{lock_version(core_entry)}. Core dependencies stay at " <>
+          "the release's versions: delete config/project.lock and run mix deps.get to " <>
+          "re-seed it, and if an overlay dependency then fails to resolve, use a version " <>
+          "of it built for this core"
+      end)
+    else
+      []
+    end
+  end
+
+  defp lock_version({:hex, _app, version, _inner, _managers, _deps, _repo, _outer}), do: version
+  defp lock_version({:git, _url, ref, _opts}) when is_binary(ref), do: String.slice(ref, 0, 7)
+  defp lock_version(entry), do: inspect(entry)
 
   @doc false
   # Where a plugin module came from (#1967), for the summary line. Public for

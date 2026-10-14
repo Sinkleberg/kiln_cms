@@ -261,6 +261,16 @@ jobs:
         # the core bakes at compile time; it restores the fixture on exit.
         run: scripts/ci/check_plugin_dep_recompile.sh
 
+      - name: Check a plugin installs through config/project_deps.exs
+        # #1967: an overlay adds a dependency plugin through the git-ignored
+        # `config/project_deps.exs`, never the core's mix.exs. The script
+        # installs sdk/fixtures/project_dep_plugin that way and fails unless it
+        # compiles into the core, its Hex dependency locks into
+        # `config/project.lock` while mix.lock stays byte-identical, git status
+        # is unchanged, and the doctor names it as unregistered. With the hook
+        # removed from mix.exs it fails at the first check.
+        run: scripts/ci/check_project_deps.sh
+
   test:
     name: Test (shard ${{ matrix.partition }})
     runs-on: ubuntu-24.04
