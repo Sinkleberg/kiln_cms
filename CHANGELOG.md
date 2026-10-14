@@ -76,6 +76,10 @@ Every summary line below that was shortened links to its own entry there.
   renders their variants and transforms from URLs.**
   ([long form](docs/changelog/unreleased.md#image-backends))
 
+- **Hybrid search's relevance floor can judge the any-term (OR) keyword leg's
+  hits too, and the floor is a runtime setting.**
+  ([long form](docs/changelog/unreleased.md#search-floor-legs))
+
 - **`mix kiln.embed_all --blocks` re-embeds the block index too, so a model,
   pooling or `document_prefix` change reaches every block vector.**
   ([long form](docs/changelog/unreleased.md#embed-all-blocks))
