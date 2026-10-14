@@ -35,24 +35,8 @@ defmodule KilnCMS.OrganizeFixtures do
     )
   end
 
-  # Every `fresh_window_ms/1` window is window number `@window_index - nth`.
-  @window_index 1_000
-
-  @doc """
-  A `KilnCMS.LLM.Budget` window length (~20 days) whose current window opened
-  under a second ago, so no window boundary can fall inside a test.
-
-  Hammer's fixed window keys a bucket on `div(now, window_ms)` — the length
-  itself is not in the key. A `:timer.minutes(1)` window therefore rolls over
-  mid-test whenever the wall clock crosses a minute, and a counter charged
-  before the boundary reads back as 0 after it. This length is
-  `div(now, @window_index - nth)`, which puts `now` at the very start of window
-  number `@window_index - nth`: each `nth` is a distinct, empty window — a
-  "next window" without sleeping — and every call with the same `nth` lands in
-  the same one, however much time passed between them.
-  """
-  def fresh_window_ms(nth \\ 0) when nth in 0..(@window_index - 1)//1,
-    do: div(System.system_time(:millisecond), @window_index - nth)
+  @doc "See `KilnCMS.Test.BudgetWindow.fresh_window_ms/2`."
+  defdelegate fresh_window_ms(nth \\ 0), to: KilnCMS.Test.BudgetWindow
 
   @doc "Merges `overrides` into the live `KilnCMS.Search` env."
   def put_search_env(overrides) do
