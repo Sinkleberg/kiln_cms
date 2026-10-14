@@ -18,6 +18,20 @@ carries the reasoning.
   prod `deps.get` doesn't read.
   ([#1909](https://github.com/The-Verscienta/kiln_cms/issues/1909))
 
+<a id="chunked-embeddings-migration"></a>
+
+- **A new, empty table — `document_chunk_embeddings` — arrives by migration;
+  nothing writes to it until `chunk_long_documents` is turned on.** The
+  migration only adds: the table, its HNSW index and a lookup index. Turning
+  the knob on (`SEARCH_CHUNK_LONG_DOCUMENTS=true`, or `chunk_long_documents:
+  true` in `config :kiln_cms, KilnCMS.Search`) embeds long records as they are
+  next saved; run `mix kiln.embed_all` to backfill the rest, which costs about
+  twice a full re-embed for a corpus of long records. Chunks are charged to the
+  `"search_embedding"` budget as unattended work, 300 chunks an hour per org
+  at the defaults, so a large backfill takes several hours unless
+  `embedding_per_org_limit` is raised for it. See the next entry under Added.
+  ([#1940](https://github.com/The-Verscienta/kiln_cms/issues/1940))
+
 <a id="block-embedding-prefixes-upgrade"></a>
 
 - **Changing `document_prefix` (as an e5 model swap does) now needs block
@@ -62,6 +76,22 @@ carries the reasoning.
   the core's reference 404.
   ([#1909](https://github.com/The-Verscienta/kiln_cms/issues/1909))
 
+<a id="plugin-sdk-advisories"></a>
+
+- **Advisory checks can ship in a dependency plugin, and `mix kiln.gen.plugin
+  --dep` scaffolds one.** `Kiln.Advisory` and its `Finding`, `Context` and
+  `Body` structs moved into `kiln_plugin`, under the same names, so a check
+  that matches `%Kiln.Advisory.Context{}` compiles without the core. The
+  block walk that fills a `Body` matches the core's block types, so it stays
+  in the core as `Kiln.Advisory.Walk` (`compute/1`, `from_typed/1`,
+  `from_indexed/1`); the same functions on `Body` still work, deprecated.
+  `mix kiln.gen.plugin <Name> --dep` writes a standalone Mix project that
+  depends only on `kiln_plugin` to `../<name>` (or `--path`), with
+  `--block`/`--field` samples, its own config, formatter and a test, and
+  changes nothing in the core checkout. The fixture dependency plugin gains an
+  advisory check the suite runs against a core-built context.
+  ([#1909](https://github.com/The-Verscienta/kiln_cms/issues/1909))
+
 <a id="image-backends"></a>
 
 - **A plugin can contribute an image backend (`Kiln.ImageBackend`) — an
@@ -89,6 +119,37 @@ carries the reasoning.
   system-only `adopt_into_image_backend` action on media items. The Cloudflare
   Images plugin itself ships separately.
   ([#1955](https://github.com/The-Verscienta/kiln_cms/issues/1955))
+
+<a id="chunked-embeddings"></a>
+
+- **Semantic search can see past the first 512 tokens of a long record:
+  `chunk_long_documents` embeds the rest of its text in overlapping chunks.**
+  A record's vector covers the first window of its `search_text`, which the
+  model truncates at 512 tokens, and since #1585 searchable custom fields make
+  prose-heavy records run well past it. A record with no blocks had nothing
+  else to be found by, and the relevance floor judged it by a vector that
+  never saw the passage the query matched. With the knob on (off by default),
+  the embedding job also splits the text past the window into windows of the
+  serving's length, `chunk_overlap` tokens apart (64), at most
+  `chunk_max_per_document` (8) per record, each prefixed with the title. They
+  are stored in their own table rather than as synthetic rows in
+  `block_embeddings`, whose consumers read every row as a block. Hybrid
+  search's block leg then reaches a record through its nearest chunk as well
+  as its nearest block, so it is reported as `block` and the floor judges it
+  by `min(document, block, chunk, tag)`. That includes a `:keyword_any` hit
+  the floor judges (#1936, `semantic_floor_legs`) that no semantic leg
+  returned: the lookup that measures it reads its chunks too, so a match in a
+  late passage is judged by the chunk that holds it. Boundaries are counted in words at
+  0.6 words a token — the lean build has no tokenizer, and the estimate errs
+  towards overlap, never towards a gap. A re-embed replaces a record's chunks
+  in one transaction and reuses unchanged ones; a lock or a hard purge deletes
+  them. Each chunk that reaches the model costs one unit of the
+  `"search_embedding"` budget, charged as unattended work so it stops at
+  `embedding_unattended_share` and leaves editors their reserve; a spent window
+  snoozes the job until it rolls over. Off, nothing is written and no stored
+  vector changes. See
+  `docs/semantic-search-plan.md`, "Long documents".
+  ([#1940](https://github.com/The-Verscienta/kiln_cms/issues/1940))
 
 <a id="search-floor-legs"></a>
 

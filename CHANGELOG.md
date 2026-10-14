@@ -60,6 +60,10 @@ Every summary line below that was shortened links to its own entry there.
   first `COPY sdk/kiln_plugin sdk/kiln_plugin`; the core's own Dockerfile does.**
   ([long form](docs/changelog/unreleased.md#plugin-sdk-docker))
 
+- **A new, empty table — `document_chunk_embeddings` — arrives by migration;
+  nothing writes to it until `chunk_long_documents` is turned on.**
+  ([long form](docs/changelog/unreleased.md#chunked-embeddings-migration))
+
 - **Changing `document_prefix` (as an e5 model swap does) now needs block
   vectors re-embedded too: `mix kiln.embed_all --blocks`, or a firing sweep
   (`mix kiln.refire_all`), as well as documents and tags.**
@@ -71,10 +75,18 @@ Every summary line below that was shortened links to its own entry there.
   moved, under the same module names, into its own package, `kiln_plugin`.**
   ([long form](docs/changelog/unreleased.md#plugin-sdk))
 
+- **Advisory checks can ship in a dependency plugin, and `mix kiln.gen.plugin
+  --dep` scaffolds one.**
+  ([long form](docs/changelog/unreleased.md#plugin-sdk-advisories))
+
 - **A plugin can contribute an image backend (`Kiln.ImageBackend`) — an
   external service such as Cloudflare Images that takes new image uploads and
   renders their variants and transforms from URLs.**
   ([long form](docs/changelog/unreleased.md#image-backends))
+
+- **Semantic search can see past the first 512 tokens of a long record:
+  `chunk_long_documents` embeds the rest of its text in overlapping chunks.**
+  ([long form](docs/changelog/unreleased.md#chunked-embeddings))
 
 - **Hybrid search's relevance floor can judge the any-term (OR) keyword leg's
   hits too, and the floor is a runtime setting.**
