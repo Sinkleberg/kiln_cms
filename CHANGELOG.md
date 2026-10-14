@@ -141,6 +141,10 @@ Every summary line below that was shortened links to its own entry there.
 
 ### Security
 
+- **The app server answers HTTP/1.1 only: Bandit's HTTP/2 stack is off until a
+  fix for EEF-CVE-2026-105659 (an HTTP/2 flow-control DoS) is released.**
+  ([long form](docs/changelog/unreleased.md#bandit-http2-off))
+
 - **prosemirror-view 1.42.6 for GHSA-c8x8-7fp4-3x9w: pasting HTML into the
   rich-text editor can no longer run script.**
   ([long form](docs/changelog/unreleased.md#prosemirror-view-paste-xss))
