@@ -55,15 +55,15 @@ dependency's requirement against an overridden package, so the core checks it
 instead: `mix kiln.plugins.doctor` fails when an installed plugin requires a
 `kiln_plugin` version the core doesn't bundle.
 
-Then, in the site, the plugin is a dependency of the KilnCMS project and one
-config line activates it. The dependency line goes in the core's own
-`mix.exs`, which edits the pinned core: `mix kiln.update` refuses a locally
-patched pin, so for now an update means reapplying that line. A
-dependency-list hook for overlays is tracked in kiln_cms#1967.
+Then, in the site, the plugin goes in the overlay's dependency list and one
+config line activates it. `config/project_deps.exs` sits beside
+`config/project.exs` and, like it, is git-ignored in the core and committed
+in the overlay. The core's own `mix.exs` and `mix.lock` never change: Mix
+locks the overlay's dependencies into `config/project.lock` (kiln_cms#1967).
 
 ```elixir
-# the KilnCMS mix.exs
-{:kiln_ratings, "~> 1.0"}
+# config/project_deps.exs
+[{:kiln_ratings, "~> 1.0"}]
 
 # config/project.exs
 config :kiln_cms, :plugins, [KilnRatings.Plugin]
