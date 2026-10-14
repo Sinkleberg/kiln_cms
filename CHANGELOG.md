@@ -146,6 +146,10 @@ Every summary line below that was shortened links to its own entry there.
   solo until it reloads.**
   ([long form](docs/changelog/unreleased.md#tiptap-3))
 
+- **HTTP/2 is off on the app's listener while Bandit has no fix for
+  EEF-CVE-2026-105659 (GHSA-69m6-wcv4-rwcf).**
+  ([long form](docs/changelog/unreleased.md#bandit-http2-off))
+
 ### Fixed
 
 - **`mix kiln.plugins.doctor`'s image-backend check no longer reports a

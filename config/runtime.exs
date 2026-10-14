@@ -68,8 +68,18 @@ if Env.truthy?("PHX_SERVER") do
   config :kiln_cms, KilnCMSWeb.Endpoint, server: true
 end
 
+# HTTP/2 is off (EEF-CVE-2026-105659, GHSA-69m6-wcv4-rwcf). Bandit through
+# 1.12.5 resets an HTTP/2 stream's blocked-send deadline on every
+# WINDOW_UPDATE, so a client that trickles them pins the stream's process
+# indefinitely. On a plain-HTTP listener Bandit otherwise answers h2c "prior
+# knowledge" connections; a TLS-terminating proxy in front talks HTTP/1.1 to
+# the app either way, so nothing a deployment relies on is lost. Re-enable
+# once a fixed Bandit is in mix.lock. Pinned by test/config/http2_disabled_test.exs.
 config :kiln_cms, KilnCMSWeb.Endpoint,
-  http: [port: String.to_integer(System.get_env("PORT", "4000"))]
+  http: [
+    port: String.to_integer(System.get_env("PORT", "4000")),
+    http_2_options: [enabled: false]
+  ]
 
 # ## How this file is organized (#1322)
 #

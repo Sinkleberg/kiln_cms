@@ -307,6 +307,21 @@ carries the reasoning.
   options object (v3 emits an update by default, so the reconnect reload now
   passes `emitUpdate: false` explicitly).
 
+<a id="bandit-http2-off"></a>
+
+- **HTTP/2 is off on the app's listener while Bandit has no fix for
+  EEF-CVE-2026-105659 (GHSA-69m6-wcv4-rwcf).** The advisory (HIGH) is in
+  Bandit's HTTP/2 flow control: every WINDOW_UPDATE resets a blocked send's
+  deadline, so a client that trickles them holds a stream's process open
+  indefinitely. Every Bandit from 1.4.0 is affected, and 1.12.5 is the newest
+  release. A plain-HTTP Bandit listener also answers h2c "prior knowledge"
+  connections, so the app was reachable over HTTP/2 even behind a proxy. The
+  endpoint now sets `http_2_options: [enabled: false]` in
+  `config/runtime.exs`, and such a connection is closed. A TLS-terminating
+  proxy speaks HTTP/1.1 to the app regardless, so browsers still get HTTP/2
+  from it. HTTP/2 comes back once a fixed Bandit is locked. `mix hex.audit`
+  keeps reporting the advisory until then.
+
 <a id="toolbar-keeps-editor-focus"></a>
 
 - **Clicking a rich-text block's toolbar button keeps the caret in the text, so
