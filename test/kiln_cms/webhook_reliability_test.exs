@@ -326,6 +326,26 @@ defmodule KilnCMS.WebhookReliabilityTest do
     assert [%{event: "ping", status: :succeeded}] = deliveries()
   end
 
+  # #1926: a diagnostic ping that gets through to an auto-disabled endpoint
+  # must leave it auto-disabled. Clearing the stamp without turning the
+  # endpoint on would make it look switched off by an admin, and retractions
+  # would stop reaching it.
+  test "a successful ping leaves an auto-disabled endpoint auto-disabled" do
+    stub_status(200)
+    put_webhook_env(auto_disable_after: 1)
+    endpoint = endpoint!()
+    CMS.record_webhook_failure!(endpoint, %{}, authorize?: false)
+    endpoint = CMS.get_webhook_endpoint!(endpoint.id, authorize?: false)
+
+    Webhooks.ping(endpoint)
+    drain_with_retries()
+
+    reloaded = CMS.get_webhook_endpoint!(endpoint.id, authorize?: false)
+    refute reloaded.active
+    assert reloaded.auto_disabled_at
+    assert reloaded.consecutive_failures == 1
+  end
+
   test "a regular delivery to an endpoint disabled mid-flight settles as failed" do
     stub_status(200)
     endpoint = endpoint!()

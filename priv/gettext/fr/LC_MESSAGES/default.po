@@ -4356,6 +4356,7 @@ msgstr "Impossible de lire %{name} : %{reason}."
 msgid "Couldn't record that consent."
 msgstr "Enregistrement de ce consentement impossible."
 
+#: lib/kiln_cms_web/live/governance_live.ex
 #: lib/kiln_cms_web/live/webhook_live.ex
 #, elixir-autogen, elixir-format
 msgid "Couldn't redeliver that webhook."
@@ -7054,6 +7055,11 @@ msgstr "Restreint"
 #, elixir-autogen, elixir-format
 msgid "Gated to the %{audience} audience"
 msgstr "Restreint à l'audience %{audience}"
+
+#: lib/kiln_cms_web/live/governance_live.ex
+#, elixir-autogen, elixir-format
+msgid "Gave up %{at} after %{count} attempt(s)"
+msgstr "Abandonné le %{at} après %{count} tentative(s)"
 
 #: lib/kiln_cms_web/live/form_builder_live.ex
 #, elixir-autogen, elixir-format
@@ -10524,6 +10530,11 @@ msgstr "Ouvrir le panneau Conformité de l’éditeur"
 msgid "Open the full editor"
 msgstr "Ouvrir l'éditeur complet"
 
+#: lib/kiln_cms_web/live/governance_live.ex
+#, elixir-autogen, elixir-format
+msgid "Open webhooks"
+msgstr "Ouvrir les webhooks"
+
 #: lib/kiln_cms_web/live/site_ai_live.ex
 #, elixir-autogen, elixir-format
 msgid "OpenAI-compatible endpoint"
@@ -11762,11 +11773,13 @@ msgstr "Enregistrer le consentement"
 msgid "Recovery code"
 msgstr "Code de récupération"
 
+#: lib/kiln_cms_web/live/governance_live.ex
 #: lib/kiln_cms_web/live/webhook_live.ex
 #, elixir-autogen, elixir-format
 msgid "Redeliver"
 msgstr "Renvoyer"
 
+#: lib/kiln_cms_web/live/governance_live.ex
 #: lib/kiln_cms_web/live/webhook_live.ex
 #, elixir-autogen, elixir-format
 msgid "Redelivery queued."
@@ -12494,6 +12507,16 @@ msgstr "Rétention"
 #, elixir-autogen, elixir-format
 msgid "Retired"
 msgstr "Retiré"
+
+#: lib/kiln_cms_web/notification_text.ex
+#, elixir-autogen, elixir-format
+msgid "Retraction not delivered"
+msgstr "Retrait non distribué"
+
+#: lib/kiln_cms_web/live/governance_live.ex
+#, elixir-autogen, elixir-format
+msgid "Retractions not delivered"
+msgstr "Retraits non distribués"
 
 #: lib/kiln_cms_web/live/webhook_live.ex
 #, elixir-autogen, elixir-format
@@ -15752,6 +15775,11 @@ msgstr "Ces deux versions sont identiques."
 msgid "These views appear once semantic search is switched on for this site."
 msgstr "Ces vues apparaissent une fois la recherche sémantique activée sur ce site."
 
+#: lib/kiln_cms_web/live/governance_live.ex
+#, elixir-autogen, elixir-format
+msgid "These webhook consumers were never told this content was withdrawn, and may still be serving it. Fix the receiver, then redeliver."
+msgstr "Ces destinataires de webhooks n’ont jamais été informés du retrait de ce contenu et le servent peut-être encore. Corrigez le récepteur, puis relancez la distribution."
+
 #: lib/kiln_cms_web/live/form_builder_live.ex
 #, elixir-autogen, elixir-format
 msgid "Third"
@@ -18454,6 +18482,16 @@ msgstr "créer une tâche pour l’auteur"
 msgid "deleted"
 msgstr "supprimé"
 
+#: lib/kiln_cms_web/live/governance_live.ex
+#, elixir-autogen, elixir-format
+msgid "deleted endpoint"
+msgstr "endpoint supprimé"
+
+#: lib/kiln_cms_web/live/governance_live.ex
+#, elixir-autogen, elixir-format
+msgid "delivered later, %{at}"
+msgstr "distribué plus tard, %{at}"
+
 #: lib/kiln_cms_web/live/federation_live.ex
 #, elixir-autogen, elixir-format
 msgid "disabled (identity kept)"
@@ -18625,6 +18663,11 @@ msgstr "les dimensions de l'image sont trop grandes"
 #, elixir-autogen, elixir-format
 msgid "in review"
 msgstr "en révision"
+
+#: lib/kiln_cms_web/live/governance_live.ex
+#, elixir-autogen, elixir-format
+msgid "in the trash"
+msgstr "dans la corbeille"
 
 #: lib/kiln_cms_web/live/webhook_live.ex
 #, elixir-autogen, elixir-format

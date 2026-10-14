@@ -97,6 +97,37 @@ defmodule KilnCMSWeb.GovernanceLive do
     end
   end
 
+  # Replay a lost retraction from the trail (#1926). Here rather than only on
+  # /editor/webhooks, whose list is the 25 newest deliveries: a retraction is
+  # given up on about a day after it was sent, by when it has usually scrolled
+  # off that list. Read as the signed-in admin under the document's site, so
+  # the ledger's own admin-only policy decides.
+  def handle_event("redeliver_retraction", %{"id" => id}, socket) when is_binary(id) do
+    item = socket.assigns.trail.item
+
+    result =
+      with {:ok, delivery} <-
+             KilnCMS.CMS.get_webhook_delivery(id,
+               actor: socket.assigns.current_user,
+               tenant: item.org_id
+             ),
+           true <- delivery.document_id == item.id,
+           %KilnCMS.CMS.WebhookDelivery{} <- KilnCMS.Webhooks.redeliver(delivery) do
+        :ok
+      end
+
+    case result do
+      :ok ->
+        {:noreply,
+         socket
+         |> assign(:trail, Governance.trail(item.type, item.id, item.org_id))
+         |> put_flash(:info, gettext("Redelivery queued."))}
+
+      _error ->
+        {:noreply, put_flash(socket, :error, gettext("Couldn't redeliver that webhook."))}
+    end
+  end
+
   defp blank_consent_form,
     do: to_form(%{"kind" => nil, "reference" => "", "grantor" => "", "note" => ""}, as: "consent")
 
@@ -678,6 +709,66 @@ defmodule KilnCMSWeb.GovernanceLive do
     """
   end
 
+  attr :lost, :list, required: true
+
+  # Retraction webhooks that never reached a consumer (#1926). Only rendered
+  # when there is one: an empty "nothing lost" card on every trail would be
+  # chrome, and this panel's job is to be impossible to miss when it matters.
+  defp lost_retractions_panel(assigns) do
+    ~H"""
+    <section
+      :if={@lost != []}
+      id="lost-retractions"
+      class="card card-pad space-y-3 border-error/40"
+      data-role="lost-retractions"
+    >
+      <div>
+        <h2 class="flex items-center gap-2 text-lg font-medium text-error-ink">
+          <.icon name="hero-exclamation-triangle" class="size-5" />
+          {gettext("Retractions not delivered")} ({length(@lost)})
+        </h2>
+        <p class="text-sm text-base-content/70">
+          {gettext(
+            "These webhook consumers were never told this content was withdrawn, and may still be serving it. Fix the receiver, then redeliver."
+          )}
+        </p>
+      </div>
+      <ul class="divide-y divide-base-content/10">
+        <li :for={lost <- @lost} id={"lost-retraction-" <> lost.id} class="space-y-0.5 py-2 text-sm">
+          <div class="flex flex-wrap items-center gap-2">
+            <code class="text-xs">{lost.event}</code>
+            <span class="truncate font-medium">{lost.endpoint_url || gettext("deleted endpoint")}</span>
+            <span
+              :if={lost.recovered_at}
+              class="rounded bg-success/15 px-1.5 py-0.5 text-xs font-medium text-success-ink"
+            >
+              {gettext("delivered later, %{at}", at: when_str(lost.recovered_at))}
+            </span>
+            <button
+              :if={is_nil(lost.recovered_at) and lost.endpoint_id}
+              type="button"
+              phx-click="redeliver_retraction"
+              phx-value-id={lost.id}
+              class="btn btn-sm btn-default ml-auto"
+            >
+              {gettext("Redeliver")}
+            </button>
+          </div>
+          <p class="text-xs text-base-content/60">
+            {gettext("Gave up %{at} after %{count} attempt(s)",
+              at: when_str(lost.failed_at),
+              count: lost.attempts
+            )}<span :if={lost.last_error}> · {lost.last_error}</span>
+          </p>
+        </li>
+      </ul>
+      <.link navigate={~p"/editor/webhooks"} class="btn btn-sm btn-default">
+        {gettext("Open webhooks")}
+      </.link>
+    </section>
+    """
+  end
+
   attr :trail, :map, required: true
   attr :consent_form, :any, required: true
 
@@ -691,6 +782,7 @@ defmodule KilnCMSWeb.GovernanceLive do
         <h1 class="mt-1 text-2xl font-semibold">{@trail.item.title}</h1>
         <p class="text-sm text-base-content/60">
           {@trail.item.type} · {@trail.item.state}
+          <span :if={@trail.item.trashed?}> · {gettext("in the trash")}</span>
         </p>
         <.chain_badge
           chain={@trail.chain}
@@ -720,6 +812,8 @@ defmodule KilnCMSWeb.GovernanceLive do
           </a>
         </div>
       </div>
+
+      <.lost_retractions_panel lost={@trail.lost_retractions} />
 
       <section class="space-y-3">
         <h2 class="text-lg font-medium">{gettext("Consent records")} ({length(@trail.consents)})</h2>

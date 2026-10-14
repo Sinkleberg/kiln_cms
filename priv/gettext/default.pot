@@ -4356,6 +4356,7 @@ msgstr ""
 msgid "Couldn't record that consent."
 msgstr ""
 
+#: lib/kiln_cms_web/live/governance_live.ex
 #: lib/kiln_cms_web/live/webhook_live.ex
 #, elixir-autogen, elixir-format
 msgid "Couldn't redeliver that webhook."
@@ -7053,6 +7054,11 @@ msgstr ""
 #: lib/kiln_cms_web/live/media_live.ex
 #, elixir-autogen, elixir-format
 msgid "Gated to the %{audience} audience"
+msgstr ""
+
+#: lib/kiln_cms_web/live/governance_live.ex
+#, elixir-autogen, elixir-format
+msgid "Gave up %{at} after %{count} attempt(s)"
 msgstr ""
 
 #: lib/kiln_cms_web/live/form_builder_live.ex
@@ -10524,6 +10530,11 @@ msgstr ""
 msgid "Open the full editor"
 msgstr ""
 
+#: lib/kiln_cms_web/live/governance_live.ex
+#, elixir-autogen, elixir-format
+msgid "Open webhooks"
+msgstr ""
+
 #: lib/kiln_cms_web/live/site_ai_live.ex
 #, elixir-autogen, elixir-format
 msgid "OpenAI-compatible endpoint"
@@ -11762,11 +11773,13 @@ msgstr ""
 msgid "Recovery code"
 msgstr ""
 
+#: lib/kiln_cms_web/live/governance_live.ex
 #: lib/kiln_cms_web/live/webhook_live.ex
 #, elixir-autogen, elixir-format
 msgid "Redeliver"
 msgstr ""
 
+#: lib/kiln_cms_web/live/governance_live.ex
 #: lib/kiln_cms_web/live/webhook_live.ex
 #, elixir-autogen, elixir-format
 msgid "Redelivery queued."
@@ -12493,6 +12506,16 @@ msgstr ""
 #: lib/kiln_cms_web/live/billing_live.ex
 #, elixir-autogen, elixir-format
 msgid "Retired"
+msgstr ""
+
+#: lib/kiln_cms_web/notification_text.ex
+#, elixir-autogen, elixir-format
+msgid "Retraction not delivered"
+msgstr ""
+
+#: lib/kiln_cms_web/live/governance_live.ex
+#, elixir-autogen, elixir-format
+msgid "Retractions not delivered"
 msgstr ""
 
 #: lib/kiln_cms_web/live/webhook_live.ex
@@ -15752,6 +15775,11 @@ msgstr ""
 msgid "These views appear once semantic search is switched on for this site."
 msgstr ""
 
+#: lib/kiln_cms_web/live/governance_live.ex
+#, elixir-autogen, elixir-format
+msgid "These webhook consumers were never told this content was withdrawn, and may still be serving it. Fix the receiver, then redeliver."
+msgstr ""
+
 #: lib/kiln_cms_web/live/form_builder_live.ex
 #, elixir-autogen, elixir-format
 msgid "Third"
@@ -18454,6 +18482,16 @@ msgstr ""
 msgid "deleted"
 msgstr ""
 
+#: lib/kiln_cms_web/live/governance_live.ex
+#, elixir-autogen, elixir-format
+msgid "deleted endpoint"
+msgstr ""
+
+#: lib/kiln_cms_web/live/governance_live.ex
+#, elixir-autogen, elixir-format
+msgid "delivered later, %{at}"
+msgstr ""
+
 #: lib/kiln_cms_web/live/federation_live.ex
 #, elixir-autogen, elixir-format
 msgid "disabled (identity kept)"
@@ -18624,6 +18662,11 @@ msgstr ""
 #: lib/kiln_cms_web/live/translations_live.ex
 #, elixir-autogen, elixir-format
 msgid "in review"
+msgstr ""
+
+#: lib/kiln_cms_web/live/governance_live.ex
+#, elixir-autogen, elixir-format
+msgid "in the trash"
 msgstr ""
 
 #: lib/kiln_cms_web/live/webhook_live.ex

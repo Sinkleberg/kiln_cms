@@ -40,6 +40,11 @@ defmodule KilnCMS.CMS.WebhookEndpoint do
   # hint, #1776) reads this rather than keeping its own copy.
   @draft_verbs @verbs -- @default_verbs
 
+  # The verbs that take a document OFF a consumer (#1926): exempt from
+  # auto-disable, retried longer, surfaced when lost (`KilnCMS.Webhooks`). Not
+  # `restored`: that one puts a document back.
+  @retraction_verbs ~w(unpublished archived deleted)
+
   # Domain events that are NOT a content type crossed with a verb. Editorial
   # tasks (#501) and content releases (#500) dispatch through the same
   # `KilnCMS.Webhooks.dispatch/3` funnel with a literal type segment, so they are
@@ -71,11 +76,45 @@ defmodule KilnCMS.CMS.WebhookEndpoint do
   """
   @spec carries_drafts?(String.t()) :: boolean()
   def carries_drafts?(event) when is_binary(event) do
-    case String.split(event, ".", parts: 2) do
-      [_type, verb] -> verb in @draft_verbs
-      _ -> false
+    case event_parts(event) do
+      {_type, verb} -> verb in @draft_verbs
+      nil -> false
     end
   end
+
+  @doc """
+  The lifecycle verbs whose events withdraw a document from a consumer:
+  `unpublished`, `archived` and `deleted` (#1926).
+  """
+  def retraction_verbs, do: @retraction_verbs
+
+  @doc """
+  `{type, verb}` for a `<type>.<verb>` event name, `nil` for one without a
+  dot (`"ping"`). The one parse every verb check goes through.
+  """
+  @spec event_parts(String.t()) :: {String.t(), String.t()} | nil
+  def event_parts(event) when is_binary(event) do
+    case String.split(event, ".", parts: 2) do
+      [type, verb] -> {type, verb}
+      _ -> nil
+    end
+  end
+
+  @doc """
+  Whether this endpoint takes a delivery of `event` — the one rule both the
+  dispatch scan and the delivery worker apply (#1926).
+
+  An active endpoint takes everything it is sent. An inactive one takes a
+  `"ping"` (so an admin can test it) and, when the PIPELINE switched it off
+  (`auto_disabled_at` set), a retraction. One an admin switched off has no
+  stamp and takes neither.
+  """
+  @spec receives?(struct(), String.t(), boolean()) :: boolean()
+  def receives?(endpoint, event, retraction?)
+  def receives?(%{active: true}, _event, _retraction?), do: true
+  def receives?(_endpoint, "ping", _retraction?), do: true
+  def receives?(%{auto_disabled_at: %DateTime{}}, _event, true), do: true
+  def receives?(_endpoint, _event, _retraction?), do: false
 
   @doc """
   Every selectable event name: each registered content type — compiled and
@@ -164,16 +203,40 @@ defmodule KilnCMS.CMS.WebhookEndpoint do
       primary? true
       require_atomic? false
       validate KilnCMS.CMS.Validations.WebhookUrl
-      # Re-enabling (or any edit) gives the endpoint a clean slate.
+      # Any edit gives the endpoint a clean failure count. The auto-disable
+      # stamp is only cleared when the endpoint ends up active: an admin fixing
+      # the URL of an auto-disabled endpoint and leaving it off to ping first
+      # must not turn it into one "switched off by hand", which would cut it
+      # off from retractions (#1926).
       change set_attribute(:consecutive_failures, 0)
-      change set_attribute(:auto_disabled_at, nil)
+
+      change fn changeset, _context ->
+        if Ash.Changeset.get_attribute(changeset, :active) do
+          Ash.Changeset.force_change_attribute(changeset, :auto_disabled_at, nil)
+        else
+          changeset
+        end
+      end
     end
 
-    # A delivery got through: the endpoint is healthy again (system action,
-    # called by the delivery pipeline as `KilnCMS.Webhooks.system/0`).
+    # A delivery got through: an ACTIVE endpoint is healthy again (system
+    # action, called by the delivery pipeline as `KilnCMS.Webhooks.system/0`).
+    # Decided on the row as it is in the database, not on the caller's copy:
+    # the worker read the endpoint before its POST, and a concurrent exhaustion
+    # may have auto-disabled it since. Clearing the stamp on an inactive
+    # endpoint would leave it looking switched off by an admin and stop
+    # retractions reaching it (#1926), so a ping or a retraction that gets
+    # through to an inactive endpoint changes nothing.
     update :record_delivery_success do
-      change set_attribute(:consecutive_failures, 0)
-      change set_attribute(:auto_disabled_at, nil)
+      change atomic_update(
+               :consecutive_failures,
+               expr(if active == true, do: 0, else: consecutive_failures)
+             )
+
+      change atomic_update(
+               :auto_disabled_at,
+               expr(if active == true, do: nil, else: auto_disabled_at)
+             )
     end
 
     # A delivery exhausted its retries. After the configured run of these in a

@@ -99,6 +99,87 @@ defmodule KilnCMSWeb.GovernanceLiveTest do
     assert html =~ "Dr. Ada"
   end
 
+  # #1926: a retraction webhook that exhausted its retries is on the trail.
+  describe "lost retractions" do
+    defp lost_retraction!(admin, post) do
+      endpoint = CMS.create_webhook_endpoint!(%{url: "https://mirror.test/hook"}, actor: admin)
+
+      %{
+        endpoint_id: endpoint.id,
+        endpoint_url: endpoint.url,
+        event: "post.unpublished",
+        payload: %{"id" => post.id}
+      }
+      |> CMS.create_webhook_delivery!(authorize?: false)
+      |> CMS.record_webhook_delivery_attempt!(
+        %{
+          status: :failed,
+          attempts: 30,
+          last_status: 502,
+          last_error: "endpoint returned HTTP 502"
+        },
+        authorize?: false
+      )
+    end
+
+    test "the detail shows a lost retraction, and only when there is one", %{conn: conn} do
+      admin = authed_user(:admin)
+      post = CMS.create_post!(%{title: "Withdrawn Advice", slug: slug()}, actor: admin)
+      conn = log_in(conn, admin)
+
+      {:ok, view, _html} = live(conn, ~p"/editor/governance/post/#{post.id}")
+      refute has_element?(view, "#lost-retractions")
+
+      lost = lost_retraction!(admin, post)
+
+      {:ok, view, _html} = live(conn, ~p"/editor/governance/post/#{post.id}")
+      assert has_element?(view, "#lost-retractions", "Retractions not delivered")
+      assert has_element?(view, "#lost-retraction-#{lost.id}", "https://mirror.test/hook")
+      assert has_element?(view, "#lost-retraction-#{lost.id}", "endpoint returned HTTP 502")
+    end
+
+    # The webhooks page lists the 25 newest deliveries; a retraction is given
+    # up on a day after it was sent. The trail is where it can be replayed.
+    test "a lost retraction can be redelivered from the trail", %{conn: conn} do
+      admin = authed_user(:admin)
+      post = CMS.create_post!(%{title: "Replay Advice", slug: slug()}, actor: admin)
+      lost = lost_retraction!(admin, post)
+
+      {:ok, view, _html} = live(log_in(conn, admin), ~p"/editor/governance/post/#{post.id}")
+
+      view
+      |> element("#lost-retraction-#{lost.id} button", "Redeliver")
+      |> render_click()
+
+      assert render(view) =~ "Redelivery queued."
+
+      replay =
+        Enum.find(
+          CMS.recent_webhook_deliveries!(authorize?: false),
+          &(&1.id != lost.id and &1.event == "post.unpublished")
+        )
+
+      assert replay.retraction
+      assert replay.document_id == post.id
+    end
+
+    test "the exports carry it", %{conn: conn} do
+      admin = authed_user(:admin)
+      post = CMS.create_post!(%{title: "Withdrawn Export", slug: slug()}, actor: admin)
+      lost_retraction!(admin, post)
+      conn = log_in(conn, admin)
+
+      body = conn |> get(~p"/editor/governance/post/#{post.id}/export.json") |> json_response(200)
+
+      assert [%{"event" => "post.unpublished", "endpoint_url" => "https://mirror.test/hook"}] =
+               body["lost_retractions"]
+
+      csv = conn |> get(~p"/editor/governance/post/#{post.id}/export.csv") |> response(200)
+      assert csv =~ "retraction_lost"
+      assert csv =~ "https://mirror.test/hook"
+    end
+  end
+
   test "the export endpoint returns the trail JSON to admins only", %{conn: conn} do
     admin = authed_user(:admin)
     post = CMS.create_post!(%{title: "Exported", slug: slug()}, actor: admin)

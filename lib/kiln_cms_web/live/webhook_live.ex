@@ -171,8 +171,13 @@ defmodule KilnCMSWeb.WebhookLive do
     socket =
       case CMS.get_webhook_delivery(id, actor: actor, tenant: socket.assigns.current_org) do
         {:ok, delivery} ->
-          Webhooks.redeliver(delivery)
-          socket |> load_deliveries() |> put_flash(:info, gettext("Redelivery queued."))
+          case Webhooks.redeliver(delivery) do
+            {:error, :endpoint_deleted} ->
+              put_flash(socket, :error, gettext("Couldn't redeliver that webhook."))
+
+            _queued ->
+              socket |> load_deliveries() |> put_flash(:info, gettext("Redelivery queued."))
+          end
 
         _ ->
           put_flash(socket, :error, gettext("Couldn't redeliver that webhook."))

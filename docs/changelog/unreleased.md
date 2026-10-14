@@ -17,6 +17,39 @@ carries the reasoning.
   three, the overlay's two only when the build context has them.
   ([#1967](https://github.com/The-Verscienta/kiln_cms/issues/1967))
 
+<a id="retraction-guarantee"></a>
+
+- **A retraction webhook (`unpublished`, `archived`, `deleted`) can no longer
+  be lost to endpoint auto-disable, and when one exhausts its retries an
+  editor is told.** Auto-disable stopped a dead receiver burning the queue,
+  and it also stopped the `unpublished` that followed an hour of failed
+  `updated` deliveries. The consumer then kept serving what the site had
+  withdrawn, and nothing said so. A retraction of a document that was
+  published now still goes to an endpoint the pipeline auto-disabled (one an
+  admin switched off stays off; a draft's `archived`/`deleted` tombstone is
+  an ordinary delivery). It retries 30 times over about a day instead of 5,
+  or once to an endpoint auto-disabled for over a week, never counts against
+  `consecutive_failures`, and never re-enables the endpoint by succeeding.
+  Neither does a successful ping any more, and an admin edit clears
+  `auto_disabled_at` only when it turns the endpoint on: both used to leave
+  it looking switched off by hand, which cut it off from retractions. When a
+  retraction gives up, every admin of the site gets a "Retraction not
+  delivered" console notice linking to the document's governance trail. The
+  trail lists the failed delivery (endpoint, error, and when a later
+  retraction of the document reached that endpoint) with a Redeliver button,
+  in the detail view and both exports; a trashed document's trail is
+  reachable for this. Failed retractions are kept past the 30-day retention
+  (their payload cut to identity once past it) and through their endpoint's
+  deletion: delivery rows now outlive a deleted endpoint, endpoint-less, until
+  the prune. A migration adds `retraction`, `document_id`, `endpoint_url`,
+  `recovered_at` and `payload_scrubbed_at` to `webhook_deliveries`, makes
+  `endpoint_id` nullable with `ON DELETE SET NULL`, and a second builds an
+  index concurrently. Rows written before it read as not retractions, so a
+  retraction already retrying at upgrade finishes on the old schedule. The
+  ledger's existing `delivered_at` is the 2xx time per endpoint, the input to
+  1.5's unpublish-to-last-endpoint number.
+  ([#1926](https://github.com/The-Verscienta/kiln_cms/issues/1926))
+
 <a id="project-deps"></a>
 
 - **An overlay installs dependency plugins through a git-ignored

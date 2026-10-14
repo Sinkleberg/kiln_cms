@@ -76,6 +76,9 @@ defmodule KilnCMSWeb.NotificationText do
     end
   end
 
+  # Actor-less by nature: a delivery the pipeline gave up on (#1926).
+  def headline(%{event: :retraction_lost}), do: gettext("Retraction not delivered")
+
   # `""` is treated as absent, not as a name: `KilnCMS.Notifications` only ever
   # stores a non-empty `name` or nil (privacy #214 — never the email
   # local-part), but a blank string rendered as an actor would produce a
