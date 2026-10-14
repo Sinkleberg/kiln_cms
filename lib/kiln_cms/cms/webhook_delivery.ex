@@ -11,6 +11,20 @@ defmodule KilnCMS.CMS.WebhookDelivery do
   `consecutive_failures` — see `KilnCMS.Webhooks`). Rows are pruned after
   the retention window by a nightly AshOban trigger.
 
+  A **retraction** (`retraction`: an `unpublished`, `archived` or `deleted`
+  event for a document that was published, #1926) does not count against the
+  endpoint, and a failed one is never pruned: it is the record, on the
+  document's governance trail, that a consumer may still be serving something
+  the site withdrew. It keeps that record through the deletion of its endpoint
+  (the reference nilifies; `endpoint_url` is a snapshot), carries its
+  document's id in `document_id`, and is stamped `recovered_at` when a later
+  retraction of the same document reaches the same endpoint. Past the
+  retention window its payload is cut down to the tombstone's identity
+  fields (`payload_scrubbed_at`): a withdrawn body is not kept forever.
+
+  `delivered_at` is the 2xx time, per row and so per endpoint — the input to
+  the unpublish-to-last-endpoint measurement.
+
   Written exclusively by the delivery pipeline (system jobs); admin-only to
   read. Replays create a *new* delivery row, so history stays immutable.
   """
@@ -37,8 +51,16 @@ defmodule KilnCMS.CMS.WebhookDelivery do
     repo KilnCMS.Repo
 
     references do
-      # Deleting an endpoint takes its delivery history with it.
-      reference :endpoint, on_delete: :delete
+      # Deleting an endpoint leaves its delivery history behind, endpoint-less,
+      # for the prune to collect — and a failed retraction, which the prune
+      # keeps, on the document's governance trail (#1926). Deleting the dead
+      # endpoint must not erase the record that a consumer was never told.
+      reference :endpoint, on_delete: :nilify
+    end
+
+    custom_indexes do
+      # `KilnCMS.Webhooks.lost_retractions/3`, on every governance trail view.
+      index [:org_id, :document_id], where: "document_id IS NOT NULL", concurrently: true
     end
   end
 
@@ -58,11 +80,37 @@ defmodule KilnCMS.CMS.WebhookDelivery do
         # Strict-tenancy prep (#419): schedulers scan per org, not globally.
         list_tenants KilnCMS.Accounts.ListOrgIds
 
-        where expr(inserted_at <= ago(^@retention_days, :day))
+        # A failed retraction is kept (#1926): it is what the document's
+        # governance trail shows, and pruning it would quietly turn a
+        # consumer still serving withdrawn content back into "nothing lost".
+        where expr(
+                inserted_at <= ago(^@retention_days, :day) and
+                  not (retraction == true and status == :failed)
+              )
 
         worker_read_action :read
         worker_module_name KilnCMS.CMS.WebhookDelivery.Workers.PruneDeliveries
         scheduler_module_name KilnCMS.CMS.WebhookDelivery.Schedulers.PruneDeliveries
+      end
+
+      # The kept failed retractions lose their body at the same age the rest
+      # of the ledger is deleted: an `unpublished` payload is the whole
+      # document, and content withdrawn for a legal or privacy reason must not
+      # outlive the retention window just because a consumer was unreachable.
+      trigger :scrub_retraction_payloads do
+        action :scrub_payload
+        queue :default
+        scheduler_cron "25 3 * * *"
+        list_tenants KilnCMS.Accounts.ListOrgIds
+
+        where expr(
+                retraction == true and status == :failed and
+                  inserted_at <= ago(^@retention_days, :day) and is_nil(payload_scrubbed_at)
+              )
+
+        worker_read_action :read
+        worker_module_name KilnCMS.CMS.WebhookDelivery.Workers.ScrubRetractionPayloads
+        scheduler_module_name KilnCMS.CMS.WebhookDelivery.Schedulers.ScrubRetractionPayloads
       end
     end
   end
@@ -72,7 +120,64 @@ defmodule KilnCMS.CMS.WebhookDelivery do
 
     create :create do
       primary? true
-      accept [:endpoint_id, :event, :payload]
+      accept [:endpoint_id, :endpoint_url, :event, :payload]
+      # Optional on the row (it nilifies when the endpoint is deleted), never
+      # on a new delivery.
+      require_attributes [:endpoint_id]
+
+      # Whether the document was published before the action that emitted
+      # this event (`KilnCMS.CMS.Changes.NotifyWebhooks`). `archived` and
+      # `deleted` fire for drafts too; a draft was never delivered, so its
+      # tombstone retracts nothing (#1926).
+      argument :withdraws, :boolean, default: true, allow_nil?: false
+
+      # Derived from the event, never accepted: whether a delivery is exempt
+      # from auto-disable is the event's property, not the caller's say-so.
+      change fn changeset, _context ->
+        event = Ash.Changeset.get_attribute(changeset, :event)
+
+        retraction? =
+          KilnCMS.Webhooks.retraction?(event) and
+            Ash.Changeset.get_argument(changeset, :withdraws)
+
+        # The document id rides on every retraction-VERB delivery, a draft's
+        # tombstone included: any of them reaching an endpoint tells that
+        # consumer the document is gone, which recovers an earlier loss.
+        changeset
+        |> Ash.Changeset.force_change_attribute(:retraction, retraction?)
+        |> Ash.Changeset.force_change_attribute(
+          :document_id,
+          if(KilnCMS.Webhooks.retraction?(event),
+            do: document_id(Ash.Changeset.get_attribute(changeset, :payload))
+          )
+        )
+      end
+    end
+
+    # A later retraction of the same document reached the same endpoint
+    # (`KilnCMS.Webhooks.DeliveryWorker`): this failed one no longer leaves a
+    # consumer serving withdrawn content.
+    update :mark_recovered do
+      accept [:recovered_at]
+    end
+
+    # Past the retention window a kept failed retraction keeps its identity and
+    # outcome, not the document body (the nightly trigger above).
+    update :scrub_payload do
+      require_atomic? false
+
+      change fn changeset, _context ->
+        keep = Enum.map(KilnCMS.CMS.ContentSerializer.tombstone_fields(), &to_string/1)
+
+        payload =
+          (changeset.data.payload || %{})
+          |> Map.new(fn {key, value} -> {to_string(key), value} end)
+          |> Map.take(keep)
+
+        changeset
+        |> Ash.Changeset.force_change_attribute(:payload, payload)
+        |> Ash.Changeset.force_change_attribute(:payload_scrubbed_at, DateTime.utc_now())
+      end
     end
 
     # One worker attempt's outcome: bump the attempt counter, record what came
@@ -102,7 +207,7 @@ defmodule KilnCMS.CMS.WebhookDelivery do
     policy always() do
       authorize_if KilnCMS.CMS.Checks.OrgAdmin
 
-      forbid_unless action([:read, :create, :record_attempt])
+      forbid_unless action([:read, :create, :record_attempt, :mark_recovered])
       authorize_if {KilnCMS.Checks.SystemActor, subsystem: :webhooks}
     end
   end
@@ -131,6 +236,33 @@ defmodule KilnCMS.CMS.WebhookDelivery do
     # The event name as sent (`page.published`, `ping`, …).
     attribute :event, :string, allow_nil?: false, public?: true
 
+    # Whether the event withdraws a document (`KilnCMS.Webhooks.retraction?/1`,
+    # #1926): exempt from auto-disable, retried longer, surfaced on exhaustion,
+    # and kept past the retention window when it failed. Set at create.
+    attribute :retraction, :boolean,
+      allow_nil?: false,
+      default: false,
+      writable?: false,
+      public?: true
+
+    # The document an `unpublished` / `archived` / `deleted` delivery is about
+    # — its payload's `id`, kept in a column so the governance trail's lookup
+    # is an index read, not a scan of every payload. Nil on other events.
+    attribute :document_id, :uuid, writable?: false, public?: true
+
+    # The endpoint's URL when the delivery was made: what the governance trail
+    # names after the endpoint itself has been deleted.
+    attribute :endpoint_url, :string,
+      public?: true,
+      constraints: [max_length: KilnCMS.Limits.url()]
+
+    # When a later retraction of the same document got through to the same
+    # endpoint (set on a failed retraction only).
+    attribute :recovered_at, :utc_datetime_usec, public?: true
+
+    # When a kept failed retraction's payload was cut down to identity.
+    attribute :payload_scrubbed_at, :utc_datetime_usec, writable?: false, public?: true
+
     # The payload as dispatched (already serializer-shaped).
     attribute :payload, :map, allow_nil?: false, default: %{}, public?: true
 
@@ -151,7 +283,7 @@ defmodule KilnCMS.CMS.WebhookDelivery do
     # "delivery failed: timeout", "blocked webhook URL: …").
     attribute :last_error, :string, public?: true
 
-    # When the delivery finally succeeded.
+    # When the delivery finally succeeded: the 2xx time at this row's endpoint.
     attribute :delivered_at, :utc_datetime_usec, public?: true
 
     timestamps()
@@ -166,9 +298,25 @@ defmodule KilnCMS.CMS.WebhookDelivery do
       public? false
     end
 
+    # Nil once the endpoint has been deleted (the reference nilifies, #1926).
     belongs_to :endpoint, KilnCMS.CMS.WebhookEndpoint do
-      allow_nil? false
+      allow_nil? true
       public? true
     end
   end
+
+  # A payload's document id, when it carries a valid one. A payload read back
+  # from storage has string keys; one handed straight from a dispatch may have
+  # atom keys.
+  @doc false
+  def document_id(payload) when is_map(payload) do
+    id = Map.get(payload, "id") || Map.get(payload, :id)
+
+    case Ecto.UUID.cast(id || "") do
+      {:ok, uuid} -> uuid
+      :error -> nil
+    end
+  end
+
+  def document_id(_payload), do: nil
 end

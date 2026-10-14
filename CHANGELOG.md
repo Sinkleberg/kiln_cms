@@ -75,6 +75,10 @@ Every summary line below that was shortened links to its own entry there.
 
 ### Added
 
+- **A retraction webhook (`unpublished`, `archived`, `deleted`) can no longer
+  be lost to endpoint auto-disable, and when one exhausts its retries an
+  editor is told.** ([long form](docs/changelog/unreleased.md#retraction-guarantee))
+
 - **An overlay installs dependency plugins through a git-ignored
   `config/project_deps.exs`, locked in `config/project.lock`, so the core's
   `mix.exs` and `mix.lock` never change.**

@@ -94,12 +94,26 @@ defmodule KilnCMSWeb.GovernanceController do
             granted_at: consent.granted_at,
             recorded_by_id: consent.recorded_by_id
           }
+        end),
+      # Retraction webhooks that exhausted their retries (#1926).
+      lost_retractions:
+        Enum.map(trail.lost_retractions, fn lost ->
+          Map.take(lost, [
+            :event,
+            :endpoint_url,
+            :attempts,
+            :last_error,
+            :failed_at,
+            :recovered_at
+          ])
         end)
     }
   end
 
-  # The flat CSV twin: one row per timeline event (kind `version`) or consent
-  # (kind `consent`), newest events first, consents after — review-ready in
+  # The flat CSV twin: one row per timeline event (kind `version`), consent
+  # (kind `consent`) or lost retraction (kind `retraction_lost`, #1926: the
+  # endpoint in `reference`, the error and any later delivery in `note`),
+  # newest events first, consents and lost retractions after — review-ready in
   # any spreadsheet. Structured diff values stay in the JSON export; CSV
   # carries the changed field names.
   defp csv(trail) do
@@ -127,10 +141,27 @@ defmodule KilnCMSWeb.GovernanceController do
             consent.reference,
             consent.note
           ]
+        end) ++
+        Enum.map(trail.lost_retractions, fn lost ->
+          [
+            "retraction_lost",
+            DateTime.to_iso8601(lost.failed_at),
+            lost.event,
+            nil,
+            nil,
+            nil,
+            lost.endpoint_url,
+            retraction_note(lost)
+          ]
         end)
 
     Enum.map_join([~w(kind at action who publish changed reference note) | rows], &CSV.line/1)
   end
+
+  defp retraction_note(%{recovered_at: nil} = lost), do: lost.last_error
+
+  defp retraction_note(lost),
+    do: "#{lost.last_error}; delivered later at #{DateTime.to_iso8601(lost.recovered_at)}"
 
   defp chain_status({:tampered, reason}), do: "tampered: #{reason}"
   defp chain_status(status), do: to_string(status)

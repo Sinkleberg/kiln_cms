@@ -281,7 +281,10 @@ defmodule KilnCMS.Notifications.Notification do
                     :comment_added,
                     :comment_resolved,
                     :comment_mention,
-                    :task_assigned
+                    :task_assigned,
+                    # A retraction webhook that exhausted its retries (#1926),
+                    # to the site's admins — `KilnCMS.Webhooks.RetractionLost`.
+                    :retraction_lost
                   ]
     end
 

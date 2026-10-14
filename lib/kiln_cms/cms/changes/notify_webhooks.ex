@@ -68,10 +68,14 @@ defmodule KilnCMS.CMS.Changes.NotifyWebhooks do
           # together; after COMMIT a crash between COMMIT and insert loses the
           # notification, which is the deliberate trade for a field on a
           # notification not being worth a lost publish.
+          # `withdraws`: was the document on the delivery path before this
+          # action? `archived` and `deleted` fire for drafts too, and a
+          # draft's tombstone retracts nothing a consumer ever had (#1926).
           Webhooks.dispatch(
             "#{event_prefix(record)}.#{event}",
             payload(payload, record),
-            record.org_id
+            record.org_id,
+            withdraws: changeset.data.state == :published
           )
         end
 

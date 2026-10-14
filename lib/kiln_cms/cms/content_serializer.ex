@@ -116,6 +116,10 @@ defmodule KilnCMS.CMS.ContentSerializer do
 
   @tombstone_fields [:id, :slug, :locale, :state, :updated_at]
 
+  @doc "The fields a tombstone keeps — identity only, see `tombstone/1`."
+  @spec tombstone_fields() :: [atom()]
+  def tombstone_fields, do: @tombstone_fields
+
   @doc """
   Identity only — what a `archived` / `deleted` / draft `restored` webhook
   carries. Enough for a mirror to find and drop (or re-fetch) its copy; no

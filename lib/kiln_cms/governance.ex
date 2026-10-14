@@ -366,6 +366,7 @@ defmodule KilnCMS.Governance do
 
       %{item: %{type, id, title, slug, state, published_at},
         timeline: [event],           # newest first
+        lost_retractions: [map],     # KilnCMS.Webhooks.lost_retractions/3 (#1926)
         publishes: [DateTime],       # publish points, newest first (for #338 links)
         chain: verdict,              # KilnCMS.Governance.Chain.verdict/0
         chain_gap: attested_gap,     # how far attestation reaches (#811)
@@ -387,11 +388,7 @@ defmodule KilnCMS.Governance do
     # one site's host can never pull another org's content or audit trail by id.
     with ct when not is_nil(ct) <- ContentTypes.get(type, org_id),
          resource = storage_resource(ct),
-         # authorize?: false — a content read, so no system-actor grant (#1402,
-         # see `content_index/2`); tenant-scoped, and the dashboard route is
-         # admin-gated.
-         {:ok, record} when not is_nil(record) <-
-           Ash.get(resource, id, authorize?: false, tenant: org_id, error?: false),
+         record when not is_nil(record) <- get_record(resource, id, org_id),
          true <- record_matches_type?(ct, record) do
       # One ascending versions read feeds BOTH the timeline and the chain
       # verification (which folds a prefix of the same list).
@@ -414,12 +411,22 @@ defmodule KilnCMS.Governance do
           state: record.state,
           org_id: record.org_id,
           published_at: Map.get(record, :published_at),
+          # In the trash (soft-deleted). Still has a trail: a `deleted`
+          # retraction that never reached a consumer is reported here (#1926).
+          trashed?: not is_nil(Map.get(record, :archived_at)),
           # Whether this item lives on the shared entry tier (D17). Point-in-time
           # delivery (#338) covers dynamic types now, so this no longer gates
           # the "view as of then" links — it stays as trail metadata.
           dynamic?: ct.source == :dynamic
         },
         timeline: timeline,
+        # Retraction webhooks (`unpublished` / `archived` / `deleted`) that
+        # exhausted their retries for this document (#1926): a consumer that
+        # may still be serving what the site withdrew. Keyed on the PUBLIC type
+        # name, which is the event namespace. Read by the webhook subsystem,
+        # whose ledger it is.
+        lost_retractions:
+          KilnCMS.Webhooks.lost_retractions(to_string(ct.type), record.id, record.org_id),
         publishes: for(e <- timeline, e.publish?, do: e.at),
         # Tamper-evidence (#356): does the anchored history still reproduce the
         # signed chain hash minted at the last publish? One key resolution for
@@ -509,6 +516,36 @@ defmodule KilnCMS.Governance do
 
       {:tampered, reason} ->
         %{state: :tampered, reason: reason}
+    end
+  end
+
+  # The record, or — when it is in the trash — the trashed record: AshArchival
+  # filters soft-deleted rows out of every read but `:trashed`, and a trashed
+  # document still has a trail (its versions, anchors and any `deleted`
+  # retraction a consumer never received, #1926).
+  defp get_record(resource, id, org_id) do
+    # authorize?: false — a content read, so no system-actor grant (#1402, see
+    # `content_index/2`); tenant-scoped, and the dashboard route is admin-gated.
+    case Ash.get(resource, id, authorize?: false, tenant: org_id, error?: false) do
+      {:ok, record} when not is_nil(record) -> record
+      _missing -> get_trashed(resource, id, org_id)
+    end
+  end
+
+  defp get_trashed(resource, id, org_id) do
+    with action when not is_nil(action) <- Ash.Resource.Info.action(resource, :trashed),
+         # authorize?: false — the same admin-gated content read as
+         # `get_record/3`, through the one read AshArchival does not filter.
+         {:ok, record} <-
+           Ash.get(resource, id,
+             action: :trashed,
+             authorize?: false,
+             tenant: org_id,
+             error?: false
+           ) do
+      record
+    else
+      _missing -> nil
     end
   end
 

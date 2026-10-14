@@ -29,6 +29,13 @@ defmodule KilnCMS.Notifications.Link do
   A document-level event (published, returned to draft, a task on the whole
   record) has no `block_id` and links to the document.
 
+  ## A lost retraction links to the governance trail
+
+  `:retraction_lost` (#1926) is about what a webhook consumer was told, not
+  about the document's content, and the document may be in the trash, where
+  the editor cannot open it. It links to the document's governance trail,
+  which lists the failed delivery.
+
   ## Named `editor_path` / `editor_url`, not `path` / `url`
 
   `Phoenix.VerifiedRoutes` imports `path/2,3` and `url/2,3` as macros, and an
@@ -66,6 +73,9 @@ defmodule KilnCMS.Notifications.Link do
       "/editor/content/recipe/r1?comment=b2"
   """
   @spec editor_path(subject()) :: String.t()
+  def editor_path(%{event: :retraction_lost, content_type: content_type, content_id: content_id}),
+    do: ~p"/editor/governance/#{to_string(content_type)}/#{content_id}"
+
   def editor_path(%{content_type: content_type, content_id: content_id} = subject),
     do: editor_path(content_type, content_id, Map.get(subject, :block_id))
 
@@ -81,6 +91,9 @@ defmodule KilnCMS.Notifications.Link do
 
   @doc "The absolute URL for the same link — what an email has to carry."
   @spec editor_url(subject()) :: String.t()
+  def editor_url(%{event: :retraction_lost} = subject),
+    do: KilnCMSWeb.Endpoint.url() <> editor_path(subject)
+
   def editor_url(%{content_type: content_type, content_id: content_id} = subject),
     do: editor_url(content_type, content_id, Map.get(subject, :block_id))
 

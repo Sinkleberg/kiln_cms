@@ -290,7 +290,8 @@ is updated on every attempt, not just the outcome. The row's id is the
 - Delivery is a `POST` with a 5-second connect timeout and a 15-second
   response timeout.
 - A non-2xx response or a transport error fails the job, and Oban retries with
-  exponential backoff up to **5 attempts**.
+  exponential backoff up to **5 attempts**. Retractions get a longer schedule
+  (see [Retractions are exempt](#retractions-are-exempt)).
 - Once retries are exhausted, the delivery is marked `:failed` — permanently;
   nothing retries it further unless an admin redelivers it.
 - A delivery whose endpoint secret can no longer be decrypted (see
@@ -303,8 +304,58 @@ Every exhausted delivery counts against the endpoint's `consecutive_failures`.
 After **10** exhausted deliveries in a row, the endpoint is auto-disabled
 (`auto_disabled_at` stamped, shown in the UI) and stops receiving new
 deliveries — a dead receiver doesn't burn the delivery queue forever. Any
-successful delivery, or any admin edit to the endpoint, resets the counter to
-zero and clears `auto_disabled_at`.
+successful delivery to an active endpoint, or any admin edit, resets the
+counter to zero. `auto_disabled_at` is cleared only when the endpoint is
+active again: a ping or a retraction that gets through to an auto-disabled
+endpoint leaves it auto-disabled, and so does an edit that leaves **Active**
+unticked (fixing the URL before you ping it, say). Tick **Active** to turn it
+back on. To stop an auto-disabled endpoint receiving retractions, delete it.
+
+### Retractions are exempt
+
+Three verbs take a document *off* a consumer: `<type>.unpublished`,
+`<type>.archived` and `<type>.deleted`. When the document was published
+before the action, a consumer that misses one keeps serving something the
+site has withdrawn, so these are exempt from auto-disable. (`archived` and
+`deleted` also fire for drafts. A draft was never delivered, so its tombstone
+is an ordinary delivery.)
+
+- **They still go to an auto-disabled endpoint.** An endpoint that has been
+  failing `updated` deliveries for an hour and was switched off by the
+  pipeline still receives the `unpublished` that follows. An endpoint an
+  admin switched off (unticked **Active**) receives nothing; that was a
+  decision, not a fault.
+- **They retry longer**: **30 attempts**, starting 30 seconds apart and
+  doubling up to one hour apart, which comes to about a day. An endpoint that
+  has been auto-disabled for more than **7 days**
+  (`retraction_stale_after_days`) gets one attempt, so a long-dead receiver
+  cannot hold the queue for a day per retraction.
+- **They never count against `consecutive_failures`.** A failing retraction
+  cannot be what disables an endpoint, and one that gets through to an
+  auto-disabled endpoint does not re-enable it.
+- **When one exhausts its retries, an editor is told:**
+  - every admin of the site gets a **"Retraction not delivered"** notice in
+    the console bell and `/editor/inbox`. It names the document, the endpoint
+    and the last error. It cannot be muted. It is not sent for an endpoint
+    past the 7-day stale window, whose losses were announced while it was
+    fresh; those still show on the trail.
+  - the document's governance trail (`/editor/governance/:type/:id`, which
+    the notice links to) shows a **Retractions not delivered** panel. The
+    panel lists each failed delivery with its endpoint, attempt count and
+    error. Once any later `unpublished`, `archived` or `deleted` of the same
+    document reaches the same endpoint (a redelivery, or a later verb), the
+    row shows when. A trashed document still has a trail for this reason.
+    The JSON and CSV trail exports carry the same rows.
+  - a failed retraction is **kept past the 30-day ledger retention**, and
+    through the deletion of its endpoint, so the trail does not lose it.
+    Past the retention window its payload is cut down to the tombstone's
+    identity fields (`id`, `slug`, `locale`, `state`, `updated_at`), so a
+    withdrawn body is not kept indefinitely; a redelivery after that sends
+    the identity only.
+
+Fix the receiver, then press **Redeliver** on the row in the trail's panel.
+`/editor/webhooks` lists only the 25 newest deliveries, and a retraction is
+given up on about a day after it was sent.
 
 ### Ping and redeliver
 
@@ -322,11 +373,21 @@ zero and clears `auto_disabled_at`.
 org's endpoints: timestamp, event, target endpoint, status
 (delivered/retrying/failed), attempt count, last HTTP status, and last error.
 Delivery rows are retained for **30 days**, then pruned by a nightly job (per
-org, so one site's retention sweep never touches another's history).
+org, so one site's retention sweep never touches another's history). A failed
+retraction is the exception: it is kept, because it is on the document's
+governance trail.
+
+Each row is one delivery to one endpoint, and `delivered_at` is when that
+endpoint answered 2xx. For an `unpublished`, the latest `delivered_at` across
+the endpoints is when the last consumer heard about the withdrawal.
 
 ## Configuration
 
 ```elixir
+# Days an endpoint may sit auto-disabled before a retraction to it gets one
+# attempt and no console notice (default 7)
+config :kiln_cms, KilnCMS.Webhooks, retraction_stale_after_days: 7
+
 # Exhausted deliveries in a row before auto-disable (default 10)
 config :kiln_cms, KilnCMS.Webhooks, auto_disable_after: 10
 

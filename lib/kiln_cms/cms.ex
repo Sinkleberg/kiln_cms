@@ -386,8 +386,10 @@ defmodule KilnCMS.CMS do
     resource KilnCMS.CMS.WebhookDelivery do
       define :create_webhook_delivery, action: :create
       define :get_webhook_delivery, action: :read, get_by: [:id]
+      define :list_webhook_deliveries, action: :read
       define :recent_webhook_deliveries, action: :recent
       define :record_webhook_delivery_attempt, action: :record_attempt
+      define :mark_webhook_delivery_recovered, action: :mark_recovered
     end
 
     # 301 redirects from retired public paths (pathauto companion) — written

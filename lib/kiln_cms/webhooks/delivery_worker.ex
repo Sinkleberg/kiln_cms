@@ -6,7 +6,17 @@ defmodule KilnCMS.Webhooks.DeliveryWorker do
   ledger row; exhausting the retries marks it `:failed` and counts against
   the endpoint's `consecutive_failures` (auto-disable — see
   `KilnCMS.Webhooks`). A deleted endpoint settles the row and succeeds; an
-  inactive one only receives `"ping"` test deliveries.
+  inactive one only receives `"ping"` test deliveries — and retractions, when
+  it was auto-disabled rather than switched off by an admin.
+
+  A retraction (#1926) carries `"retraction" => true` in its args and its own
+  `max_attempts` (`KilnCMS.Webhooks.retraction_max_attempts/0`); `backoff/1`
+  spaces its attempts by `KilnCMS.Webhooks.retraction_backoff/1`. Its outcome
+  never touches the endpoint's failure count, and an exhausted one is handed
+  to `KilnCMS.Webhooks.RetractionLost`. To an endpoint auto-disabled for longer
+  than `KilnCMS.Webhooks.retraction_stale_after_days/0` the first failure is
+  final. One that gets through stamps the document's earlier lost retractions
+  to that endpoint as recovered (`KilnCMS.Webhooks.mark_recovered/2`).
   """
   use Oban.Worker, queue: :webhooks, max_attempts: 5
 
@@ -17,6 +27,13 @@ defmodule KilnCMS.Webhooks.DeliveryWorker do
   alias KilnCMS.Deprecations
   alias KilnCMS.SafeFetch
   alias KilnCMS.Webhooks
+  alias KilnCMS.Webhooks.RetractionLost
+
+  @impl Oban.Worker
+  def backoff(%Oban.Job{args: %{"retraction" => true}, attempt: attempt}),
+    do: Webhooks.retraction_backoff(attempt)
+
+  def backoff(%Oban.Job{} = job), do: Oban.Worker.backoff(job)
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"delivery_id" => id, "org_id" => tenant}} = job)
@@ -70,6 +87,9 @@ defmodule KilnCMS.Webhooks.DeliveryWorker do
     end
   end
 
+  # The reference nilifies when the endpoint is deleted (#1926).
+  defp fetch_endpoint(%{endpoint_id: nil}, _tenant), do: {:ok, nil}
+
   defp fetch_endpoint(delivery, tenant) do
     case CMS.get_webhook_endpoint(delivery.endpoint_id,
            actor: Webhooks.system(),
@@ -93,20 +113,32 @@ defmodule KilnCMS.Webhooks.DeliveryWorker do
         settle(delivery, job, {:error, "endpoint deleted"}, true)
         :ok
 
-      not endpoint.active and delivery.event != "ping" ->
+      not WebhookEndpoint.receives?(endpoint, delivery.event, delivery.retraction) ->
         settle(delivery, job, {:error, "endpoint inactive"}, true)
         :ok
 
       true ->
         outcome = deliver(endpoint, delivery.id, delivery.event, delivery.payload)
-        settle(delivery, job, outcome, job.attempt >= job.max_attempts)
+        final? = final_attempt?(delivery, job)
+        settle(delivery, job, outcome, final?)
 
         case outcome do
           {:ok, _status} -> :ok
+          # Settled as final before Oban's budget ran out (a stale endpoint):
+          # stop here, or the next retry would reopen a settled row.
+          {:error, reason} when final? and job.attempt < job.max_attempts -> {:cancel, reason}
           {:error, reason} -> {:error, reason}
         end
     end
   end
+
+  # A retraction to an endpoint that has sat auto-disabled past the stale
+  # window gets one attempt, not a day of them (#1926): a long-dead receiver
+  # must not hold queue slots for every unpublish.
+  defp final_attempt?(%{retraction: true, endpoint: endpoint}, job),
+    do: job.attempt >= job.max_attempts or Webhooks.stale_endpoint?(endpoint)
+
+  defp final_attempt?(_delivery, job), do: job.attempt >= job.max_attempts
 
   # Record this attempt on the ledger row — and, when the outcome is final,
   # on the endpoint's health counters (success resets, exhaustion bumps and
@@ -134,11 +166,17 @@ defmodule KilnCMS.Webhooks.DeliveryWorker do
     )
     |> log_unrecorded(delivery, "attempt")
 
+    # `record_delivery_success` decides on the row as it now stands, not on
+    # this job's copy: it resets an endpoint that is active, and leaves one
+    # that is not (a ping, a retraction to an auto-disabled endpoint, or an
+    # endpoint auto-disabled since this job read it) exactly as it is (#1926).
     if delivery.endpoint do
       delivery.endpoint
       |> CMS.record_webhook_success(%{}, actor: Webhooks.system(), tenant: delivery.org_id)
       |> log_unrecorded(delivery, "endpoint success")
     end
+
+    Webhooks.mark_recovered(delivery, DateTime.utc_now())
   end
 
   defp settle(delivery, job, {:error, reason}, final?) do
@@ -155,13 +193,29 @@ defmodule KilnCMS.Webhooks.DeliveryWorker do
     )
     |> log_unrecorded(delivery, "attempt")
 
-    # Bump health only for a live endpoint that truly exhausted its retries —
-    # a failed ping against an already-disabled endpoint proves nothing new.
-    if final? and is_struct(delivery.endpoint, KilnCMS.CMS.WebhookEndpoint) and
-         delivery.endpoint.active do
-      delivery.endpoint
-      |> CMS.record_webhook_failure(%{}, actor: Webhooks.system(), tenant: delivery.org_id)
-      |> log_unrecorded(delivery, "endpoint failure")
+    cond do
+      not final? ->
+        :ok
+
+      # A retraction never counts towards auto-disable (#1926); exhausting one
+      # is surfaced instead. Not for a deleted endpoint: its ledger rows go
+      # with it, and there is nobody left to retract from.
+      delivery.retraction ->
+        if is_struct(delivery.endpoint, KilnCMS.CMS.WebhookEndpoint),
+          do:
+            RetractionLost.surface(delivery, reason,
+              notify?: not Webhooks.stale_endpoint?(delivery.endpoint)
+            )
+
+      # Bump health only for a live endpoint that truly exhausted its retries —
+      # a failed ping against an already-disabled endpoint proves nothing new.
+      is_struct(delivery.endpoint, KilnCMS.CMS.WebhookEndpoint) and delivery.endpoint.active ->
+        delivery.endpoint
+        |> CMS.record_webhook_failure(%{}, actor: Webhooks.system(), tenant: delivery.org_id)
+        |> log_unrecorded(delivery, "endpoint failure")
+
+      true ->
+        :ok
     end
   end
 

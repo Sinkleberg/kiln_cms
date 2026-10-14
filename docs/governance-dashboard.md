@@ -21,6 +21,14 @@ history (#338) together per content item. Admin-only.
   - **Point in time** (#338) — every publish row links to
     `/api/content/:type/:slug?as_of=<that instant>` ("View as of then"), serving
     exactly what was published at that moment.
+  - **Retractions not delivered** (#1926): only shown when there is one. It
+    lists each `unpublished` / `archived` / `deleted` webhook that exhausted
+    its retries, which means a consumer may still be serving what the site
+    withdrew. Each row has its endpoint and error, a Redeliver button, and
+    the time a later retraction of the document reached that endpoint, once
+    one has. See
+    [webhooks.md](webhooks.md#retractions-are-exempt). A trashed document's
+    trail is still reachable for this reason.
   - **Export trail (JSON / CSV)** — downloadable compliance records of the
     timeline + consents: JSON carries the full structure (diffs, chain
     verdict); CSV is the flat spreadsheet-friendly twin
