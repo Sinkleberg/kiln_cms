@@ -54,120 +54,126 @@ Long form: [docs/changelog/unreleased.md](docs/changelog/unreleased.md) —
 the Unreleased entries as they were written when each change merged.
 Every summary line below that was shortened links to its own entry there.
 
+## [1.4.0] - 2026-10-14
+
+Long form: [docs/changelog/v1.4.0.md](docs/changelog/v1.4.0.md) —
+the 1.4.0 entries as they were written when each change merged.
+Every summary line below that was shortened links to its own entry there.
+
 ### Upgrade notes
 
 - **A Dockerfile that runs `mix deps.get` before copying the whole core must
   also copy `config/project_deps_hook.exs`, which `mix.exs` now requires.**
-  ([long form](docs/changelog/unreleased.md#project-deps-docker))
+  ([long form](docs/changelog/v1.4.0.md#project-deps-docker))
 
 - **A Dockerfile that runs `mix deps.get` before copying the whole core must
   first `COPY sdk/kiln_plugin sdk/kiln_plugin`; the core's own Dockerfile does.**
-  ([long form](docs/changelog/unreleased.md#plugin-sdk-docker))
+  ([long form](docs/changelog/v1.4.0.md#plugin-sdk-docker))
 
 - **A new, empty table — `document_chunk_embeddings` — arrives by migration;
   nothing writes to it until `chunk_long_documents` is turned on.**
-  ([long form](docs/changelog/unreleased.md#chunked-embeddings-migration))
+  ([long form](docs/changelog/v1.4.0.md#chunked-embeddings-migration))
 
 - **Changing `document_prefix` (as an e5 model swap does) now needs block
   vectors re-embedded too: `mix kiln.embed_all --blocks`, or a firing sweep
   (`mix kiln.refire_all`), as well as documents and tags.**
-  ([long form](docs/changelog/unreleased.md#block-embedding-prefixes-upgrade))
+  ([long form](docs/changelog/v1.4.0.md#block-embedding-prefixes-upgrade))
 
 ### Added
 
 - **A retraction webhook (`unpublished`, `archived`, `deleted`) can no longer
   be lost to endpoint auto-disable, and when one exhausts its retries an
-  editor is told.** ([long form](docs/changelog/unreleased.md#retraction-guarantee))
+  editor is told.** ([#1926](https://github.com/The-Verscienta/kiln_cms/issues/1926) · [long form](docs/changelog/v1.4.0.md#retraction-guarantee))
 
 - **An overlay installs dependency plugins through a git-ignored
   `config/project_deps.exs`, locked in `config/project.lock`, so the core's
   `mix.exs` and `mix.lock` never change.**
-  ([long form](docs/changelog/unreleased.md#project-deps))
+  ([#1967](https://github.com/The-Verscienta/kiln_cms/issues/1967) · [long form](docs/changelog/v1.4.0.md#project-deps))
 
 - **Plugins can ship as Hex, git or `path:` dependencies: the plugin contract
   moved, under the same module names, into its own package, `kiln_plugin`.**
-  ([long form](docs/changelog/unreleased.md#plugin-sdk))
+  ([#1909](https://github.com/The-Verscienta/kiln_cms/issues/1909) · [long form](docs/changelog/v1.4.0.md#plugin-sdk))
 
 - **Advisory checks can ship in a dependency plugin, and `mix kiln.gen.plugin
   --dep` scaffolds one.**
-  ([long form](docs/changelog/unreleased.md#plugin-sdk-advisories))
+  ([#1909](https://github.com/The-Verscienta/kiln_cms/issues/1909) · [long form](docs/changelog/v1.4.0.md#plugin-sdk-advisories))
 
 - **A plugin can contribute an image backend (`Kiln.ImageBackend`) — an
   external service such as Cloudflare Images that takes new image uploads and
   renders their variants and transforms from URLs.**
-  ([long form](docs/changelog/unreleased.md#image-backends))
+  ([#1955](https://github.com/The-Verscienta/kiln_cms/issues/1955) · [long form](docs/changelog/v1.4.0.md#image-backends))
 
 - **System → Image backend shows the selected backend's state, whether its
   service answers, and how much of the site's library it holds.**
-  ([long form](docs/changelog/unreleased.md#image-backend-status))
+  ([#1980](https://github.com/The-Verscienta/kiln_cms/pull/1980) · [long form](docs/changelog/v1.4.0.md#image-backend-status))
 
 - **`/api/ask` can rerank its merged candidates once instead of each content
   type's, blend the reranker's order with the fused one, and hold a source
   the question names at its fused rank; all off by default.**
-  ([long form](docs/changelog/unreleased.md#ask-union-rerank))
+  ([#1973](https://github.com/The-Verscienta/kiln_cms/issues/1973) · [long form](docs/changelog/v1.4.0.md#ask-union-rerank))
 
 - **The reranker's compiled shape (`rerank_batch_size`,
   `rerank_sequence_length`) and how it meets the fused order (`rerank_mode`,
   `SEARCH_RERANK_MODE`) are configurable; the defaults are unchanged.**
-  ([long form](docs/changelog/unreleased.md#rerank-shape-and-mode))
+  ([#1973](https://github.com/The-Verscienta/kiln_cms/issues/1973) · [long form](docs/changelog/v1.4.0.md#rerank-shape-and-mode))
 
 - **Semantic search can see past the first 512 tokens of a long record:
   `chunk_long_documents` embeds the rest of its text in overlapping chunks.**
-  ([long form](docs/changelog/unreleased.md#chunked-embeddings))
+  ([#1972](https://github.com/The-Verscienta/kiln_cms/issues/1972) · [long form](docs/changelog/v1.4.0.md#chunked-embeddings))
 
 - **Hybrid search's relevance floor can judge the any-term (OR) keyword leg's
   hits too, and the floor is a runtime setting.**
-  ([long form](docs/changelog/unreleased.md#search-floor-legs))
+  ([#1970](https://github.com/The-Verscienta/kiln_cms/issues/1970) · [long form](docs/changelog/v1.4.0.md#search-floor-legs))
 
 - **`mix kiln.embed_all --blocks` re-embeds the block index too, so a model,
   pooling or `document_prefix` change reaches every block vector.**
-  ([long form](docs/changelog/unreleased.md#embed-all-blocks))
+  ([#1971](https://github.com/The-Verscienta/kiln_cms/issues/1971) · [long form](docs/changelog/v1.4.0.md#embed-all-blocks))
 
 - **Search measurement runs can scan vectors at `ef_search` 200 or exactly
   (`KILN_HNSW_EF_SEARCH`, `KILN_VECTOR_SEARCH_EXACT`, `--ef-search`, `--exact`),
   and the search eval reports name the scan mode they ran under.**
-  ([long form](docs/changelog/unreleased.md#vector-scan-knob))
+  ([#1969](https://github.com/The-Verscienta/kiln_cms/issues/1969) · [long form](docs/changelog/v1.4.0.md#vector-scan-knob))
 
 ### Changed
 
 - **The browser suite now drives live co-editing: two peers type into one
   rich-text block and each sees the other's words and caret.**
-  ([long form](docs/changelog/unreleased.md#collab-e2e))
+  ([#1963](https://github.com/The-Verscienta/kiln_cms/pull/1963) · [long form](docs/changelog/v1.4.0.md#collab-e2e))
 
 - **The reranker reads a record's title and its `search_text`, not its title
   and excerpt, so a record with no excerpt is no longer judged on its title
   alone.**
-  ([long form](docs/changelog/unreleased.md#rerank-search-text))
+  ([#1973](https://github.com/The-Verscienta/kiln_cms/issues/1973) · [long form](docs/changelog/v1.4.0.md#rerank-search-text))
+
+### Fixed
+
+- **`mix kiln.plugins.doctor`'s image-backend check no longer reports a plugin's
+  backend as undeclared when the plugin module isn't loaded yet.**
+  ([#1955](https://github.com/The-Verscienta/kiln_cms/issues/1955))
+
+- **Clicking a rich-text block's toolbar button keeps the caret in the text, so
+  the first letters typed straight after Bold are no longer lost.**
+  ([#1964](https://github.com/The-Verscienta/kiln_cms/pull/1964) · [long form](docs/changelog/v1.4.0.md#toolbar-keeps-editor-focus))
+
+- **Block vectors and the block search query now get `document_prefix` and
+  `query_prefix`, so an asymmetric model such as multilingual-e5 embeds the
+  block leg to spec.**
+  ([#1939](https://github.com/The-Verscienta/kiln_cms/issues/1939) · [long form](docs/changelog/v1.4.0.md#block-embedding-prefixes))
 
 ### Security
 
 - **The app server answers HTTP/1.1 only: Bandit's HTTP/2 stack is off until a
   fix for EEF-CVE-2026-105659 (an HTTP/2 flow-control DoS) is released.**
-  ([long form](docs/changelog/unreleased.md#bandit-http2-off))
+  ([#1985](https://github.com/The-Verscienta/kiln_cms/pull/1985) · [long form](docs/changelog/v1.4.0.md#bandit-http2-off))
 
 - **prosemirror-view 1.42.6 for GHSA-c8x8-7fp4-3x9w: pasting HTML into the
   rich-text editor can no longer run script.**
-  ([long form](docs/changelog/unreleased.md#prosemirror-view-paste-xss))
+  ([#1956](https://github.com/The-Verscienta/kiln_cms/pull/1956) · [long form](docs/changelog/v1.4.0.md#prosemirror-view-paste-xss))
 
 - **The rich-text editor moves to TipTap 3 for GHSA-cp6q-959q-f8rh, and keeps
   underlines it used to drop; a co-editing tab still on the old bundle edits
   solo until it reloads.**
-  ([long form](docs/changelog/unreleased.md#tiptap-3))
-
-### Fixed
-
-- **`mix kiln.plugins.doctor`'s image-backend check no longer reports a
-  plugin's backend as undeclared when the plugin module isn't loaded yet.**
-  ([#1955](https://github.com/The-Verscienta/kiln_cms/issues/1955))
-
-- **Clicking a rich-text block's toolbar button keeps the caret in the text, so
-  the first letters typed straight after Bold are no longer lost.**
-  ([long form](docs/changelog/unreleased.md#toolbar-keeps-editor-focus))
-
-- **Block vectors and the block search query now get `document_prefix` and
-  `query_prefix`, so an asymmetric model such as multilingual-e5 embeds the
-  block leg to spec.**
-  ([long form](docs/changelog/unreleased.md#block-embedding-prefixes))
+  ([#1957](https://github.com/The-Verscienta/kiln_cms/pull/1957) · [long form](docs/changelog/v1.4.0.md#tiptap-3))
 
 ## [1.3.0] - 2026-10-12
 
@@ -2618,7 +2624,8 @@ that `mix kiln.update` compares against.
   one that can't be described by a changelog diff.
   ([long form](docs/changelog/v0.1.0.md#if-your-project-pins-a-sha-from-before-this-tag-your-first-update-is-the-only))
 
-[Unreleased]: https://github.com/The-Verscienta/kiln_cms/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/The-Verscienta/kiln_cms/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/The-Verscienta/kiln_cms/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/The-Verscienta/kiln_cms/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/The-Verscienta/kiln_cms/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/The-Verscienta/kiln_cms/compare/v1.1.0...v1.2.0
