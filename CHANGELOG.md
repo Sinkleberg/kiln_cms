@@ -66,6 +66,9 @@ Every summary line below that was shortened links to its own entry there.
   and the Mix task, each with a dry run first.**
   ([long form](docs/changelog/unreleased.md#release-adopt-image-backend))
 
+- **A media custom field can hold a gallery: an ordered set of images rather
+  than one.** ([long form](docs/changelog/unreleased.md#media-field-gallery))
+
 ### Fixed
 
 - **A variant job no longer takes an image backend's failed or rate-limited

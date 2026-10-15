@@ -374,7 +374,7 @@ never fires, so it is never a `from_type`.
 
 Three reference sites are tracked: image-shaped block fields (any field named
 `…media_id` or `…image_id`), a document's `featured_image_id`, and `:media`
-custom fields. Edges are rebuilt from scratch on every fire, so removing a
+custom fields (every image of a gallery field). Edges are rebuilt from scratch on every fire, so removing a
 reference removes the usage.
 
 > **Published references only.** Edges are written when a document **fires**,

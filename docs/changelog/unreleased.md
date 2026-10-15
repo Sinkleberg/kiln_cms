@@ -46,6 +46,30 @@ carries the reasoning.
   `org: "<uuid>"` names another.
   ([#1955](https://github.com/The-Verscienta/kiln_cms/issues/1955))
 
+<a id="media-field-gallery"></a>
+
+- **A media custom field can hold a gallery: an ordered set of images rather
+  than one.** The fields admin now asks what a media field holds, *a single
+  item* (the default, and what every existing field stays) or *a gallery*
+  (`FieldDefinition.multiple`). A gallery stores a list of the same
+  `%{"id", "url", "alt"}` snapshots a single media field stores, in the order
+  the editor arranged them. In the editor it is a strip of thumbnails, filled
+  from the library drawer's multi-select (click order is gallery order),
+  with buttons on each tile to move it or remove it. Writers may send a list
+  of ids or snapshots; a lone id is a one-image gallery, repeats are kept
+  once, and one id that does not resolve fails the field. `custom_filter` on
+  a gallery matches by containment (`eq` = holds this image, `in` = holds any
+  of them), every image counts as a media usage, and the JSON schema export
+  types the field as an array. Flipping the setting on a field that already
+  has values reshapes them: a single image becomes a one-image gallery, and a
+  gallery keeps only its first image (as does retyping a gallery away from
+  media), which the fields admin warns about before the save; published
+  documents of the type re-fire to pick up the new shape. A single media
+  field handed a stale gallery list keeps its first image, so drafts and
+  versions saved before the switch still publish and restore. Additive migration: one `boolean` column defaulting to
+  `false`.
+  ([#1992](https://github.com/The-Verscienta/kiln_cms/pull/1992))
+
 ## Fixed
 
 <a id="variant-worker-backend-errors"></a>
