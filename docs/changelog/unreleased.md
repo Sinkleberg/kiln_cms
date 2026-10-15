@@ -67,6 +67,52 @@ carries the reasoning.
   `org: "<uuid>"` names another.
   ([#1955](https://github.com/The-Verscienta/kiln_cms/issues/1955))
 
+<a id="media-field-gallery"></a>
+
+- **A media custom field can hold a gallery: an ordered set of images rather
+  than one.** The fields admin now asks what a media field holds, *a single
+  item* (the default, and what every existing field stays) or *a gallery*
+  (`FieldDefinition.multiple`). A gallery stores a list of the same
+  `%{"id", "url", "alt"}` snapshots a single media field stores, in the order
+  the editor arranged them. In the editor it is a strip of thumbnails, filled
+  from the library drawer's multi-select (click order is gallery order),
+  with buttons on each tile to move it or remove it. Writers may send a list
+  of ids or snapshots; a lone id is a one-image gallery, repeats are kept
+  once, and one id that does not resolve fails the field. `custom_filter` on
+  a gallery matches by containment (`eq` = holds this image, `in` = holds any
+  of them), every image counts as a media usage, and the JSON schema export
+  types the field as an array. Flipping the setting on a field that already
+  has values reshapes them: a single image becomes a one-image gallery, and a
+  gallery keeps only its first image (as does retyping a gallery away from
+  media), which the fields admin warns about before the save; published
+  documents of the type re-fire to pick up the new shape. A single media
+  field handed a stale gallery list keeps its first image, so drafts and
+  versions saved before the switch still publish and restore. Additive migration: one `boolean` column defaulting to
+  `false`.
+  ([#1992](https://github.com/The-Verscienta/kiln_cms/pull/1992))
+
+<a id="propagation-records"></a>
+
+- **Every publish and withdrawal is measured end to end: one propagation
+  record per transition, `mix kiln.propagation` for p50/p95, and a telemetry
+  event to graph it.** The path forward's first claim, that a correction
+  reaches everything a site serves within N seconds, had no N. The webhook
+  fan-out now opens a `propagation` record for each `published`,
+  `unpublished`, or trashing of a live document, with the number of
+  endpoints it was sent to. Each delivery points back at it. The record
+  settles once every delivery has a 2xx or has been given up on, and the CDN
+  purge (when `KILN_CDN_PURGE_URL` is set) has been acknowledged or has
+  failed. Settling stamps the transition-to-last-endpoint and
+  transition-to-purge latencies and emits
+  `[:kiln_cms, :propagation, :complete]`, summarised in
+  `KilnCMSWeb.Telemetry`. `KilnCMS.Propagation.percentiles/2` and
+  `mix kiln.propagation` report p50/p95 over a window, counting lost and
+  still-open transitions apart. `docs/benchmarks.md` describes the method and
+  has the table for the first measurement. A migration adds the
+  `propagations` table (pruned after 90 days) and
+  `webhook_deliveries.propagation_id`.
+  ([#1927](https://github.com/The-Verscienta/kiln_cms/issues/1927))
+
 ## Fixed
 
 <a id="variant-worker-backend-errors"></a>
