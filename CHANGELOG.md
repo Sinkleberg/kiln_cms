@@ -61,7 +61,20 @@ Every summary line below that was shortened links to its own entry there.
   `/security-notices/<ghsa-id>`, with a feed.**
   ([#1873](https://github.com/The-Verscienta/kiln_cms/issues/1873) · [long form](docs/changelog/unreleased.md#kilncmsdev-now-publishes-kilns-security-policy-at-security-and-a-security))
 
+- **A release can adopt imported images: `bin/kiln_cms rpc
+  'KilnCMS.Release.adopt_image_backend()'`. System → Image backend labels it
+  and the Mix task, each with a dry run first.**
+  ([long form](docs/changelog/unreleased.md#release-adopt-image-backend))
+
 ### Fixed
+
+- **A variant job no longer takes an image backend's failed or rate-limited
+  read for a deleted original.**
+  ([long form](docs/changelog/unreleased.md#variant-worker-backend-errors))
+
+- **Regenerating variants skips images over the pixel cap instead of
+  re-reading each original on every run.**
+  ([long form](docs/changelog/unreleased.md#regeneration-pixel-cap))
 
 - **GraphQL `published*` queries without `offset` return their page fields
   (`hasNextPage`, `hasPreviousPage`, `pageNumber`, `lastPage`) again: an
