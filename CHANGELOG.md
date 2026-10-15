@@ -54,6 +54,13 @@ Long form: [docs/changelog/unreleased.md](docs/changelog/unreleased.md) —
 the Unreleased entries as they were written when each change merged.
 Every summary line below that was shortened links to its own entry there.
 
+### Added
+
+- **kilncms.dev now publishes Kiln's security policy at `/security`, and a
+  security notice per published GitHub advisory at
+  `/security-notices/<ghsa-id>`, with a feed.**
+  ([#1873](https://github.com/The-Verscienta/kiln_cms/issues/1873) · [long form](docs/changelog/unreleased.md#kilncmsdev-now-publishes-kilns-security-policy-at-security-and-a-security))
+
 ## [1.4.0] - 2026-10-14
 
 Long form: [docs/changelog/v1.4.0.md](docs/changelog/v1.4.0.md) —
