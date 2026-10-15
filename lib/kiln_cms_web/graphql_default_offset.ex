@@ -25,7 +25,8 @@ defmodule KilnCMSWeb.GraphqlDefaultOffset do
 
   Remove this module once AshGraphql defaults `offset` itself. The fix there
   is one line in `AshGraphql.Graphql.Resolver.validate_offset_opts/3`:
-  `Keyword.put_new(opts, :offset, 0)`.
+  `Keyword.put_new(opts, :offset, 0)`. Upstream:
+  https://github.com/ash-project/ash_graphql/issues/480
   """
   @behaviour Absinthe.Middleware
 
