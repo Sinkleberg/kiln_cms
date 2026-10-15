@@ -63,7 +63,9 @@ Every summary line below that was shortened links to its own entry there.
 
 ### Fixed
 
-- **GraphQL `publishedPosts`/`publishedPages`/`publishedEntries` no longer fail with `hasNextPage` selected and `offset` omitted: an omitted `offset` now means `0`.**
+- **GraphQL `published*` queries without `offset` return their page fields
+  (`hasNextPage`, `hasPreviousPage`, `pageNumber`, `lastPage`) again: an
+  omitted `offset` now means `0`.**
   ([#1883](https://github.com/The-Verscienta/kiln_cms/issues/1883))
 
 ## [1.4.0] - 2026-10-14

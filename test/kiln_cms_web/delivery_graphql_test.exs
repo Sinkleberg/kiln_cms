@@ -188,14 +188,15 @@ defmodule KilnCMSWeb.DeliveryGraphqlTest do
     end
 
     test "every offset-paginated query answers hasNextPage when offset is omitted" do
-      for name <- offset_queries() do
-        query = "{ #{name}(limit: 2) { hasNextPage hasPreviousPage count results { id } } }"
+      # With `limit` alone, and with neither (the `default_limit` path).
+      for name <- offset_queries(), args <- ["(limit: 2)", ""] do
+        query = "{ #{name}#{args} { hasNextPage hasPreviousPage count results { id } } }"
 
         assert {:ok, result} = run(query)
-        refute Map.has_key?(result, :errors), "#{name}: #{inspect(result[:errors])}"
+        refute Map.has_key?(result, :errors), "#{query}: #{inspect(result[:errors])}"
 
         page = result.data[name]
-        assert is_boolean(page["hasNextPage"]), "#{name}: #{inspect(page)}"
+        assert is_boolean(page["hasNextPage"]), "#{query}: #{inspect(page)}"
         assert page["hasPreviousPage"] == false
       end
     end
@@ -203,10 +204,11 @@ defmodule KilnCMSWeb.DeliveryGraphqlTest do
     test "an omitted offset is the first page" do
       admin = admin()
 
-      for title <- ["First", "Second"] do
-        CMS.create_post!(%{title: title, slug: slug()}, actor: admin)
-        |> then(&CMS.publish_post!(&1, %{}, actor: admin))
-      end
+      [_first, newest] =
+        for title <- ["First", "Second"] do
+          CMS.create_post!(%{title: title, slug: slug()}, actor: admin)
+          |> then(&CMS.publish_post!(&1, %{}, actor: admin))
+        end
 
       page = fn args ->
         query = "{ publishedPosts(#{args}) { hasNextPage hasPreviousPage results { id } } }"
@@ -216,6 +218,8 @@ defmodule KilnCMSWeb.DeliveryGraphqlTest do
 
       omitted = page.("limit: 1")
       assert %{"hasNextPage" => true, "hasPreviousPage" => false} = omitted
+      # The newest published post leads the first page.
+      assert [%{"id" => newest.id}] == omitted["results"]
       assert omitted == page.("limit: 1, offset: 0")
 
       assert %{"hasPreviousPage" => true} = page.("limit: 1, offset: 1")

@@ -485,12 +485,12 @@ Variables:
 `publishedPosts` is **offset-paginated** (parity with the JSON:API `/published`
 feed) — it returns a `PageOfPost` with `results`, `count`, and `hasNextPage`.
 `limit` is capped server-side (max 100, default 25), so use `limit`/`offset` to
-page. A page's [cost](#query-cost) is its size times the fields of one row, so
+page. An omitted `offset` means `0`, the first page. A page's [cost](#query-cost) is its size times the fields of one row, so
 this selection fits a page of 10; at 25 it would cost 250 and be refused.
 
 ```graphql
 {
-  publishedPosts(limit: 10, offset: 0) {
+  publishedPosts(limit: 10) {
     count
     hasNextPage
     results {
