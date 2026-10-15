@@ -61,6 +61,11 @@ Every summary line below that was shortened links to its own entry there.
   `/security-notices/<ghsa-id>`, with a feed.**
   ([#1873](https://github.com/The-Verscienta/kiln_cms/issues/1873) · [long form](docs/changelog/unreleased.md#kilncmsdev-now-publishes-kilns-security-policy-at-security-and-a-security))
 
+### Fixed
+
+- **GraphQL `publishedPosts`/`publishedPages`/`publishedEntries` no longer fail with `hasNextPage` selected and `offset` omitted: an omitted `offset` now means `0`.**
+  ([#1883](https://github.com/The-Verscienta/kiln_cms/issues/1883))
+
 ## [1.4.0] - 2026-10-14
 
 Long form: [docs/changelog/v1.4.0.md](docs/changelog/v1.4.0.md) —

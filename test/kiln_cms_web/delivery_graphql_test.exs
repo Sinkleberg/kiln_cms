@@ -169,6 +169,59 @@ defmodule KilnCMSWeb.DeliveryGraphqlTest do
     end
   end
 
+  describe "offset pagination without an offset (#1883)" do
+    # Every AshGraphql query with an `offset` argument. Discovered from the
+    # schema, so a newly generated offset-paginated query is covered too.
+    defp offset_queries do
+      @schema
+      |> Absinthe.Schema.lookup_type(:query)
+      |> Map.fetch!(:fields)
+      |> Enum.filter(fn {_id, field} -> Map.has_key?(field.args, :offset) end)
+      |> Enum.map(fn {_id, field} ->
+        Absinthe.Adapter.LanguageConventions.to_external_name(field.name, :field)
+      end)
+      |> Enum.sort()
+    end
+
+    test "covers the published feeds" do
+      assert ~w(publishedEntries publishedPages publishedPosts) -- offset_queries() == []
+    end
+
+    test "every offset-paginated query answers hasNextPage when offset is omitted" do
+      for name <- offset_queries() do
+        query = "{ #{name}(limit: 2) { hasNextPage hasPreviousPage count results { id } } }"
+
+        assert {:ok, result} = run(query)
+        refute Map.has_key?(result, :errors), "#{name}: #{inspect(result[:errors])}"
+
+        page = result.data[name]
+        assert is_boolean(page["hasNextPage"]), "#{name}: #{inspect(page)}"
+        assert page["hasPreviousPage"] == false
+      end
+    end
+
+    test "an omitted offset is the first page" do
+      admin = admin()
+
+      for title <- ["First", "Second"] do
+        CMS.create_post!(%{title: title, slug: slug()}, actor: admin)
+        |> then(&CMS.publish_post!(&1, %{}, actor: admin))
+      end
+
+      page = fn args ->
+        query = "{ publishedPosts(#{args}) { hasNextPage hasPreviousPage results { id } } }"
+        assert {:ok, %{data: %{"publishedPosts" => page}}} = run(query)
+        page
+      end
+
+      omitted = page.("limit: 1")
+      assert %{"hasNextPage" => true, "hasPreviousPage" => false} = omitted
+      assert omitted == page.("limit: 1, offset: 0")
+
+      assert %{"hasPreviousPage" => true} = page.("limit: 1, offset: 1")
+    end
+  end
+
   describe "taxonomy reads" do
     test "categories and categoryBySlug are world-readable" do
       admin = admin()

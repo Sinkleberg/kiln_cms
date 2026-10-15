@@ -598,7 +598,7 @@ type, and its docs index is a page:
 ```bash
 # The newest guides
 curl -s https://kilncms.dev/gql -H 'content-type: application/json' \
-  -d '{"query":"{ publishedEntries(limit: 5, offset: 0) { count hasNextPage results { title slug publishedAt } } }"}'
+  -d '{"query":"{ publishedEntries(limit: 5) { count hasNextPage results { title slug publishedAt } } }"}'
 
 # One page by slug
 curl -s https://kilncms.dev/gql -H 'content-type: application/json' \
