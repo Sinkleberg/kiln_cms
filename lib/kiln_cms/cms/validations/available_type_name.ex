@@ -7,7 +7,12 @@ defmodule KilnCMS.CMS.Validations.AvailableTypeName do
       (compiled always wins — a dynamic type can never shadow `Page`/`Post`);
     * a **reserved router segment** (`/editor`, `/api`, `/search`, …), since
       dynamic types are delivered at `/<path_segment>/<slug>`;
-    * a configured **locale prefix** (`/fr/...` routes).
+    * a configured **locale prefix** (`/fr/...` routes);
+    * a **taxonomy webhook namespace** (`tag`, `tag_group`, `category`,
+      #1965) for the `name`: a content type's events are `<name>.<verb>`, so a
+      type named `tag` would send `tag.created` and `tag.deleted`, the same
+      names the taxonomy sends. Only when the name is being written, so a type
+      created before this rule can still be edited.
 
   Dynamic-vs-dynamic uniqueness is enforced by the resource's identities, not
   here.
@@ -19,8 +24,25 @@ defmodule KilnCMS.CMS.Validations.AvailableTypeName do
 
   @impl true
   def validate(changeset, _opts, _context) do
-    with :ok <- check(changeset, :name, taken_names()) do
+    with :ok <- check(changeset, :name, taken_names()),
+         :ok <- check_event_namespace(changeset) do
       check(changeset, :path_segment, taken_segments())
+    end
+  end
+
+  defp check_event_namespace(changeset) do
+    name = Ash.Changeset.get_attribute(changeset, :name)
+    namespaces = KilnCMS.CMS.Taxonomy.event_types()
+
+    if Ash.Changeset.changing_attribute?(changeset, :name) and name in namespaces do
+      {:error,
+       InvalidAttribute.exception(
+         field: :name,
+         message: "is a taxonomy webhook event namespace (#{Enum.join(namespaces, ", ")})",
+         value: name
+       )}
+    else
+      :ok
     end
   end
 

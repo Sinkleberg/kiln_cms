@@ -58,6 +58,10 @@ defmodule KilnCMS.CMS.WebhookEndpoint do
   # Content experiments (#499). One event, on conclusion — an experiment that is
   # merely running has nothing a subscriber could act on.
   @experiment_events ~w(experiment.concluded)
+  # Taxonomy (#1965): `<tag|tag_group|category>.<verb>`. The namespaces are
+  # discovered (`KilnCMS.CMS.Taxonomy.event_types/0`), the verbs are these.
+  # Opt-in like the domain events above: not in `default_events/1`.
+  @taxonomy_verbs ~w(created updated deleted)
 
   @doc "The lifecycle verbs every content type can emit."
   def verbs, do: @verbs
@@ -76,7 +80,7 @@ defmodule KilnCMS.CMS.WebhookEndpoint do
   """
   @spec carries_drafts?(String.t()) :: boolean()
   def carries_drafts?(event) when is_binary(event) do
-    case event_parts(event) do
+    case content_event_parts(event) do
       {_type, verb} -> verb in @draft_verbs
       nil -> false
     end
@@ -87,6 +91,41 @@ defmodule KilnCMS.CMS.WebhookEndpoint do
   `unpublished`, `archived` and `deleted` (#1926).
   """
   def retraction_verbs, do: @retraction_verbs
+
+  @doc """
+  The taxonomy events (#1965): each taxonomy resource's namespace crossed with
+  `created` / `updated` / `deleted` — `"tag.created"`, `"tag_group.updated"`,
+  `"category.deleted"`, …
+  """
+  @spec taxonomy_events() :: [String.t()]
+  def taxonomy_events do
+    for type <- KilnCMS.CMS.Taxonomy.event_types(), verb <- @taxonomy_verbs, do: "#{type}.#{verb}"
+  end
+
+  @doc """
+  Whether `event` is a taxonomy event. Its verb reads like a content verb
+  (`created`, `deleted`), but a tag is not a document: a taxonomy event never
+  carries a draft and never retracts anything.
+  """
+  @spec taxonomy_event?(String.t()) :: boolean()
+  def taxonomy_event?(event) when is_binary(event) do
+    case event_parts(event) do
+      {type, verb} -> verb in @taxonomy_verbs and type in KilnCMS.CMS.Taxonomy.event_types()
+      nil -> false
+    end
+  end
+
+  def taxonomy_event?(_event), do: false
+
+  @doc """
+  `{type, verb}` for a content-document event, `nil` for anything else: a
+  taxonomy event (`taxonomy_event?/1`) or one without a dot (`"ping"`). What
+  the draft and retraction checks parse with.
+  """
+  @spec content_event_parts(String.t()) :: {String.t(), String.t()} | nil
+  def content_event_parts(event) when is_binary(event) do
+    if taxonomy_event?(event), do: nil, else: event_parts(event)
+  end
 
   @doc """
   `{type, verb}` for a `<type>.<verb>` event name, `nil` for one without a
@@ -123,8 +162,10 @@ defmodule KilnCMS.CMS.WebhookEndpoint do
   admin-defined public forms, `task.assigned`/`task.overdue` for editorial
   tasks (#501), `release.published`/`release.rolled_back`/`release.failed` for
   content releases (#500), `experiment.concluded` for A/B experiments
-  (#499), and `membership.activated`/`membership.canceled` for paid
-  memberships (`KilnCMS.Billing.MembershipWebhooks`). Derived at
+  (#499), `membership.activated`/`membership.canceled` for paid
+  memberships (`KilnCMS.Billing.MembershipWebhooks`), and
+  `tag.*`/`tag_group.*`/`category.*` (`created`, `updated`, `deleted`) for
+  taxonomy (`taxonomy_events/0`, #1965). Derived at
   runtime so generated and admin-defined types get events for free.
 
   Dynamic types are per-org (epic #336), so the console passes the request's
@@ -137,7 +178,8 @@ defmodule KilnCMS.CMS.WebhookEndpoint do
     content ++
       ["form.submitted"] ++
       @task_events ++
-      @release_events ++ @experiment_events ++ KilnCMS.Billing.MembershipWebhooks.events()
+      @release_events ++
+      @experiment_events ++ KilnCMS.Billing.MembershipWebhooks.events() ++ taxonomy_events()
   end
 
   @doc """
