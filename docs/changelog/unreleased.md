@@ -65,7 +65,7 @@ carries the reasoning.
   gallery keeps only its first image, which the fields admin warns about
   before the save. Additive migration: one `boolean` column defaulting to
   `false`.
-  ([#PR](https://github.com/The-Verscienta/kiln_cms/pull/PR))
+  ([#1992](https://github.com/The-Verscienta/kiln_cms/pull/1992))
 
 ## Fixed
 
