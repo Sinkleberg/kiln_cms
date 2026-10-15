@@ -441,6 +441,11 @@ defmodule KilnCMS.CMS.Changes.ApplyCustomFields do
     if composite?(def), do: Enum.all?(Map.values(value), &blank?/1), else: false
   end
 
+  # A gallery (`multiple` media) is blank when every entry is: the editor
+  # always submits a leading `""` so that removing the last image still sends
+  # the key, and an emptied gallery must clear rather than keep what it held.
+  defp blank_for?(%{multiple: true}, value) when is_list(value), do: Enum.all?(value, &blank?/1)
+
   defp blank_for?(_def, value), do: blank?(value)
 
   defp composite?(%{field_type: type} = def) do
@@ -457,6 +462,9 @@ defmodule KilnCMS.CMS.Changes.ApplyCustomFields do
   # Tenant-aware dispatch: only `:media`/`:reference` resolve records (and so need
   # the writing tenant and actor); every other field type coerces purely from its
   # value, so it delegates to the type-only `coerce/2` below.
+  defp coerce(value, %{field_type: :media, multiple: true}, read_opts),
+    do: coerce_gallery(value, read_opts)
+
   defp coerce(value, %{field_type: :media} = def, read_opts),
     do: coerce_media(value, def, read_opts)
 
@@ -552,6 +560,29 @@ defmodule KilnCMS.CMS.Changes.ApplyCustomFields do
       {:ok, %{"id" => media.id, "url" => media.url, "alt" => media.alt}}
     else
       _ -> {:error, "must be an existing media item"}
+    end
+  end
+
+  # A gallery media field (`multiple: true`): an ordered list of the same
+  # snapshots a single media field stores, one per picked item. Order is the
+  # editor's — it is the order the gallery renders in. Blanks (the editor's
+  # leading `""`) drop out, and an item picked twice is kept once, where it
+  # first appears. A lone id or snapshot is accepted as a one-item gallery, so a
+  # writer that predates the flag still lands a valid value. Any id that does
+  # not resolve fails the whole field rather than quietly shortening it.
+  defp coerce_gallery(value, read_opts) do
+    value
+    |> List.wrap()
+    |> Enum.reject(&blank?/1)
+    |> Enum.reduce_while({:ok, []}, fn item, {:ok, acc} ->
+      case coerce_media(item, nil, read_opts) do
+        {:ok, snapshot} -> {:cont, {:ok, [snapshot | acc]}}
+        {:error, _message} -> {:halt, {:error, "must only contain existing media items"}}
+      end
+    end)
+    |> case do
+      {:ok, snapshots} -> {:ok, snapshots |> Enum.reverse() |> Enum.uniq_by(& &1["id"])}
+      error -> error
     end
   end
 

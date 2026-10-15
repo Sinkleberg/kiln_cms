@@ -2758,6 +2758,33 @@ defmodule KilnCMSWeb.ContentEditorLive do
     {:noreply, assign(socket, :picked, picked)}
   end
 
+  # A gallery custom field (`multiple` media) uses the same multi-select drawer
+  # as the gallery block; its confirm button names the field instead of a block.
+  def handle_event("open_field_gallery_picker", %{"field" => name}, socket)
+      when is_binary(name) do
+    if field_gallery_editable?(socket, name),
+      do: {:noreply, socket |> assign(:picking, {:field_gallery, name}) |> assign(:picked, [])},
+      else: {:noreply, socket}
+  end
+
+  def handle_event("add_picked_images", %{"field" => name}, socket) when is_binary(name) do
+    ids = Enum.map(socket.assigns.picked, & &1.id)
+
+    {:noreply,
+     socket
+     |> update_field_gallery(name, &Enum.uniq(&1 ++ ids))
+     |> reset_picker()}
+  end
+
+  def handle_event("field_gallery_remove", %{"field" => name, "id" => id}, socket)
+      when is_binary(name) and is_binary(id),
+      do: {:noreply, update_field_gallery(socket, name, &List.delete(&1, id))}
+
+  def handle_event("field_gallery_move", %{"field" => name, "id" => id, "dir" => dir}, socket)
+      when is_binary(name) and is_binary(id) and dir in ["up", "down"] do
+    {:noreply, update_field_gallery(socket, name, &move_id(&1, id, dir))}
+  end
+
   def handle_event("add_picked_images", %{"bid" => bid}, socket) when is_binary(bid) do
     case socket.assigns.picked do
       [] ->
@@ -3732,11 +3759,81 @@ defmodule KilnCMSWeb.ContentEditorLive do
   # then closes the picker, matching `pick_image`'s own behavior.
   defp route_picked_item(socket, item) do
     case socket.assigns.picking do
-      {:gallery, _bid} ->
+      {kind, _target} when kind in [:gallery, :field_gallery] ->
         assign(socket, :picked, socket.assigns.picked ++ [%{id: item.id, url: item.url}])
 
       picking ->
         socket |> apply_pick(picking, item.id, item.url) |> reset_picker()
+    end
+  end
+
+  # Whether `name` is a gallery custom field on this record that this view may
+  # change: a definition the editor loaded, with `multiple` set, and not a
+  # shared field locked on a translation (#1327) — the disabled fieldset hides
+  # the controls, but a hidden control is not a boundary.
+  defp field_gallery_editable?(socket, name) do
+    Enum.any?(
+      socket.assigns.field_definitions,
+      &match?(%{name: ^name, field_type: :media, multiple: true}, &1)
+    ) and
+      not (socket.assigns[:localization] &&
+             KilnCMSWeb.ContentEditor.Localization.locked?(
+               socket.assigns.localization,
+               {:custom, name}
+             ))
+  end
+
+  # Rewrite a gallery custom field's ids through `fun` and re-validate — the
+  # same params-then-validate path `clear_featured` takes, so the form is the
+  # only holder of the gallery's state. The leading `""` keeps an emptied
+  # gallery present in the params (see `custom_field_input/1`).
+  defp update_field_gallery(socket, name, fun) do
+    if field_gallery_editable?(socket, name) do
+      ids = socket.assigns.form |> custom_field_value(name) |> gallery_ids()
+      params = AshPhoenix.Form.params(socket.assigns.form)
+
+      custom =
+        case params["custom_fields"] do
+          %{} = map -> map
+          _other -> %{}
+        end
+
+      params = Map.put(params, "custom_fields", Map.put(custom, name, ["" | fun.(ids)]))
+
+      socket
+      |> assign(:form, AshPhoenix.Form.validate(socket.assigns.form, params))
+      |> mark_dirty(:settings)
+    else
+      socket
+    end
+  end
+
+  defp gallery_ids(value) do
+    value
+    |> List.wrap()
+    |> Enum.flat_map(fn
+      %{"id" => id} when is_binary(id) and id != "" -> [id]
+      id when is_binary(id) and id != "" -> [id]
+      _blank -> []
+    end)
+  end
+
+  # Swap `id` with its neighbour; at either end it stays where it is.
+  defp move_id(ids, id, dir) do
+    case Enum.find_index(ids, &(&1 == id)) do
+      nil ->
+        ids
+
+      index ->
+        other = if dir == "up", do: index - 1, else: index + 1
+
+        if other < 0 or other >= length(ids) do
+          ids
+        else
+          ids
+          |> List.replace_at(index, Enum.at(ids, other))
+          |> List.replace_at(other, id)
+        end
     end
   end
 

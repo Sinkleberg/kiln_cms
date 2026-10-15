@@ -110,6 +110,145 @@ defmodule KilnCMS.CMS.CustomFieldPickersTest do
     end
   end
 
+  describe "media gallery fields (multiple: true)" do
+    setup do
+      actor = admin()
+      definition = define_type!(actor)
+
+      field =
+        CMS.create_field_definition!(
+          %{
+            type_definition_id: definition.id,
+            name: "shots",
+            label: "Shots",
+            field_type: :media,
+            multiple: true
+          },
+          actor: actor
+        )
+
+      %{actor: actor, definition: definition, field: field}
+    end
+
+    defp snapshot(media), do: %{"id" => media.id, "url" => media.url, "alt" => media.alt}
+
+    test "a list of ids is snapshotted in order, blanks dropped and repeats kept once", %{
+      actor: actor,
+      definition: definition
+    } do
+      [a, b, c] = for _ <- 1..3, do: media!()
+
+      entry =
+        ContentTypes.create!(
+          definition.name,
+          %{
+            title: "Gallery",
+            slug: slug(),
+            custom_fields: %{"shots" => ["", c.id, a.id, c.id, b.id]}
+          },
+          actor: actor
+        )
+
+      assert entry.custom_fields["shots"] == [snapshot(c), snapshot(a), snapshot(b)]
+
+      # The stored list round-trips; a lone id is a one-image gallery.
+      {:ok, entry} = CMS.update_entry(entry, %{custom_fields: entry.custom_fields}, actor: actor)
+      assert Enum.map(entry.custom_fields["shots"], & &1["id"]) == [c.id, a.id, b.id]
+
+      {:ok, entry} = CMS.update_entry(entry, %{custom_fields: %{"shots" => a.id}}, actor: actor)
+      assert entry.custom_fields["shots"] == [snapshot(a)]
+
+      # The editor's leading blank alone is an emptied gallery: the key clears.
+      {:ok, entry} = CMS.update_entry(entry, %{custom_fields: %{"shots" => [""]}}, actor: actor)
+      refute Map.has_key?(entry.custom_fields, "shots")
+    end
+
+    test "one unknown id fails the whole field", %{actor: actor, definition: definition} do
+      media = media!()
+
+      error =
+        assert_raise Ash.Error.Invalid, fn ->
+          ContentTypes.create!(
+            definition.name,
+            %{
+              title: "Bad",
+              slug: slug(),
+              custom_fields: %{"shots" => [media.id, Ash.UUID.generate()]}
+            },
+            actor: actor
+          )
+        end
+
+      assert Exception.message(error) =~ "must only contain existing media items"
+    end
+
+    test "a required gallery refuses an empty list", %{
+      actor: actor,
+      definition: definition,
+      field: field
+    } do
+      CMS.update_field_definition!(field, %{required: true}, actor: actor)
+
+      error =
+        assert_raise Ash.Error.Invalid, fn ->
+          ContentTypes.create!(
+            definition.name,
+            %{title: "Empty", slug: slug(), custom_fields: %{"shots" => [""]}},
+            actor: actor
+          )
+        end
+
+      assert Exception.message(error) =~ "is required"
+    end
+
+    test "every gallery image is a media usage edge", %{actor: actor, definition: definition} do
+      [a, b] = for _ <- 1..2, do: media!()
+
+      entry =
+        ContentTypes.create!(
+          definition.name,
+          %{title: "Used", slug: slug(), custom_fields: %{"shots" => [a.id, b.id]}},
+          actor: actor
+        )
+
+      refs = KilnCMS.Firing.References.document_refs(entry)
+      assert {:media, a.id} in refs
+      assert {:media, b.id} in refs
+    end
+
+    test "flipping the flag reshapes the stored values", %{
+      actor: actor,
+      definition: definition,
+      field: field
+    } do
+      [a, b] = for _ <- 1..2, do: media!()
+
+      gallery =
+        ContentTypes.create!(
+          definition.name,
+          %{title: "Two", slug: slug(), custom_fields: %{"shots" => [a.id, b.id]}},
+          actor: actor
+        )
+
+      empty =
+        ContentTypes.create!(definition.name, %{title: "None", slug: slug()}, actor: actor)
+
+      # Gallery -> single keeps the first image.
+      field = CMS.update_field_definition!(field, %{multiple: false}, actor: actor)
+      assert CMS.get_entry!(gallery.id, actor: actor).custom_fields["shots"] == snapshot(a)
+      assert CMS.get_entry!(empty.id, actor: actor).custom_fields == %{}
+
+      # Single -> gallery wraps it, losslessly.
+      CMS.update_field_definition!(field, %{multiple: true}, actor: actor)
+      assert CMS.get_entry!(gallery.id, actor: actor).custom_fields["shots"] == [snapshot(a)]
+    end
+
+    test "the flag only sticks to a media field", %{actor: actor, field: field} do
+      field = CMS.update_field_definition!(field, %{field_type: :string}, actor: actor)
+      refute field.multiple
+    end
+  end
+
   describe "reference fields" do
     test "a target id is snapshotted to %{id, type, slug, title}; unknown ids error" do
       actor = admin()
