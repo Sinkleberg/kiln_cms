@@ -689,49 +689,54 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
       assign(
         assigns,
         :narrowing?,
-        match?(%{multiple: true}, assigns.stored) and
-          assigns.form[:multiple].value not in [true, "true"]
+        match?(%{field_type: :media, multiple: true}, assigns.stored) and
+          (not media?(assigns.form) or assigns.form[:multiple].value not in [true, "true"])
       )
 
+    # The warning outlives the toggle: retyping a gallery away from media
+    # narrows it just the same (`SyncFieldValues`), so it shows then too.
     ~H"""
-    <fieldset :if={media?(@form)} class="sm:col-span-2">
-      <legend class="mb-1 block text-sm font-medium">{gettext("Holds")}</legend>
-      <div class="grid gap-2 sm:grid-cols-2">
-        <label
-          :for={
-            {value, title, hint, icon} <- [
-              {"false", gettext("A single item"), gettext("One image — a hero, a logo, a portrait."),
-               "hero-photo"},
-              {"true", gettext("A gallery"),
-               gettext("Several images, in the order the editor arranges them."), "hero-squares-2x2"}
-            ]
-          }
-          for={"#{@id}-#{value}"}
-          class={[
-            "flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors",
-            if(to_string(@form[:multiple].value in [true, "true"]) == value,
-              do: "border-primary bg-primary/5",
-              else: "border-base-content/15 hover:border-base-content/30"
-            )
-          ]}
-        >
-          <input
-            type="radio"
-            id={"#{@id}-#{value}"}
-            name={@form[:multiple].name}
-            value={value}
-            checked={to_string(@form[:multiple].value in [true, "true"]) == value}
-            class="mt-0.5 size-4 accent-primary"
-          />
-          <span class="min-w-0">
-            <span class="flex items-center gap-1.5 text-sm font-medium">
-              <.icon name={icon} class="size-4 text-base-content/60" />
-              {title}
+    <div :if={media?(@form) or @narrowing?} class="sm:col-span-2">
+      <fieldset :if={media?(@form)}>
+        <legend class="mb-1 block text-sm font-medium">{gettext("Holds")}</legend>
+        <div class="grid gap-2 sm:grid-cols-2">
+          <label
+            :for={
+              {value, title, hint, icon} <- [
+                {"false", gettext("A single item"),
+                 gettext("One image — a hero, a logo, a portrait."), "hero-photo"},
+                {"true", gettext("A gallery"),
+                 gettext("Several images, in the order the editor arranges them."),
+                 "hero-squares-2x2"}
+              ]
+            }
+            for={"#{@id}-#{value}"}
+            class={[
+              "flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors",
+              if(to_string(@form[:multiple].value in [true, "true"]) == value,
+                do: "border-primary bg-primary/5",
+                else: "border-base-content/15 hover:border-base-content/30"
+              )
+            ]}
+          >
+            <input
+              type="radio"
+              id={"#{@id}-#{value}"}
+              name={@form[:multiple].name}
+              value={value}
+              checked={to_string(@form[:multiple].value in [true, "true"]) == value}
+              class="mt-0.5 size-4 accent-primary"
+            />
+            <span class="min-w-0">
+              <span class="flex items-center gap-1.5 text-sm font-medium">
+                <.icon name={icon} class="size-4 text-base-content/60" />
+                {title}
+              </span>
+              <span class="mt-0.5 block text-xs text-base-content/60">{hint}</span>
             </span>
-            <span class="mt-0.5 block text-xs text-base-content/60">{hint}</span>
-          </span>
-        </label>
-      </div>
+          </label>
+        </div>
+      </fieldset>
       <p
         :if={@narrowing?}
         id={"#{@id}-narrowing"}
@@ -743,7 +748,7 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
           "Saving keeps only the first image of each gallery already filled in. The others are removed from the content, not from the media library."
         )}
       </p>
-    </fieldset>
+    </div>
     """
   end
 

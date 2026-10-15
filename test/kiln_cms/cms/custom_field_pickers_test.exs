@@ -179,7 +179,26 @@ defmodule KilnCMS.CMS.CustomFieldPickersTest do
           )
         end
 
-      assert Exception.message(error) =~ "must only contain existing media items"
+      assert Exception.message(error) =~ "is not an existing media item"
+    end
+
+    test "the error names the image that no longer resolves", %{
+      actor: actor,
+      definition: definition
+    } do
+      media = media!()
+      gone = Ash.UUID.generate()
+
+      error =
+        assert_raise Ash.Error.Invalid, fn ->
+          ContentTypes.create!(
+            definition.name,
+            %{title: "Gone", slug: slug(), custom_fields: %{"shots" => [media.id, gone]}},
+            actor: actor
+          )
+        end
+
+      assert Exception.message(error) =~ "image 2 (#{gone}) is not an existing media item"
     end
 
     test "a required gallery refuses an empty list", %{
@@ -243,9 +262,73 @@ defmodule KilnCMS.CMS.CustomFieldPickersTest do
       assert CMS.get_entry!(gallery.id, actor: actor).custom_fields["shots"] == [snapshot(a)]
     end
 
-    test "the flag only sticks to a media field", %{actor: actor, field: field} do
+    test "the flag only sticks to a media field; retyping a gallery narrows it", %{
+      actor: actor,
+      definition: definition,
+      field: field
+    } do
+      [a, b] = for _ <- 1..2, do: media!()
+
+      entry =
+        ContentTypes.create!(
+          definition.name,
+          %{title: "Retype", slug: slug(), custom_fields: %{"shots" => [a.id, b.id]}},
+          actor: actor
+        )
+
       field = CMS.update_field_definition!(field, %{field_type: :string}, actor: actor)
       refute field.multiple
+
+      # No list left under a field that is no longer a gallery.
+      assert CMS.get_entry!(entry.id, actor: actor).custom_fields["shots"] == snapshot(a)
+    end
+
+    test "a single media field handed a gallery list keeps its first item", %{
+      actor: actor,
+      definition: definition
+    } do
+      [a, b] = for _ <- 1..2, do: media!()
+
+      CMS.create_field_definition!(
+        %{type_definition_id: definition.id, name: "hero", label: "Hero", field_type: :media},
+        actor: actor
+      )
+
+      # A value stored while the field was a gallery — a working copy, a
+      # version, an API round-trip — still writes, as the narrowing would.
+      entry =
+        ContentTypes.create!(
+          definition.name,
+          %{title: "Stale", slug: slug(), custom_fields: %{"hero" => ["", a.id, b.id]}},
+          actor: actor
+        )
+
+      assert entry.custom_fields["hero"] == snapshot(a)
+    end
+
+    test "on a compiled type, a rename and a flip in one edit reshape under the new key", %{
+      actor: actor
+    } do
+      [a, b] = for _ <- 1..2, do: media!()
+      name = "pk_shots_#{System.unique_integer([:positive])}"
+
+      field =
+        CMS.create_field_definition!(
+          %{content_type: :page, name: name, label: "Shots", field_type: :media, multiple: true},
+          actor: actor
+        )
+
+      page =
+        CMS.create_page!(
+          %{title: "Gallery page", slug: slug(), custom_fields: %{name => [a.id, b.id]}},
+          actor: actor
+        )
+
+      renamed = name <> "_hero"
+
+      CMS.update_field_definition!(field, %{name: renamed, multiple: false}, actor: actor)
+
+      assert CMS.get_page!(page.id, actor: actor).custom_fields == %{renamed => snapshot(a)}
     end
   end
 

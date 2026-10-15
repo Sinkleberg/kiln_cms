@@ -73,10 +73,18 @@ defmodule KilnCMS.CMS.Changes.SyncFieldValues do
         do: [],
         else: [{:rename, previous.name, definition.name}]
 
+    # A gallery is a media field with `multiple`; retyping one away from media
+    # narrows it too (ClearMultiple drops the flag), so it keeps its first item
+    # like any other narrowing rather than leaving lists under a non-media key.
+    was_gallery? = previous.field_type == :media and previous.multiple
+    gallery? = definition.field_type == :media and definition.multiple
+
     reshape =
-      if definition.field_type == :media and previous.multiple != definition.multiple,
-        do: [{:reshape, definition.name, if(definition.multiple, do: :to_list, else: :to_single)}],
-        else: []
+      cond do
+        was_gallery? == gallery? -> []
+        gallery? -> [{:reshape, definition.name, :to_list}]
+        true -> [{:reshape, definition.name, :to_single}]
+      end
 
     rename ++ reshape
   end

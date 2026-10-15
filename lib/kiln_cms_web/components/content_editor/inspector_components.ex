@@ -937,9 +937,11 @@ defmodule KilnCMSWeb.ContentEditor.InspectorComponents do
     |> Enum.uniq_by(& &1.id)
   end
 
-  defp snapshot_id(%{"id" => id}), do: id
-  defp snapshot_id(id) when is_binary(id) and id != "", do: id
-  defp snapshot_id(_other), do: nil
+  # The selected id of a single media/reference field. A list (a value stored
+  # while the field was a gallery) selects its first item — what saving it
+  # keeps — rather than reading as "None" and clearing it on the next save.
+  defp snapshot_id(value),
+    do: value |> KilnCMS.CMS.Changes.ApplyCustomFields.media_ids() |> List.first()
 
   defp custom_input_type(:integer), do: "number"
   defp custom_input_type(:float), do: "number"

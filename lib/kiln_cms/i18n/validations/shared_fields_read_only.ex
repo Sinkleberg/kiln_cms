@@ -184,12 +184,9 @@ defmodule KilnCMS.I18n.Validations.SharedFieldsReadOnly do
 
   # A gallery is the same value while its ids, in order, are.
   defp comparable(:media, {:ok, list}) when is_list(list),
-    do: {:ok, Enum.map(list, &snapshot_id/1)}
+    do: {:ok, KilnCMS.CMS.Changes.ApplyCustomFields.media_ids(list)}
 
   defp comparable(_type, fetched), do: fetched
-
-  defp snapshot_id(%{"id" => id}), do: id
-  defp snapshot_id(other), do: other
 
   defp block_candidates(changeset, attr) do
     if Ash.Changeset.changing_attribute?(changeset, attr) do

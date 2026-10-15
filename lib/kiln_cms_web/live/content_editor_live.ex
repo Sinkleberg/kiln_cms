@@ -2767,13 +2767,21 @@ defmodule KilnCMSWeb.ContentEditorLive do
       else: {:noreply, socket}
   end
 
+  # Only into the field the drawer was opened for, and only when something was
+  # picked: an empty confirm changes nothing and must not mark the draft dirty.
   def handle_event("add_picked_images", %{"field" => name}, socket) when is_binary(name) do
-    ids = Enum.map(socket.assigns.picked, & &1.id)
+    case socket.assigns do
+      %{picking: {:field_gallery, ^name}, picked: [_ | _] = picked} ->
+        ids = Enum.map(picked, & &1.id)
 
-    {:noreply,
-     socket
-     |> update_field_gallery(name, &Enum.uniq(&1 ++ ids))
-     |> reset_picker()}
+        {:noreply,
+         socket
+         |> update_field_gallery(name, &Enum.uniq(&1 ++ ids))
+         |> reset_picker()}
+
+      _other ->
+        {:noreply, reset_picker(socket)}
+    end
   end
 
   def handle_event("field_gallery_remove", %{"field" => name, "id" => id}, socket)
@@ -3768,14 +3776,16 @@ defmodule KilnCMSWeb.ContentEditorLive do
   end
 
   # Whether `name` is a gallery custom field on this record that this view may
-  # change: a definition the editor loaded, with `multiple` set, and not a
-  # shared field locked on a translation (#1327) — the disabled fieldset hides
-  # the controls, but a hidden control is not a boundary.
+  # change: a writer (`may_write?`), a definition the editor loaded, with
+  # `multiple` set, and not a shared field locked on a translation (#1327) —
+  # the disabled fieldset hides the controls, but a hidden control is not a
+  # boundary.
   defp field_gallery_editable?(socket, name) do
-    Enum.any?(
-      socket.assigns.field_definitions,
-      &match?(%{name: ^name, field_type: :media, multiple: true}, &1)
-    ) and
+    socket.assigns.may_write? and
+      Enum.any?(
+        socket.assigns.field_definitions,
+        &match?(%{name: ^name, field_type: :media, multiple: true}, &1)
+      ) and
       not (socket.assigns[:localization] &&
              KilnCMSWeb.ContentEditor.Localization.locked?(
                socket.assigns.localization,
@@ -3789,7 +3799,11 @@ defmodule KilnCMSWeb.ContentEditorLive do
   # gallery present in the params (see `custom_field_input/1`).
   defp update_field_gallery(socket, name, fun) do
     if field_gallery_editable?(socket, name) do
-      ids = socket.assigns.form |> custom_field_value(name) |> gallery_ids()
+      ids =
+        socket.assigns.form
+        |> custom_field_value(name)
+        |> KilnCMS.CMS.Changes.ApplyCustomFields.media_ids()
+
       params = AshPhoenix.Form.params(socket.assigns.form)
 
       custom =
@@ -3800,22 +3814,12 @@ defmodule KilnCMSWeb.ContentEditorLive do
 
       params = Map.put(params, "custom_fields", Map.put(custom, name, ["" | fun.(ids)]))
 
-      socket
-      |> assign(:form, AshPhoenix.Form.validate(socket.assigns.form, params))
-      |> mark_dirty(:settings)
+      socket = assign(socket, :form, AshPhoenix.Form.validate(socket.assigns.form, params))
+      broadcast_preview(socket)
+      mark_dirty(socket, :settings)
     else
       socket
     end
-  end
-
-  defp gallery_ids(value) do
-    value
-    |> List.wrap()
-    |> Enum.flat_map(fn
-      %{"id" => id} when is_binary(id) and id != "" -> [id]
-      id when is_binary(id) and id != "" -> [id]
-      _blank -> []
-    end)
   end
 
   # Swap `id` with its neighbour; at either end it stays where it is.
@@ -3827,13 +3831,7 @@ defmodule KilnCMSWeb.ContentEditorLive do
       index ->
         other = if dir == "up", do: index - 1, else: index + 1
 
-        if other < 0 or other >= length(ids) do
-          ids
-        else
-          ids
-          |> List.replace_at(index, Enum.at(ids, other))
-          |> List.replace_at(other, id)
-        end
+        if other < 0 or other >= length(ids), do: ids, else: swap_at(ids, index, other)
     end
   end
 

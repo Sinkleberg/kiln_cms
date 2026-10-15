@@ -62,8 +62,11 @@ carries the reasoning.
   of them), every image counts as a media usage, and the JSON schema export
   types the field as an array. Flipping the setting on a field that already
   has values reshapes them: a single image becomes a one-image gallery, and a
-  gallery keeps only its first image, which the fields admin warns about
-  before the save. Additive migration: one `boolean` column defaulting to
+  gallery keeps only its first image (as does retyping a gallery away from
+  media), which the fields admin warns about before the save; published
+  documents of the type re-fire to pick up the new shape. A single media
+  field handed a stale gallery list keeps its first image, so drafts and
+  versions saved before the switch still publish and restore. Additive migration: one `boolean` column defaulting to
   `false`.
   ([#1992](https://github.com/The-Verscienta/kiln_cms/pull/1992))
 
