@@ -100,6 +100,11 @@ Every summary line below that was shortened links to its own entry there.
   EEF-CVE-2026-105659, so the endpoint speaks HTTP/2 again.**
   ([#1991](https://github.com/The-Verscienta/kiln_cms/pull/1991))
 
+- **The `examples/phoenix_showcase` template's lock clears 23 Hex advisories
+  (phoenix, phoenix_live_view, bandit, plug, mint, hpax, lazy_html), and CI
+  now audits it.**
+  ([#1996](https://github.com/The-Verscienta/kiln_cms/pull/1996) · [long form](docs/changelog/unreleased.md#phoenix-showcase-advisories))
+
 ## [1.4.0] - 2026-10-14
 
 Long form: [docs/changelog/v1.4.0.md](docs/changelog/v1.4.0.md) —

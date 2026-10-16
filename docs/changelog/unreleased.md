@@ -142,3 +142,20 @@ carries the reasoning.
   now counts such images in `over_pixel_cap` without enqueuing them, and
   `mix kiln.media.regenerate_variants` reports the count.
   ([#1955](https://github.com/The-Verscienta/kiln_cms/issues/1955))
+
+## Security
+
+<a id="phoenix-showcase-advisories"></a>
+
+- **The `examples/phoenix_showcase` template's lock clears 23 Hex advisories
+  (phoenix, phoenix_live_view, bandit, plug, mint, hpax, lazy_html), and CI
+  now audits it.** The headless LiveView example is not part of the release
+  image, but it is offered as the starting point for a decoupled frontend, so
+  a copy inherited its lock: phoenix 1.8.8, phoenix_live_view 1.2.5, bandit
+  1.12.0 (five advisories, among them EEF-CVE-2026-105659 and
+  EEF-CVE-2026-105660), plug 1.20.2, mint 1.9.0 (nine), hpax 1.0.3 and
+  lazy_html 0.1.11. The lock moves to phoenix 1.8.15, phoenix_live_view
+  1.2.12, bandit 1.13.1, plug 1.20.3, mint 1.11.0, hpax 1.1.0 and lazy_html
+  0.1.13; no `mix.exs` requirement changed. Nothing in CI built the example,
+  which is how it went stale, so the Dependency audit job now runs
+  `mix hex.audit` in `examples/phoenix_showcase` too.
