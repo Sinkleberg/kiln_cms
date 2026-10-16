@@ -102,7 +102,8 @@ Every summary line below that was shortened links to its own entry there.
 
 - **The `examples/phoenix_showcase` template's lock clears 23 Hex advisories
   (phoenix, phoenix_live_view, bandit, plug, mint, hpax, lazy_html), and CI
-  now audits it.** ([long form](docs/changelog/unreleased.md#phoenix-showcase-advisories))
+  now audits it.**
+  ([#1996](https://github.com/The-Verscienta/kiln_cms/pull/1996) · [long form](docs/changelog/unreleased.md#phoenix-showcase-advisories))
 
 ## [1.4.0] - 2026-10-14
 
