@@ -31,7 +31,7 @@ carries the reasoning.
   tightened may fall outside it. The editor gets a small ordered list with
   an add select, and the search picker follows in R9. Single references keep
   their 1.0 shape.
-  ([#PR](https://github.com/The-Verscienta/kiln_cms/pull/PR))
+  ([#2000](https://github.com/The-Verscienta/kiln_cms/pull/2000))
 
 <a id="kilncmsdev-now-publishes-kilns-security-policy-at-security-and-a-security"></a>
 
