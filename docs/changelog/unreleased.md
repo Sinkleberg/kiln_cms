@@ -143,6 +143,25 @@ carries the reasoning.
   `mix kiln.media.regenerate_variants` reports the count.
   ([#1955](https://github.com/The-Verscienta/kiln_cms/issues/1955))
 
+<a id="renaming-a-document-now-re-fires-the-documents-that-point-at-it-through-a"></a>
+
+- **Renaming a document now re-fires the documents that point at it through a
+  `:reference` custom field, and their fired artifacts carry its new slug and
+  title.** A `:reference` field's value was mirrored as a backlink (#1594) but
+  never became an edge in the re-fire graph (decision D13), which only read
+  block references, block media, the featured image and `:media` fields. So
+  publishing a rename re-fired nothing, and every referrer's `:json` artifact
+  kept the title and slug stored when the referrer was last saved. The edges
+  are now written on every fire, single and list values alike, with media
+  snapshots (which carry a `"url"`) still recorded as media. Firing also reads
+  the target's current slug and title for the fired copy of the value, when
+  the target is published; an unpublished target keeps the stored label, so no
+  draft title reaches a public artifact. The stored `custom_fields` value and
+  its `%{"id", "type", "slug", "title"}` shape are unchanged, and so is what
+  the delivery APIs return for it. Existing referrers get their edges the next
+  time they fire. No migration.
+  ([#1998](https://github.com/The-Verscienta/kiln_cms/pull/1998))
+
 ## Security
 
 <a id="phoenix-showcase-advisories"></a>

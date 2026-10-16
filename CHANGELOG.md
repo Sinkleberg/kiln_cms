@@ -93,6 +93,11 @@ Every summary line below that was shortened links to its own entry there.
   omitted `offset` now means `0`.**
   ([#1883](https://github.com/The-Verscienta/kiln_cms/issues/1883))
 
+- **Renaming a document now re-fires the documents that point at it through a
+  `:reference` custom field, and their fired artifacts carry its new slug and
+  title.**
+  ([#1998](https://github.com/The-Verscienta/kiln_cms/pull/1998) · [long form](docs/changelog/unreleased.md#renaming-a-document-now-re-fires-the-documents-that-point-at-it-through-a))
+
 ### Security
 
 - **bandit 1.13.0 fixes EEF-CVE-2026-105660 (a client could choose
