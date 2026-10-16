@@ -72,6 +72,29 @@ defmodule KilnCMS.CMS.Taxonomy do
     |> Enum.sort_by(&elem(&1, 0))
   end
 
+  @doc """
+  The webhook event namespaces of the taxonomy resources (`"category"`,
+  `"tag"`, `"tag_group"`), discovered like `searchable/0` (#1965). Content
+  types may not take one of these names
+  (`KilnCMS.CMS.Validations.AvailableTypeName`), so a `tag.updated` is never
+  ambiguous.
+
+  Memoized in `:persistent_term`: the resource set is fixed at compile time,
+  and the webhook console asks once per selectable event on every render.
+  """
+  @spec event_types() :: [String.t()]
+  def event_types do
+    case :persistent_term.get({__MODULE__, :event_types}, nil) do
+      nil ->
+        types = Enum.map(searchable(), fn {_key, mod} -> mod.__kiln_taxonomy_type__() end)
+        :persistent_term.put({__MODULE__, :event_types}, types)
+        types
+
+      types ->
+        types
+    end
+  end
+
   defmacro __using__(opts) do
     type = Keyword.fetch!(opts, :type)
     plural = Keyword.get(opts, :plural, "#{type}s")
@@ -138,18 +161,24 @@ defmodule KilnCMS.CMS.Taxonomy do
         end
       end
 
-    defaults = if read_sort, do: [:destroy], else: [:read, :destroy]
+    defaults = if read_sort, do: [], else: [:read]
 
+    # Every write dispatches its webhook (#1965). These three are the only write
+    # actions a taxonomy resource has, so they are the whole surface.
     update_action =
       if atomic_update? do
         quote do
-          update :update, primary?: true
+          update :update do
+            primary? true
+            change {KilnCMS.CMS.Changes.NotifyTaxonomyWebhooks, event: "updated"}
+          end
         end
       else
         quote do
           update :update do
             primary? true
             require_atomic? false
+            change {KilnCMS.CMS.Changes.NotifyTaxonomyWebhooks, event: "updated"}
           end
         end
       end
@@ -225,7 +254,17 @@ defmodule KilnCMS.CMS.Taxonomy do
         defaults unquote(defaults)
         default_accept unquote(accept)
 
-        create :create, primary?: true
+        create :create do
+          primary? true
+          change {KilnCMS.CMS.Changes.NotifyTaxonomyWebhooks, event: "created"}
+        end
+
+        # Hard delete: taxonomy has no archival. Declared rather than defaulted
+        # for the webhook (#1965).
+        destroy :destroy do
+          primary? true
+          change {KilnCMS.CMS.Changes.NotifyTaxonomyWebhooks, event: "deleted"}
+        end
 
         unquote(update_action)
         unquote(read_action)
@@ -388,6 +427,12 @@ defmodule KilnCMS.CMS.Taxonomy do
       # `ContentTypes.all/0`.
       @doc false
       def __kiln_taxonomy_section__, do: unquote(plural_atom)
+
+      # The webhook event namespace (`"tag"` in `tag.created`, #1965), read by
+      # `KilnCMS.CMS.Changes.NotifyTaxonomyWebhooks` and discovered through
+      # `KilnCMS.CMS.Taxonomy.event_types/0`.
+      @doc false
+      def __kiln_taxonomy_type__, do: unquote(to_string(type))
     end
   end
 end

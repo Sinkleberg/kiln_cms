@@ -28,7 +28,8 @@ endpoint created over code or AshAdmin gets when it names no events: the
 events that carry unpublished content are marked **includes unpublished
 content** and start unticked. **Select all**, **Clear** and **Reset to
 defaults** act on the whole list, and each group (one per content type, plus
-tasks, releases, experiments and memberships) has its own toggle. An endpoint
+tasks, releases, experiments, memberships, and the tag, tag group and category
+taxonomy) has its own toggle. An endpoint
 that receives unpublished content says so on its row.
 
 ## Event names & payload
@@ -84,6 +85,12 @@ More event names exist outside the `<type>.<verb>` pattern:
   **`release.rolled_back`** / **`release.failed`**, and
   **`experiment.concluded`** — editorial tasks, content releases and A/B
   experiments; opt in.
+- **`tag.created`** / **`tag.updated`** / **`tag.deleted`**, the same three for
+  **`tag_group`**, and the same three for **`category`** — taxonomy changes
+  ([#1965](https://github.com/The-Verscienta/kiln_cms/issues/1965)); opt in. A
+  receiver that caches taxonomy (a tag cloud, a list of payers kept as a tag
+  group) can invalidate on them instead of polling. See
+  [Taxonomy events](#taxonomy-events) below.
 - **`ping`** — a manual test delivery (see [Ping](#ping-and-redeliver) below);
   never subscribed to, and delivered on demand regardless of an endpoint's
   active state or event list.
@@ -112,6 +119,11 @@ dedupe key. `data` shape depends on the event:
   `email`), the tier (`id`, `slug`, `name`, `audience`), the transition
   (`status`, `previous_status`, `occurred_at`) and `event_id` to dedupe on; see
   [Paid memberships](memberships.md#webhook-events).
+- **Taxonomy events** (`tag.*`, `tag_group.*`, `category.*`) —
+  `{"id", "slug", "name", "updated_at"}`, plus `tag_group_id` for a tag. An
+  `updated` adds `previous_slug` when the slug changed and, for a tag,
+  `previous_tag_group_id` when it moved group. A `deleted` is the record as it
+  was. See [Taxonomy events](#taxonomy-events).
 - **`ping`** — `{"message": "KilnCMS webhook test", "endpoint_url": "...", "sent_at": "<ISO 8601>"}`.
 
 ```jsonc
@@ -128,6 +140,50 @@ dedupe key. `data` shape depends on the event:
   }
 }
 ```
+
+### Taxonomy events
+
+Creating, editing or deleting a tag, tag group or category sends one event,
+after the write commits, to the endpoints of that site that selected it. None
+is subscribed by default, so an endpoint created before these events existed
+receives none of them until an admin ticks them.
+
+```jsonc
+// tag.updated: renamed, re-slugged and moved to another group
+{
+  "event": "tag.updated",
+  "delivery_id": "…",
+  "data": {
+    "id": "…", "slug": "payer-acme-health", "name": "Acme Health",
+    "tag_group_id": "…", "updated_at": "2026-10-15T12:00:00Z",
+    "previous_slug": "payer-acme", "previous_tag_group_id": "…"
+  }
+}
+```
+
+- **`previous_slug` / `previous_tag_group_id`** are present only when that
+  field changed. They come from the record the editor was working on, so treat
+  them as a hint: if two people edited the same tag at once, one of them may
+  report a value that was already out of date. `id` is what to key on.
+- **`updated` fires on every save**, including one that changes only a tag
+  group's position. Use `updated_at` to drop a retry that arrives after a
+  later event. A `deleted` carries the `updated_at` of the last edit, so it can
+  tie with the `updated` before it: on a tie, `deleted` wins.
+- **Deletes cascade without further events.** Deleting a tag removes it from
+  every document, media item and entry that carried it, and those records get
+  no `updated` event. Deleting a tag group leaves its tags ungrouped, and those
+  tags get no `tag.updated`. On `tag.deleted`, drop the tag's `id` from
+  anything you cached; on `tag_group.deleted`, treat the group's tags as
+  ungrouped. Deleting a category leaves its documents with no category, with
+  no event for them either.
+- **A taxonomy delete is not a retraction.** It is delivered and retried like
+  any other event (see [Retractions are exempt](#retractions-are-exempt), which
+  covers documents only), and it counts toward auto-disable.
+- Taxonomy events do not run [automation](automation.md) rules or federate.
+  They do trigger the optional CDN purge, because the cached taxonomy lists
+  and every cached document carrying the term change.
+- A content type cannot be named `tag`, `tag_group` or `category`, so these
+  names always mean taxonomy.
 
 ### `affected`: the other pages this change touched
 

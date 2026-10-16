@@ -177,11 +177,13 @@ defmodule KilnCMS.Webhooks do
   `.deleted` content event (`KilnCMS.CMS.WebhookEndpoint.retraction_verbs/0`).
   A delivery of one is a retraction when the document was published before
   the action (`dispatch/4`'s `:withdraws`). Domain events with a literal type
-  segment (`task.assigned`, `release.failed`, …) never end in one of these.
+  segment (`task.assigned`, `release.failed`, …) never end in one of these,
+  and a taxonomy event that does (`tag.deleted`, #1965) withdraws no document,
+  so it is not one either (`KilnCMS.CMS.WebhookEndpoint.content_event_parts/1`).
   """
   @spec retraction?(String.t()) :: boolean()
   def retraction?(event) when is_binary(event) do
-    case CMS.WebhookEndpoint.event_parts(event) do
+    case CMS.WebhookEndpoint.content_event_parts(event) do
       {_type, verb} -> verb in CMS.WebhookEndpoint.retraction_verbs()
       nil -> false
     end
@@ -249,6 +251,23 @@ defmodule KilnCMS.Webhooks do
   def dispatch(event, payload, org \\ KilnCMS.Accounts.default_org_id(), opts \\ []) do
     fan_out(event, payload, org, Keyword.get(opts, :withdraws, true))
 
+    # A taxonomy event (#1965) is for webhook receivers and the CDN only: its
+    # verbs read like content verbs, so automation would match "any type, on
+    # updated" rules against a tag, and federation would try to announce one.
+    unless CMS.WebhookEndpoint.taxonomy_event?(event) do
+      editorial_consumers(event, payload, org)
+    end
+
+    # The optional CDN purge (`KILN_CDN_PURGE_URL`) is the fourth consumer: a
+    # publish changes what the site's cached API responses should say, and so
+    # does a taxonomy write (`KilnCMS.CDN.purges?/1`). Enqueue-only and
+    # non-raising, like the two below.
+    KilnCMS.CDN.handle_event(event, payload, org)
+
+    :ok
+  end
+
+  defp editorial_consumers(event, payload, org) do
     # Editorial automation (#342) reacts to the same editorial events — this is
     # the single funnel every `<type>.published`/`.unpublished`/`.updated` flows
     # through. Scoped to the same org as the webhook fan-out (#336). Never raises
@@ -260,13 +279,6 @@ defmodule KilnCMS.Webhooks do
     # org, and it must never break a publish. Enqueue-only and non-raising,
     # like the automation call above.
     KilnCMS.Federation.handle_event(event, payload, org)
-
-    # The optional CDN purge (`KILN_CDN_PURGE_URL`) is the fourth: a publish
-    # changes what the site's cached API responses should say. Enqueue-only
-    # and non-raising, like the two above.
-    KilnCMS.CDN.handle_event(event, payload, org)
-
-    :ok
   end
 
   @doc """

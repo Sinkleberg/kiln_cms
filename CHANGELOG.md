@@ -61,6 +61,10 @@ Every summary line below that was shortened links to its own entry there.
   `/security-notices/<ghsa-id>`, with a feed.**
   ([#1873](https://github.com/The-Verscienta/kiln_cms/issues/1873) · [long form](docs/changelog/unreleased.md#kilncmsdev-now-publishes-kilns-security-policy-at-security-and-a-security))
 
+- **Tags, tag groups and categories send webhooks: `tag.created`, `tag.updated`,
+  `tag.deleted`, and the same for `tag_group` and `category`.**
+  ([#1965](https://github.com/The-Verscienta/kiln_cms/issues/1965) · [long form](docs/changelog/unreleased.md#tags-tag-groups-and-categories-send-webhooks-tagcreated-tagupdated-tagdeleted))
+
 - **A release can adopt imported images: `bin/kiln_cms rpc
   'KilnCMS.Release.adopt_image_backend()'`. System → Image backend labels it
   and the Mix task, each with a dry run first.**

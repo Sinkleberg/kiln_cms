@@ -29,6 +29,27 @@ carries the reasoning.
   shipped in 1.1.0 (#1881).
   ([#1873](https://github.com/The-Verscienta/kiln_cms/issues/1873))
 
+<a id="tags-tag-groups-and-categories-send-webhooks-tagcreated-tagupdated-tagdeleted"></a>
+
+- **Tags, tag groups and categories send webhooks: `tag.created`,
+  `tag.updated`, `tag.deleted`, and the same for `tag_group` and
+  `category`.** A receiver that caches taxonomy can now invalidate on a change
+  instead of polling. Each create, edit or delete sends one event after it
+  commits, to endpoints of the term's site that selected it. None is in the
+  default subscription, so existing endpoints receive nothing new until an
+  admin opts in. The payload is `id`, `slug`, `name`, `updated_at` (plus
+  `tag_group_id` for a tag); an `updated` adds `previous_slug` when the slug
+  changed and `previous_tag_group_id` when a tag moved group, and a `deleted`
+  is the record as it was. Deleting a tag or tag group sends no event for the
+  records the delete cascades to. A taxonomy delete is not a retraction: it is
+  not retried for a day or sent to auto-disabled endpoints. The console does
+  not mark `tag.created` as "includes unpublished content". Taxonomy events
+  skip automation rules and federation, and trigger the optional CDN purge. A
+  new dynamic content type may not be named `tag`, `tag_group` or `category`,
+  so those event names always mean taxonomy; an existing type with such a name
+  can still be edited. See docs/webhooks.md, "Taxonomy events".
+  ([#1965](https://github.com/The-Verscienta/kiln_cms/issues/1965))
+
 <a id="release-adopt-image-backend"></a>
 
 - **A release can adopt imported images: `bin/kiln_cms rpc

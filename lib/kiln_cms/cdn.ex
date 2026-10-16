@@ -37,10 +37,12 @@ defmodule KilnCMS.CDN do
   ## Where it hangs off
 
   `handle_event/3` is the fourth consumer of `KilnCMS.Webhooks.dispatch/3`, the
-  funnel every `<type>.published`/`.unpublished`/`.updated` and
-  `release.published` already flows through. Like the federation and automation
-  consumers beside it, it is enqueue-only and never raises: a purge problem
-  must not fail a publish.
+  funnel every `<type>.published`/`.unpublished`/`.updated`,
+  `release.published` and taxonomy write (`tag.*`, `tag_group.*`,
+  `category.*`, #1965) already flows through. It is the one consumer of that
+  funnel that taxonomy events reach besides the webhooks themselves. Like the
+  federation and automation consumers beside it, it is enqueue-only and never
+  raises: a purge problem must not fail a publish.
 
   The job is scheduled a moment out and unique among *scheduled* jobs for its
   site, so a burst of publishes sends one purge. Only scheduled jobs dedupe: a
@@ -113,10 +115,16 @@ defmodule KilnCMS.CDN do
       :ok
   end
 
-  @doc "Whether `event` changes what anonymous delivery serves."
+  @doc """
+  Whether `event` changes what anonymous delivery serves: a publish, unpublish
+  or live edit, or any taxonomy write (#1965) — `/api/json/tags` and the
+  GraphQL lists are cached, and a tag's rename or delete shows in every cached
+  document that carries it.
+  """
   @spec purges?(String.t()) :: boolean()
   def purges?(event) when is_binary(event) do
-    event |> String.split(".") |> List.last() |> then(&(&1 in @purging_suffixes))
+    KilnCMS.CMS.WebhookEndpoint.taxonomy_event?(event) or
+      event |> String.split(".") |> List.last() |> then(&(&1 in @purging_suffixes))
   end
 
   @doc """
