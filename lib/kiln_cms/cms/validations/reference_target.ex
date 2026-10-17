@@ -19,7 +19,7 @@ defmodule KilnCMS.CMS.Validations.ReferenceTarget do
           {:error,
            InvalidAttribute.exception(
              field: :target_type,
-             message: "a reference field must declare a target content type"
+             message: "pick the type of content this field links to"
            )}
 
         is_nil(ContentTypes.get(target)) ->

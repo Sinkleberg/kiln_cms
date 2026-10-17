@@ -167,6 +167,17 @@ defmodule KilnCMSWeb.FieldDefinitionLiveTest do
     assert has_element?(lv, list_radio)
     refute has_element?(lv, bounds)
 
+    # Once the target is picked, the choices name it, as a relationship.
+    html =
+      lv
+      |> form("#new-field-form",
+        field_definition: %{field_type: "reference", target_type: "page"}
+      )
+      |> render_change()
+
+    assert html =~ "One Page"
+    assert html =~ "Several Page records"
+
     lv
     |> form("#new-field-form", field_definition: %{field_type: "reference", multiple: "true"})
     |> render_change()
@@ -196,6 +207,9 @@ defmodule KilnCMSWeb.FieldDefinitionLiveTest do
     assert {field.multiple, field.min_items, field.max_items} == {true, 1, 5}
     assert lv |> element("#field-#{field.id}") |> render() =~ "list"
 
+    assert lv |> element("#field-#{field.id}-links") |> render() =~
+             "Connects several Page records — 1 to 5"
+
     lv |> element("#field-#{field.id} button[phx-click=edit]") |> render_click()
     refute has_element?(lv, "#edit-field-multiple-#{field.id}-narrowing")
 
@@ -206,6 +220,7 @@ defmodule KilnCMSWeb.FieldDefinitionLiveTest do
 
     field = CMS.get_field_definition!(field.id, authorize?: false)
     assert {field.min_items, field.max_items} == {nil, nil}
+    assert lv |> element("#field-#{field.id}-links") |> render() =~ "any number"
 
     lv |> element("#field-#{field.id} button[phx-click=edit]") |> render_click()
 

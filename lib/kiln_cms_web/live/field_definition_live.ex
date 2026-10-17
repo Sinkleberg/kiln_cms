@@ -680,6 +680,8 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
   # (a gallery, a list of references) back into a single item is lossy, and
   # the form says so before saving.
   attr :stored, :any, default: nil
+  # `{label, name}` pairs, to name a reference's target type in the choices.
+  attr :target_types, :list, default: []
 
   # Single item or a list, for a `:media` field (a gallery) or a `:reference`
   # field (a list of references); with the list's optional item bounds.
@@ -687,12 +689,14 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
     type = list_type(assigns.form)
     multiple? = assigns.form[:multiple].value in [true, "true"]
     stored_type = list_type(assigns.stored)
+    target = target_label(assigns.form, assigns.target_types)
 
     assigns =
       assigns
       |> assign(:type, type)
       |> assign(:multiple?, multiple?)
-      |> assign(:choices, multiple_choices(type))
+      |> assign(:target, target)
+      |> assign(:choices, multiple_choices(type, target))
       |> assign(
         :narrowing,
         if(stored_type && (type != stored_type or not multiple?), do: stored_type)
@@ -733,27 +737,41 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
             </span>
           </label>
         </div>
-        <div :if={@multiple?} id={"#{@id}-bounds"} class="mt-3 grid gap-3 sm:grid-cols-2">
-          <.input
-            field={@form[:min_items]}
-            type="number"
-            min="0"
-            label={gettext("At least")}
-            placeholder={gettext("No minimum")}
-          />
-          <.input
-            field={@form[:max_items]}
-            type="number"
-            min="1"
-            label={gettext("At most")}
-            placeholder={gettext("No limit")}
-          />
-          <p class="text-xs text-base-content/60 sm:col-span-2">
+        <fieldset
+          :if={@multiple?}
+          id={"#{@id}-bounds"}
+          class="mt-3 rounded-lg border border-base-content/10 bg-base-200/40 p-3"
+        >
+          <legend class="px-1 text-sm font-medium">
+            {bounds_legend(@type, @target)}
+            <span class="font-normal text-base-content/60">{gettext("(optional)")}</span>
+          </legend>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <.input
+              field={@form[:min_items]}
+              type="number"
+              min="0"
+              step="1"
+              inputmode="numeric"
+              label={gettext("Minimum")}
+              placeholder={gettext("No minimum")}
+            />
+            <.input
+              field={@form[:max_items]}
+              type="number"
+              min="1"
+              step="1"
+              inputmode="numeric"
+              label={gettext("Maximum")}
+              placeholder={gettext("No limit")}
+            />
+          </div>
+          <p class="mt-2 text-xs text-base-content/60">
             {gettext(
-              "Checked when content is saved. An empty field is still allowed unless the field is required."
+              "Leave a box empty for no limit. Editors are told when they save outside these numbers; an empty field is fine unless Required is ticked."
             )}
           </p>
-        </div>
+        </fieldset>
       </fieldset>
       <p
         :if={@narrowing}
@@ -767,6 +785,30 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
     </div>
     """
   end
+
+  # One plain line under a reference field in the list: what it links to, and
+  # how many — so an admin can scan the fields without opening each one.
+  defp reference_summary(definition, target_types) do
+    target =
+      Enum.find_value(target_types, definition.target_type, fn {label, name} ->
+        if name == definition.target_type, do: label
+      end)
+
+    if definition.multiple do
+      gettext("Connects several %{type} records — %{count}",
+        type: target,
+        count: item_bounds_label(definition.min_items, definition.max_items)
+      )
+    else
+      gettext("Connects one %{type}", type: target)
+    end
+  end
+
+  defp item_bounds_label(nil, nil), do: gettext("any number")
+  defp item_bounds_label(min, nil), do: gettext("at least %{min}", min: min)
+  defp item_bounds_label(nil, max), do: gettext("up to %{max}", max: max)
+  defp item_bounds_label(same, same), do: gettext("exactly %{count}", count: same)
+  defp item_bounds_label(min, max), do: gettext("%{min} to %{max}", min: min, max: max)
 
   # The list-capable type a form or a stored definition is, or nil.
   defp list_type(nil), do: nil
@@ -782,7 +824,21 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
   defp list_type(%{field_type: type, multiple: true}) when type in [:media, :reference], do: type
   defp list_type(_stored), do: nil
 
-  defp multiple_choices(:media) do
+  # The reference's target type as an admin reads it ("Page"), once picked.
+  defp target_label(form, target_types) do
+    case form[:target_type] && to_string(form[:target_type].value) do
+      blank when blank in [nil, ""] -> nil
+      name -> Enum.find_value(target_types, name, fn {label, n} -> if n == name, do: label end)
+    end
+  end
+
+  defp bounds_legend(:reference, target) when is_binary(target),
+    do: gettext("How many %{type} records can be connected", type: target)
+
+  defp bounds_legend(:media, _target), do: gettext("How many images")
+  defp bounds_legend(_type, _target), do: gettext("How many items")
+
+  defp multiple_choices(:media, _target) do
     [
       {"false", gettext("A single item"), gettext("One image — a hero, a logo, a portrait."),
        "hero-photo"},
@@ -791,7 +847,20 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
     ]
   end
 
-  defp multiple_choices(_reference) do
+  # Named after what the field connects, as a relationship ("One Page",
+  # "Several Pages") rather than as a data shape, once the target is picked.
+  defp multiple_choices(_reference, target) when is_binary(target) do
+    [
+      {"false", gettext("One %{type}", type: target),
+       gettext("Editors connect a single %{type} — an author, a parent product.", type: target),
+       "hero-link"},
+      {"true", gettext("Several %{type} records", type: target),
+       gettext("Editors connect as many as you allow, in the order they choose."),
+       "hero-queue-list"}
+    ]
+  end
+
+  defp multiple_choices(_reference, _target) do
     [
       {"false", gettext("A single item"), gettext("One record — an author, a parent product."),
        "hero-link"},
@@ -1002,12 +1071,13 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
               :if={reference?(@form)}
               field={@form[:target_type]}
               type="select"
-              label={gettext("References content of type")}
+              label={gettext("Links to")}
               options={@target_types}
               prompt={gettext("— Pick a type —")}
+              hint={gettext("Editors choose records of this type when they fill the field in.")}
             />
             <.compute_field form={@form} />
-            <.multiple_field form={@form} id="new-field-multiple" />
+            <.multiple_field form={@form} id="new-field-multiple" target_types={@target_types} />
             <.input field={@form[:help_text]} label={gettext("Help text")} />
             <.localization_input field={@form[:localization]} />
             <.options_field form={@form} id="new-field-options" />
@@ -1135,6 +1205,13 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
                     >
                       {gettext("Options")}: {Enum.join(definition.options, ", ")}
                     </p>
+                    <p
+                      :if={definition.field_type == :reference}
+                      id={"field-#{definition.id}-links"}
+                      class="text-xs text-base-content/60"
+                    >
+                      {reference_summary(definition, @target_types)}
+                    </p>
                     <p :if={definition.compute} class="text-xs text-base-content/60">
                       {gettext("Formula")}: <code>{definition.compute}</code>
                     </p>
@@ -1205,15 +1282,17 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
                     :if={reference?(@edit.form)}
                     field={@edit.form[:target_type]}
                     type="select"
-                    label={gettext("References content of type")}
+                    label={gettext("Links to")}
                     options={@target_types}
                     prompt={gettext("— Pick a type —")}
+                    hint={gettext("Editors choose records of this type when they fill the field in.")}
                   />
                   <.compute_field form={@edit.form} />
                   <.multiple_field
                     form={@edit.form}
                     id={"edit-field-multiple-#{@edit.id}"}
                     stored={definition}
+                    target_types={@target_types}
                   />
                   <.input field={@edit.form[:help_text]} label={gettext("Help text")} />
                   <.localization_input field={@edit.form[:localization]} />

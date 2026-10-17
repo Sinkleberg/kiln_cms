@@ -577,6 +577,11 @@ msgstr "%{locale} no es una configuración regional configurada"
 msgid "%{meaning} Review date: %{date}."
 msgstr "%{meaning} Fecha de revisión: %{date}."
 
+#: lib/kiln_cms_web/live/field_definition_live.ex
+#, elixir-autogen, elixir-format
+msgid "%{min} to %{max}"
+msgstr "de %{min} a %{max}"
+
 #: lib/kiln_cms_web/components/block_discussion_components.ex
 #, elixir-autogen, elixir-format
 msgid "%{names} are typing…"
@@ -903,6 +908,11 @@ msgstr "(sin enlace)"
 msgid "(opens in a new tab)"
 msgstr "(se abre en una pestaña nueva)"
 
+#: lib/kiln_cms_web/live/field_definition_live.ex
+#, elixir-autogen, elixir-format
+msgid "(optional)"
+msgstr "(opcional)"
+
 #: lib/kiln_cms_web/live/content_editor/inspector_history_component.ex
 #, elixir-autogen, elixir-format
 msgid "(this one)"
@@ -927,13 +937,13 @@ msgstr "(no notificará)"
 
 #: lib/kiln_cms_web/components/content_editor/inspector_components.ex
 #, elixir-autogen, elixir-format
-msgid "+ Add…"
-msgstr "+ Añadir…"
+msgid "+ Assign"
+msgstr "+ Asignar"
 
 #: lib/kiln_cms_web/components/content_editor/inspector_components.ex
 #, elixir-autogen, elixir-format
-msgid "+ Assign"
-msgstr "+ Asignar"
+msgid "+ Connect an existing record…"
+msgstr "+ Conectar un registro existente…"
 
 #: lib/kiln_cms_web/live/calendar_live.ex
 #, elixir-autogen, elixir-format
@@ -2580,20 +2590,10 @@ msgstr "Responsable"
 msgid "Assignment"
 msgstr "Asignación"
 
-#: lib/kiln_cms_web/live/field_definition_live.ex
-#, elixir-autogen, elixir-format
-msgid "At least"
-msgstr "Al menos"
-
 #: lib/kiln_cms_web/live/setup_live.ex
 #, elixir-autogen, elixir-format
 msgid "At least 8 characters."
 msgstr "Al menos 8 caracteres."
-
-#: lib/kiln_cms_web/live/field_definition_live.ex
-#, elixir-autogen, elixir-format
-msgid "At most"
-msgstr "Como máximo"
 
 #: lib/kiln_cms_web/components/layouts.ex
 #, elixir-autogen, elixir-format
@@ -3313,11 +3313,6 @@ msgstr "Comprobado a las %{time}."
 msgid "Checked the %{count} most recently updated published documents."
 msgstr "Se revisaron los %{count} documentos publicados actualizados más recientemente."
 
-#: lib/kiln_cms_web/live/field_definition_live.ex
-#, elixir-autogen, elixir-format
-msgid "Checked when content is saved. An empty field is still allowed unless the field is required."
-msgstr "Se comprueba al guardar el contenido. Un campo vacío sigue permitido salvo que el campo sea obligatorio."
-
 #: lib/kiln_cms_web/live/mail_settings_live.ex
 #, elixir-autogen, elixir-format
 msgid "Checked, but couldn't save the results."
@@ -3906,6 +3901,16 @@ msgstr "La conexión funciona."
 #, elixir-autogen, elixir-format
 msgid "Connections"
 msgstr "Conexiones"
+
+#: lib/kiln_cms_web/live/field_definition_live.ex
+#, elixir-autogen, elixir-format
+msgid "Connects one %{type}"
+msgstr "Conecta un %{type}"
+
+#: lib/kiln_cms_web/live/field_definition_live.ex
+#, elixir-autogen, elixir-format
+msgid "Connects several %{type} records — %{count}"
+msgstr "Conecta varios registros de %{type} — %{count}"
 
 #: lib/kiln_cms_web/live/governance_live.ex
 #, elixir-autogen, elixir-format
@@ -5956,6 +5961,21 @@ msgstr "Editorial — serif, columna de lectura más estrecha"
 msgid "Editors can now publish their own work."
 msgstr "Los editores ahora pueden publicar su propio trabajo."
 
+#: lib/kiln_cms_web/live/field_definition_live.ex
+#, elixir-autogen, elixir-format
+msgid "Editors choose records of this type when they fill the field in."
+msgstr "Los editores eligen registros de este tipo al rellenar el campo."
+
+#: lib/kiln_cms_web/live/field_definition_live.ex
+#, elixir-autogen, elixir-format
+msgid "Editors connect a single %{type} — an author, a parent product."
+msgstr "Los editores conectan un solo %{type} — un autor, un producto principal."
+
+#: lib/kiln_cms_web/live/field_definition_live.ex
+#, elixir-autogen, elixir-format
+msgid "Editors connect as many as you allow, in the order they choose."
+msgstr "Los editores conectan tantos como permitas, en el orden que elijan."
+
 #: lib/kiln_cms_web/live/team_live.ex
 #, elixir-autogen, elixir-format
 msgid "Editors now submit for review; an admin publishes."
@@ -7538,6 +7558,21 @@ msgstr "Cómo indica cada elemento de la lista de contenido si está publicado, 
 
 #: lib/kiln_cms_web/live/field_definition_live.ex
 #, elixir-autogen, elixir-format
+msgid "How many %{type} records can be connected"
+msgstr "Cuántos registros de %{type} se pueden conectar"
+
+#: lib/kiln_cms_web/live/field_definition_live.ex
+#, elixir-autogen, elixir-format
+msgid "How many images"
+msgstr "Cuántas imágenes"
+
+#: lib/kiln_cms_web/live/field_definition_live.ex
+#, elixir-autogen, elixir-format
+msgid "How many items"
+msgstr "Cuántos elementos"
+
+#: lib/kiln_cms_web/live/field_definition_live.ex
+#, elixir-autogen, elixir-format
 msgid "How often an event repeats, such as every Tuesday. Use it alongside a date & time range, which says when it starts."
 msgstr "Con qué frecuencia se repite un evento, por ejemplo cada martes. Úselo junto a un intervalo de fecha y hora, que indica cuándo empieza."
 
@@ -8296,6 +8331,11 @@ msgstr "Diseño"
 msgid "Learn more"
 msgstr "Más información"
 
+#: lib/kiln_cms_web/live/field_definition_live.ex
+#, elixir-autogen, elixir-format
+msgid "Leave a box empty for no limit. Editors are told when they save outside these numbers; an empty field is fine unless Required is ticked."
+msgstr "Deja una casilla vacía para no poner límite. Se avisa a los editores al guardar fuera de estos números; un campo vacío es válido salvo que esté marcado Obligatorio."
+
 #: lib/kiln_cms_web/live/automation_live/recipes.ex
 #, elixir-autogen, elixir-format
 msgid "Leave a comment when a draft covers ground already covered."
@@ -8462,6 +8502,7 @@ msgstr "Enlaces"
 msgid "Links that answered with a bot wall, a paywall or a rate limit are not listed — a checker cannot tell those from a working page, and guessing is how a report becomes noise."
 msgstr "No se listan los enlaces que respondieron con un muro antibots, un muro de pago o un límite de peticiones: un comprobador no puede distinguirlos de una página que funciona, y adivinar es lo que convierte un informe en ruido."
 
+#: lib/kiln_cms_web/live/field_definition_live.ex
 #: lib/kiln_cms_web/live/menu_live.ex
 #, elixir-autogen, elixir-format
 msgid "Links to"
@@ -8763,6 +8804,11 @@ msgstr "Solo para Mastodon. Debe ser https y estar accesible desde este servidor
 msgid "Matched as a substring, ignoring case and line wrapping, so it can sit inside a longer paragraph — but not reworded. Leave blank to inherit whatever the operator configured."
 msgstr "Se busca como subcadena, sin distinguir mayúsculas ni saltos de línea, así que puede ir dentro de un párrafo más largo, pero no reformulado. Déjelo en blanco para heredar lo que haya configurado el operador."
 
+#: lib/kiln_cms_web/live/field_definition_live.ex
+#, elixir-autogen, elixir-format
+msgid "Maximum"
+msgstr "Máximo"
+
 #: lib/kiln_cms_web/controllers/content_html.ex
 #, elixir-autogen, elixir-format
 msgid "May"
@@ -8859,6 +8905,11 @@ msgstr "Menús"
 #, elixir-autogen, elixir-format
 msgid "Message"
 msgstr "Mensaje"
+
+#: lib/kiln_cms_web/live/field_definition_live.ex
+#, elixir-autogen, elixir-format
+msgid "Minimum"
+msgstr "Mínimo"
 
 #: lib/kiln_cms_web/live/api_key_live.ex
 #, elixir-autogen, elixir-format
@@ -10147,6 +10198,11 @@ msgstr "Todavía no se ha anunciado nada."
 msgid "Nothing coming up."
 msgstr "No hay nada próximamente."
 
+#: lib/kiln_cms_web/components/content_editor/inspector_components.ex
+#, elixir-autogen, elixir-format
+msgid "Nothing connected yet."
+msgstr "Todavía no hay nada conectado."
+
 #: lib/kiln_cms_web/live/redirect_live.ex
 #, elixir-autogen, elixir-format
 msgid "Nothing has asked for a URL this site can't serve."
@@ -10207,11 +10263,6 @@ msgstr "Todavía no hay nada publicado. Cuatro pasos ponen tu página de inicio 
 #, elixir-autogen, elixir-format
 msgid "Nothing is scanned and no panel appears until you switch it on, and what you switch on applies to this site only."
 msgstr "No se analiza nada ni aparece ningún panel hasta que lo active, y lo que active se aplica solo a este sitio."
-
-#: lib/kiln_cms_web/components/content_editor/inspector_components.ex
-#, elixir-autogen, elixir-format
-msgid "Nothing linked yet."
-msgstr "Todavía no hay nada enlazado."
 
 #: lib/kiln_cms_web/live/organize_live.ex
 #, elixir-autogen, elixir-format
@@ -10442,6 +10493,11 @@ msgstr "Búsquedas en el sitio que no devolvieron nada. Cada una es un lector qu
 #, elixir-autogen, elixir-format
 msgid "Once it's published, your home page is what visitors see at your site's address."
 msgstr "Una vez publicada, tu página de inicio es lo que ven los visitantes en la dirección de tu sitio."
+
+#: lib/kiln_cms_web/live/field_definition_live.ex
+#, elixir-autogen, elixir-format
+msgid "One %{type}"
+msgstr "Un %{type}"
 
 #: lib/kiln_cms_web/live/field_definition_live.ex
 #, elixir-autogen, elixir-format
@@ -11927,11 +11983,6 @@ msgstr "Redirecciones a esta dirección"
 #, elixir-autogen, elixir-format
 msgid "Reference (ticket / document id)"
 msgstr "Referencia (ticket / id de documento)"
-
-#: lib/kiln_cms_web/live/field_definition_live.ex
-#, elixir-autogen, elixir-format
-msgid "References content of type"
-msgstr "Hace referencia a contenido de tipo"
 
 #: lib/kiln_cms_web/live/analytics_live.ex
 #, elixir-autogen, elixir-format
@@ -13742,6 +13793,11 @@ msgstr "Ajustes que se aplican a todos los formularios de este sitio. La pestañ
 #, elixir-autogen, elixir-format
 msgid "Setup key"
 msgstr "Clave de configuración"
+
+#: lib/kiln_cms_web/live/field_definition_live.ex
+#, elixir-autogen, elixir-format
+msgid "Several %{type} records"
+msgstr "Varios registros de %{type}"
 
 #: lib/kiln_cms_web/live/content_editor_live.ex
 #, elixir-autogen, elixir-format
@@ -18402,6 +18458,11 @@ msgstr "y %{count} más"
 msgid "any content"
 msgstr "cualquier contenido"
 
+#: lib/kiln_cms_web/live/field_definition_live.ex
+#, elixir-autogen, elixir-format
+msgid "any number"
+msgstr "cualquier cantidad"
+
 #: lib/kiln_cms_web/live/translations_live.ex
 #, elixir-autogen, elixir-format
 msgid "archived"
@@ -18436,6 +18497,11 @@ msgstr "como tarea para %{person}"
 #, elixir-autogen, elixir-format
 msgid "as related content"
 msgstr "como contenido relacionado"
+
+#: lib/kiln_cms_web/live/field_definition_live.ex
+#, elixir-autogen, elixir-format
+msgid "at least %{min}"
+msgstr "al menos %{min}"
 
 #: lib/kiln_cms_web/live/link_report_live.ex
 #, elixir-autogen, elixir-format
@@ -18727,6 +18793,11 @@ msgstr "activada"
 #, elixir-autogen, elixir-format
 msgid "erased"
 msgstr "borrado"
+
+#: lib/kiln_cms_web/live/field_definition_live.ex
+#, elixir-autogen, elixir-format
+msgid "exactly %{count}"
+msgstr "exactamente %{count}"
 
 #: lib/kiln_cms_web/components/core_components.ex
 #, elixir-autogen, elixir-format
@@ -19551,6 +19622,11 @@ msgstr "formato de archivo no compatible"
 #, elixir-autogen, elixir-format
 msgid "unsupported type"
 msgstr "tipo no compatible"
+
+#: lib/kiln_cms_web/live/field_definition_live.ex
+#, elixir-autogen, elixir-format
+msgid "up to %{max}"
+msgstr "hasta %{max}"
 
 #: lib/kiln_cms_web/live/branding_live.ex
 #: lib/kiln_cms_web/live/content_editor_live.ex

@@ -324,7 +324,8 @@ defmodule KilnCMSWeb.DynamicEntryEditorTest do
     {:ok, lv, html} =
       conn |> log_in(admin) |> live(~p"/editor/content/#{definition.name}/#{entry.id}")
 
-    assert html =~ "Nothing linked yet."
+    assert html =~ "Nothing connected yet."
+    assert html =~ "Connect an existing record…"
 
     add = fn id ->
       lv

@@ -700,53 +700,67 @@ defmodule KilnCMS.CMS.Changes.ApplyCustomFields do
   # a list of references is an editorial choice per item (and, from R3, carries
   # per-link data), so the writer is told which one repeats. A lone id or
   # snapshot is a one-item list; any id that does not resolve fails the field.
+  #
+  # The messages are for an editor, not a developer: an item is named by its
+  # title wherever one is known (the record's, or the stale snapshot's), and by
+  # its id only when there is nothing else to call it.
   defp coerce_reference_list(value, %{target_type: target}, read_opts) do
     items = value |> List.wrap() |> Enum.reject(&blank?/1)
-    noun = target || "content"
 
-    with {:ok, ids} <- reference_ids(items, noun),
-         :ok <- no_repeats(ids),
-         {:ok, by_id} <- read_references(target, ids, read_opts) do
-      case Enum.find_index(ids, &(not Map.has_key?(by_id, &1))) do
-        nil ->
-          {:ok,
-           Enum.map(ids, fn id ->
-             record = by_id[id]
-
-             %{
-               "id" => record.id,
-               "type" => target,
-               "slug" => record.slug,
-               "title" => record.title
-             }
-           end)}
-
-        index ->
-          {:error, missing_reference(index + 1, Enum.at(ids, index), noun)}
-      end
+    with {:ok, picked} <- reference_ids(items),
+         ids = Enum.map(picked, &elem(&1, 0)),
+         {:ok, by_id} <- read_references(target, ids, read_opts),
+         :ok <- no_repeats(picked, by_id),
+         :ok <- all_resolved(picked, by_id) do
+      {:ok,
+       Enum.map(ids, fn id ->
+         record = by_id[id]
+         %{"id" => record.id, "type" => target, "slug" => record.slug, "title" => record.title}
+       end)}
     end
   end
 
-  defp reference_ids(items, noun) do
+  # `{uuid, title}` per item — the title a snapshot carried, if it was one.
+  defp reference_ids(items) do
     items
     |> Enum.with_index(1)
     |> Enum.reduce_while({:ok, []}, fn {item, position}, {:ok, acc} ->
       with {:ok, id} <- extract_id(item), {:ok, uuid} <- Ecto.UUID.cast(id) do
-        {:cont, {:ok, [uuid | acc]}}
+        {:cont, {:ok, [{uuid, snapshot_title(item)} | acc]}}
       else
-        _ -> {:halt, {:error, missing_reference(position, extract_id(item), noun)}}
+        _ -> {:halt, {:error, unresolved(position, item_label(item, snapshot_title(item)))}}
       end
     end)
     |> case do
-      {:ok, ids} -> {:ok, Enum.reverse(ids)}
+      {:ok, picked} -> {:ok, Enum.reverse(picked)}
       error -> error
     end
   end
 
-  defp no_repeats(ids) do
+  defp no_repeats(picked, by_id) do
+    ids = Enum.map(picked, &elem(&1, 0))
+
     case ids -- Enum.uniq(ids) do
-      [] -> :ok
-      [id | _] -> {:error, "lists #{id} more than once — each item may appear only once"}
+      [] ->
+        :ok
+
+      [id | _] ->
+        {_id, title} = Enum.find(picked, &(elem(&1, 0) == id))
+        record_title = by_id |> Map.get(id, %{}) |> Map.get(:title)
+
+        {:error,
+         "lists #{item_label(id, record_title || title)} twice — each item can only be added once"}
+    end
+  end
+
+  defp all_resolved(picked, by_id) do
+    case Enum.find_index(picked, fn {id, _title} -> not Map.has_key?(by_id, id) end) do
+      nil ->
+        :ok
+
+      index ->
+        {id, title} = Enum.at(picked, index)
+        {:error, unresolved(index + 1, item_label(id, title))}
     end
   end
 
@@ -758,7 +772,7 @@ defmodule KilnCMS.CMS.Changes.ApplyCustomFields do
   defp read_references(target, ids, read_opts) do
     case KilnCMS.CMS.ContentTypes.get(target) do
       nil ->
-        {:error, "must only contain existing #{target || "content"} records"}
+        {:error, "links to a content type that no longer exists"}
 
       _ct ->
         records =
@@ -773,17 +787,27 @@ defmodule KilnCMS.CMS.Changes.ApplyCustomFields do
         {:ok, Map.new(records, &{&1.id, &1})}
     end
   rescue
-    _error -> {:error, "must only contain existing #{target || "content"} records"}
+    _error -> {:error, "could not be checked — try saving again"}
   end
 
-  defp missing_reference(position, {:ok, id}, noun),
-    do: missing_reference(position, id, noun)
+  defp snapshot_title(%{"title" => title}) when is_binary(title) and title != "", do: title
+  defp snapshot_title(_item), do: nil
 
-  defp missing_reference(position, id, noun) when is_binary(id),
-    do: "item #{position} (#{id}) is not an existing #{noun} record — remove it from the list"
+  # `“Title”` when there is one, else the id as given, else nothing.
+  defp item_label(_item, title) when is_binary(title), do: "“#{title}”"
 
-  defp missing_reference(position, _id, noun),
-    do: "item #{position} is not an existing #{noun} record — remove it from the list"
+  defp item_label(item, nil) do
+    case extract_id(item) do
+      {:ok, id} -> "(#{id})"
+      :error -> nil
+    end
+  end
+
+  defp unresolved(position, nil),
+    do: "item #{position} no longer exists or can't be linked — remove it from the list"
+
+  defp unresolved(position, label),
+    do: "item #{position} #{label} no longer exists or can't be linked — remove it from the list"
 
   # `min_items` / `max_items` on a list field. Only a field that holds items
   # reaches here — an emptied optional field is `:skip`ped before coercion, and
@@ -795,10 +819,10 @@ defmodule KilnCMS.CMS.Changes.ApplyCustomFields do
 
     cond do
       is_integer(min) and count < min ->
-        {:error, "must hold at least #{min} items (has #{count})"}
+        {:error, "needs at least #{min} items (has #{count})"}
 
       is_integer(max) and count > max ->
-        {:error, "may hold at most #{max} items (has #{count})"}
+        {:error, "can have at most #{max} items (has #{count})"}
 
       true ->
         {:ok, items}

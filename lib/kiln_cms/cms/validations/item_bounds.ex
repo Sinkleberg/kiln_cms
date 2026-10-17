@@ -18,7 +18,7 @@ defmodule KilnCMS.CMS.Validations.ItemBounds do
       {:error,
        InvalidAttribute.exception(
          field: :min_items,
-         message: "must not be more than the maximum (%{max})",
+         message: "can't be more than the maximum (%{max})",
          vars: [max: max]
        )}
     else

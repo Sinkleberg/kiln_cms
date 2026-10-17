@@ -104,23 +104,31 @@ defmodule KilnCMS.CMS.MultipleReferencesTest do
       a = page!(admin, "A")
       b = page!(admin, "B")
 
+      # Named by title, not by id: the message is read by an editor.
       message = error_message!(fn -> post!(admin, %{name => [a.id, b.id, a.id]}) end)
-      assert message =~ "lists #{a.id} more than once"
+      assert message =~ "lists “A” twice — each item can only be added once"
+      refute message =~ a.id
 
       # A snapshot and a bare id for the same record are still the same target.
       message = error_message!(fn -> post!(admin, %{name => [snapshot(b), b.id]}) end)
-      assert message =~ "lists #{b.id} more than once"
+      assert message =~ "lists “B” twice"
     end
 
     test "an id that does not resolve fails the field and is named", %{admin: admin, name: name} do
       a = page!(admin, "A")
       gone = Ash.UUID.generate()
 
+      # With nothing else to call it, the id.
       message = error_message!(fn -> post!(admin, %{name => [a.id, gone]}) end)
-      assert message =~ "item 2 (#{gone}) is not an existing page record"
+      assert message =~ "item 2 (#{gone}) no longer exists or can't be linked"
 
       message = error_message!(fn -> post!(admin, %{name => [a.id, "not-a-uuid"]}) end)
-      assert message =~ "item 2 (not-a-uuid) is not an existing page record"
+      assert message =~ "item 2 (not-a-uuid) no longer exists"
+
+      # A stale snapshot (the editor's stored value) is named by its title.
+      stale = %{"id" => gone, "type" => "page", "slug" => "old", "title" => "Old page"}
+      message = error_message!(fn -> post!(admin, %{name => [a.id, stale]}) end)
+      assert message =~ "item 2 “Old page” no longer exists"
     end
 
     test "a trashed target does not resolve", %{admin: admin, name: name} do
@@ -128,7 +136,7 @@ defmodule KilnCMS.CMS.MultipleReferencesTest do
       CMS.destroy_page!(a, actor: admin)
 
       assert error_message!(fn -> post!(admin, %{name => [a.id]}) end) =~
-               "item 1 (#{a.id}) is not an existing page record"
+               "item 1 (#{a.id}) no longer exists"
     end
 
     test "min_items and max_items bound a list that holds items", %{
@@ -140,10 +148,10 @@ defmodule KilnCMS.CMS.MultipleReferencesTest do
       CMS.update_field_definition!(field, %{min_items: 2, max_items: 3}, actor: admin)
 
       assert error_message!(fn -> post!(admin, %{name => [a.id]}) end) =~
-               "must hold at least 2 items (has 1)"
+               "needs at least 2 items (has 1)"
 
       assert error_message!(fn -> post!(admin, %{name => [a.id, b.id, c.id, d.id]}) end) =~
-               "may hold at most 3 items (has 4)"
+               "can have at most 3 items (has 4)"
 
       assert ids(post!(admin, %{name => [a.id, b.id]}).custom_fields[name]) == [a.id, b.id]
       assert ids(post!(admin, %{name => [a.id, b.id, c.id]}).custom_fields[name]) |> length() == 3
@@ -178,7 +186,7 @@ defmodule KilnCMS.CMS.MultipleReferencesTest do
       assert {:error, error} =
                CMS.update_field_definition(field, %{min_items: 4, max_items: 2}, actor: admin)
 
-      assert Exception.message(error) =~ "must not be more than the maximum (2)"
+      assert Exception.message(error) =~ "can't be more than the maximum (2)"
 
       assert {:error, _} = CMS.update_field_definition(field, %{max_items: 0}, actor: admin)
       assert {:error, _} = CMS.update_field_definition(field, %{min_items: -1}, actor: admin)

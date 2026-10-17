@@ -655,7 +655,7 @@ defmodule KilnCMSWeb.ContentEditor.InspectorComponents do
         </li>
       </ol>
       <p :if={@items == []} class="text-sm text-base-content/60">
-        {gettext("Nothing linked yet.")}
+        {gettext("Nothing connected yet.")}
       </p>
       <select
         :if={not @full?}
@@ -665,7 +665,7 @@ defmodule KilnCMSWeb.ContentEditor.InspectorComponents do
         aria-label={gettext("Add to %{field}", field: @definition.label)}
         class="field-select mt-2"
       >
-        <option value="">{gettext("+ Add…")}</option>
+        <option value="">{gettext("+ Connect an existing record…")}</option>
         <option :for={{label, id} <- @addable} value={id}>{label}</option>
       </select>
       <p :if={@definition.help_text} class="mt-1 text-xs text-base-content/60">
