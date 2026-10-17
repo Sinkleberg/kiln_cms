@@ -208,7 +208,7 @@ Each is one issue and, unless noted, one PR. Order is §5.
 
 ### R6 — Filter through relationships
 
-**Built** in PR_LINK, except link-field filters, which wait for R3.
+**Built** in [#2003](https://github.com/The-Verscienta/kiln_cms/pull/2003), except link-field filters, which wait for R3.
 
 - `custom_filter` on a reference field gains `has` (any of), `has_all`,
   `has_none`, and `count` (with `eq`/`gt`/`gte`/`lt`/`lte`), compiled to

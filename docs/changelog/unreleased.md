@@ -29,6 +29,7 @@ carries the reasoning.
   set operators take about a millisecond in the database, and `count` about
   5 µs per record it scans. A rewrite of the gate that the measurement
   prompted took a full `count` scan from 5.3 s to 135 ms.
+  ([#2003](https://github.com/The-Verscienta/kiln_cms/pull/2003))
 
 <a id="a-reference-custom-field-can-hold-a-list-of-references-multiple-true-with"></a>
 
