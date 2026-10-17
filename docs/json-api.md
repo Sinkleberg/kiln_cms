@@ -307,9 +307,13 @@ GET /api/json/posts?custom_filter[related_posts][has_none]=<post id>
   type `custom_filter[tags]` means the field.
 - The derived `filter[tags][id][in][]=<id>` (any of) still works as before.
 - **Cost.** `has`, `has_all` and `has_none` are index probes per candidate
-  row. `count` aggregates each candidate's edges, so a page of results costs
-  in proportion to the edges of the records scanned to fill it; measured on
-  600k edges in [relationships-plan.md](relationships-plan.md), workstream R6.
+  record, about a millisecond in the database on 600k edges. `count`
+  aggregates each candidate's edges, so it costs in proportion to the
+  records scanned to fill the page, not the page size: about 100 ms when
+  every one of 20,000 records has to be looked at, a few milliseconds when
+  the first matches fill the page. Pair it with a narrowing filter on a big
+  type. The numbers are in [relationships-plan.md](relationships-plan.md),
+  workstream R6.
 
 **Sorting** — `custom_sort=<name>` (ascending) or `custom_sort=-<name>`,
 comma-separated for multi-key. Records lacking the field always sort last.

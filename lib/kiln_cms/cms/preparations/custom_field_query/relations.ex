@@ -132,10 +132,10 @@ defmodule KilnCMS.CMS.Preparations.CustomFieldQuery.Relations do
 
       comparisons
       |> Enum.map(fn {cmp, n} ->
-        # `authorize?: false`: Ash would authorize the aggregate against
-        # `ContentLink`'s read policy, whose both-ends check is a runtime
-        # one it cannot fold into SQL (it refuses the read). The gate that
-        # check applies is already in `linked` — see the moduledoc.
+        # Ash would authorize the aggregate against `ContentLink`'s read
+        # policy, whose both-ends check is a runtime one it cannot fold into
+        # SQL, so it refuses the read.
+        # authorize?: false — `linked` already carries the both-ends gate (moduledoc).
         count =
           expr(count(content_links, query: [filter: expr(^linked)], authorize?: false))
 
