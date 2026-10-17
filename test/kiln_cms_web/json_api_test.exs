@@ -939,6 +939,65 @@ defmodule KilnCMSWeb.JsonApiTest do
       assert ids(body) == [high.id]
     end
 
+    test "relationship operators: has / has_all / has_none / count, and tags (R6)" do
+      admin = user(:admin)
+      refs = "refs#{System.unique_integer([:positive])}"
+
+      CMS.create_field_definition!(
+        %{
+          content_type: :post,
+          name: refs,
+          label: "Refs",
+          field_type: :reference,
+          target_type: "page",
+          multiple: true
+        },
+        actor: admin
+      )
+
+      a = published_post_page(%{title: "A"}, admin)
+      b = published_post_page(%{title: "B"}, admin)
+      draft = CMS.create_page!(%{title: "Draft", slug: slug()}, actor: admin)
+      tag = CMS.create_tag!(%{name: "rtag-#{slug()}", slug: slug()}, actor: admin)
+
+      ab =
+        published_post(
+          %{title: "AB", custom_fields: %{refs => [a.id, b.id]}, tag_ids: [tag.id]},
+          admin
+        )
+
+      bd = published_post(%{title: "BD", custom_fields: %{refs => [b.id, draft.id]}}, admin)
+
+      q = fn params, opts ->
+        assert {200, body} = api_get("/api/json/posts?" <> params, opts)
+        Enum.sort(ids(body))
+      end
+
+      assert q.("custom_filter[#{refs}][has]=#{a.id}", []) == [ab.id]
+
+      assert q.(
+               "custom_filter[#{refs}][has_all][]=#{a.id}&custom_filter[#{refs}][has_all][]=#{b.id}",
+               []
+             ) ==
+               [ab.id]
+
+      assert q.(
+               "custom_filter[#{refs}][has]=#{b.id}&custom_filter[#{refs}][has_none][]=#{a.id}",
+               []
+             ) ==
+               [bd.id]
+
+      assert q.("custom_filter[#{refs}][count][gte]=2", []) == [ab.id]
+      assert q.("custom_filter[tags][has][]=#{tag.id}", []) == [ab.id]
+
+      # The draft target: invisible to an anonymous caller, there for an editor.
+      assert q.("custom_filter[#{refs}][has]=#{draft.id}", []) == []
+      assert q.("custom_filter[#{refs}][has]=#{draft.id}", token: token(user(:editor))) == [bd.id]
+
+      assert {400, _} = api_get("/api/json/posts?custom_filter[#{refs}][has]=nope")
+      assert {400, _} = api_get("/api/json/posts?custom_filter[#{refs}][count][gt]=x")
+    end
+
     test "an unknown custom field name is a 400" do
       assert {400, _body} =
                api_get(

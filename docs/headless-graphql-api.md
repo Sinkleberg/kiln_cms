@@ -91,7 +91,13 @@ consumers never need the plain, credential-widened list.
 > `customFilter` (JSON) and `customSort` (String) query **admin-defined custom
 > fields**: `customFilter: {price: {gt: 10}}, customSort: "-price"`. The same
 > operators, typing and validation as the JSON:API params — see
-> [json-api.md](json-api.md) → "Custom fields".
+> [json-api.md](json-api.md) → "Custom fields". A reference field also takes
+> the relationship operators `has`, `has_all`, `has_none` and `count`
+> (`customFilter: {ingredients: {has: ["<id>"], count: {gte: 2}}}`), and the
+> built-in `tags` and `related<Type>s` take `has` / `has_all` / `has_none`
+> under their snake_case names: `customFilter: {tags: {has_all: ["<id>",
+> "<id>"]}, related_posts: {has_none: ["<id>"]}}`. A target the caller may not
+> read (a draft, for an anonymous caller) neither matches nor counts.
 
 ### Taxonomy — categories, tags & tag groups
 

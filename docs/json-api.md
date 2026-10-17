@@ -262,13 +262,54 @@ GET /api/json/posts?filter[locale]=en&custom_filter[price][lte]=20&custom_sort=-
 - `null` takes `true`/`false` and tests whether the record has the field at
   all.
 - `media`/`reference` fields match on their snapshot's stable `id`
-  (`custom_filter[hero_image]=<media uuid>`) and support `eq`/`not_eq`/`in`/`null` only.
+  (`custom_filter[hero_image]=<media uuid>`) and support `eq`/`not_eq`/`in`/`null`
+  (references also take the relationship operators below).
   On a media **gallery** or a **list of references** (`multiple: true`) they
   test membership: `eq` matches a list holding that id, `not_eq` one that
   doesn't, `in` one holding any of the listed ids.
 - Records without the field are excluded by every comparison (they're SQL
   `NULL`), and a record whose stored value has another JSON type simply
   doesn't match — it can't error the query.
+
+**Relationship operators** — a `reference` field, single or a list, also
+takes `has` (holds any of the ids), `has_all` (holds every one), `has_none`
+(holds none of them) and `count` (how many targets it holds, compared with
+`eq`, `gt`, `gte`, `lt`, `lte`; a bare number means `eq`):
+
+```
+GET /api/json/posts?custom_filter[ingredients][has][]=<id>&custom_filter[ingredients][has][]=<id>
+GET /api/json/posts?custom_filter[ingredients][has_all][]=<id>&custom_filter[ingredients][has_all][]=<id>
+GET /api/json/posts?custom_filter[ingredients][has_none]=<id>
+GET /api/json/posts?custom_filter[ingredients][count][gte]=3
+```
+
+The same three set operators work on the built-in relationships `tags` and
+`related_<type>s` (`related_posts` on posts, `related_pages` on pages, …):
+
+```
+GET /api/json/posts?custom_filter[tags][has_all][]=<tag id>&custom_filter[tags][has_all][]=<tag id>
+GET /api/json/posts?custom_filter[related_posts][has_none]=<post id>
+```
+
+- They read the relationship's edges (`content_links`, or the taggings),
+  through their indexes, rather than the stored snapshot. `eq`/`in` keep the
+  snapshot meaning above, and every operator can be combined on one field.
+- `has`, `has_all` and `has_none` take one id or a list of at most 100;
+  an empty list, or something that is not an id, is a **400**. `count` takes
+  a whole number ≥ 0.
+- **A target you may not read is not there.** A draft (or audience-gated,
+  or locked) target never matches `has`/`has_all`, is not counted by `count`,
+  and `has_none` of it is true — exactly what you would see if it did not
+  exist, so a filter cannot be used to find out that a draft exists. An
+  editor's token sees drafts here as everywhere else.
+- `tags` and `related_<type>s` take `has`, `has_all` and `has_none` only.
+  A custom field that happens to be named `tags` keeps the name: on such a
+  type `custom_filter[tags]` means the field.
+- The derived `filter[tags][id][in][]=<id>` (any of) still works as before.
+- **Cost.** `has`, `has_all` and `has_none` are index probes per candidate
+  row. `count` aggregates each candidate's edges, so a page of results costs
+  in proportion to the edges of the records scanned to fill it; measured on
+  600k edges in [relationships-plan.md](relationships-plan.md), workstream R6.
 
 **Sorting** — `custom_sort=<name>` (ascending) or `custom_sort=-<name>`,
 comma-separated for multi-key. Records lacking the field always sort last.

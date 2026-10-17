@@ -30,7 +30,11 @@ defmodule KilnCMS.CMS.Preparations.CustomFieldQuery do
   `media`/`reference` fields filter by their snapshot's stable `id`
   (equality-shaped operators only) and are not sortable. On a `multiple` one
   (a gallery, a list of references) `eq` means "contains this id", `not_eq`
-  "does not", and `in` "contains any of them". Definitions are read
+  "does not", and `in` "contains any of them". A reference also takes the
+  relationship operators `has` / `has_all` / `has_none` / `count`, which
+  read its `content_links` edges rather than the snapshot, and so do the
+  built-in `tags` and `related_<type>s` (the set operators only) — see
+  `KilnCMS.CMS.Preparations.CustomFieldQuery.Relations`. Definitions are read
   as the system (`KilnCMS.CMS.Housekeeping`, #1659): registry metadata, not
   user data, and the public API's anonymous callers filter too. The read fails
   closed — a refused registry read raises rather than resolving to "no
@@ -45,11 +49,12 @@ defmodule KilnCMS.CMS.Preparations.CustomFieldQuery do
   require Ash.Sort
 
   alias Ash.Error.Query.InvalidArgument
+  alias KilnCMS.CMS.Preparations.CustomFieldQuery.Relations
 
   @operators ~w(eq not_eq gt gte lt lte in ilike null)
 
   @impl true
-  def prepare(query, _opts, _context) do
+  def prepare(query, _opts, context) do
     filter = Ash.Query.get_argument(query, :custom_filter) || %{}
     sort = Ash.Query.get_argument(query, :custom_sort) || ""
 
@@ -58,8 +63,15 @@ defmodule KilnCMS.CMS.Preparations.CustomFieldQuery do
     else
       defs = definitions(query)
 
+      # What the relationship operators gate targets with (`Relations`).
+      ctx = %{
+        resource: query.resource,
+        actor: Map.get(context, :actor),
+        tenant: query.to_tenant || query.tenant
+      }
+
       query
-      |> apply_filter(filter, defs)
+      |> apply_filter(filter, defs, ctx)
       |> apply_sort(sort, defs)
     end
   end
@@ -143,12 +155,12 @@ defmodule KilnCMS.CMS.Preparations.CustomFieldQuery do
 
   # --- filtering ---------------------------------------------------------------
 
-  defp apply_filter(query, filter, defs) when is_map(filter) do
+  defp apply_filter(query, filter, defs, ctx) when is_map(filter) do
     Enum.reduce(filter, query, fn {name, condition}, query ->
       name = to_string(name)
 
-      with {:ok, definition} <- resolve(defs, name),
-           {:ok, exprs} <- conditions(definition, condition) do
+      with {:ok, target} <- resolve_target(defs, name, ctx),
+           {:ok, exprs} <- conditions(target, condition, ctx) do
         Enum.reduce(exprs, query, &Ash.Query.do_filter(&2, &1))
       else
         {:error, message} -> invalid(query, :custom_filter, message)
@@ -156,23 +168,51 @@ defmodule KilnCMS.CMS.Preparations.CustomFieldQuery do
     end)
   end
 
-  defp apply_filter(query, _filter, _defs) do
+  defp apply_filter(query, _filter, _defs, _ctx) do
     invalid(query, :custom_filter, "must be a map of custom field names to conditions")
   end
 
-  # A bare value is an equality match; a map is `%{operator => value}`.
-  defp conditions(definition, condition) when not is_map(condition) do
-    conditions(definition, %{"eq" => condition})
+  # A custom field wins a name it shares with a built-in relationship, so a
+  # site's existing `custom_filter[tags]` keeps its meaning; otherwise
+  # `tags` and `related_<type>s` take the relationship operators (R6).
+  defp resolve_target(defs, name, ctx) do
+    case {resolve(defs, name), Relations.builtin(ctx.resource, name)} do
+      {{:error, "unknown" <> _}, {_, _} = builtin} -> {:ok, {:builtin, builtin}}
+      {result, _builtin} -> result
+    end
   end
 
-  defp conditions(definition, condition) do
+  # A bare value is an equality match; a map is `%{operator => value}`.
+  defp conditions(target, condition, ctx) when not is_map(condition) do
+    conditions(target, %{"eq" => condition}, ctx)
+  end
+
+  defp conditions(target, condition, ctx) do
     Enum.reduce_while(condition, {:ok, []}, fn {op, raw}, {:ok, acc} ->
-      case condition(definition, to_string(op), raw) do
+      case relation_or_condition(target, to_string(op), raw, ctx) do
         {:ok, expr} -> {:cont, {:ok, [expr | acc]}}
         {:error, message} -> {:halt, {:error, message}}
       end
     end)
   end
+
+  defp relation_or_condition({:builtin, builtin}, op, raw, ctx),
+    do: Relations.builtin_condition(builtin, op, raw, ctx)
+
+  # The relationship operators run over the reference's `content_links`
+  # edges, single or `multiple` alike (R6).
+  defp relation_or_condition(%{field_type: :reference} = definition, op, raw, ctx)
+       when op in ~w(has has_all has_none count),
+       do: Relations.reference(definition, op, raw, ctx)
+
+  defp relation_or_condition(%{field_type: type, name: name}, op, _raw, _ctx)
+       when op in ~w(has has_all has_none count) do
+    {:error,
+     "#{op} is a relationship operator: custom field #{inspect(name)} (#{type}) " <>
+       "is not a reference"}
+  end
+
+  defp relation_or_condition(definition, op, raw, _ctx), do: condition(definition, op, raw)
 
   defp condition(%{name: name}, op, _raw) when op not in @operators do
     {:error, "unknown operator #{inspect(op)} for custom field #{inspect(name)}"}
