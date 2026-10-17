@@ -448,8 +448,12 @@ defmodule KilnCMS.CMS.Changes.ApplyCustomFields do
   #
   # The same holds for a single media field handed a list (a value stored while
   # the field was a gallery — a working copy, a version, an API round-trip).
-  defp blank_for?(%{field_type: :media}, value) when is_list(value),
-    do: Enum.all?(value, &blank?/1)
+  #
+  # A list of references (`multiple` reference) follows the same rule, for the
+  # same reasons.
+  defp blank_for?(%{field_type: type}, value)
+       when type in [:media, :reference] and is_list(value),
+       do: Enum.all?(value, &blank?/1)
 
   defp blank_for?(_def, value), do: blank?(value)
 
@@ -467,8 +471,15 @@ defmodule KilnCMS.CMS.Changes.ApplyCustomFields do
   # Tenant-aware dispatch: only `:media`/`:reference` resolve records (and so need
   # the writing tenant and actor); every other field type coerces purely from its
   # value, so it delegates to the type-only `coerce/2` below.
-  defp coerce(value, %{field_type: :media, multiple: true}, read_opts),
-    do: coerce_gallery(value, read_opts)
+  defp coerce(value, %{field_type: :media, multiple: true} = def, read_opts) do
+    with {:ok, items} <- coerce_gallery(value, read_opts),
+         do: within_bounds(items, def)
+  end
+
+  defp coerce(value, %{field_type: :reference, multiple: true} = def, read_opts) do
+    with {:ok, items} <- coerce_reference_list(value, def, read_opts),
+         do: within_bounds(items, def)
+  end
 
   # A single media field handed a gallery list keeps its first item — the same
   # answer `SyncFieldValues` gives when a gallery is narrowed, so a working copy
@@ -478,6 +489,11 @@ defmodule KilnCMS.CMS.Changes.ApplyCustomFields do
 
   defp coerce(value, %{field_type: :media} = def, read_opts),
     do: coerce_media(value, def, read_opts)
+
+  # A single reference handed a list (stored while the field was multiple)
+  # keeps its first item, as a single media field does.
+  defp coerce(value, %{field_type: :reference} = def, read_opts) when is_list(value),
+    do: value |> Enum.reject(&blank?/1) |> List.first() |> coerce_reference(def, read_opts)
 
   defp coerce(value, %{field_type: :reference} = def, read_opts),
     do: coerce_reference(value, def, read_opts)
@@ -645,12 +661,13 @@ defmodule KilnCMS.CMS.Changes.ApplyCustomFields do
   end
 
   @doc """
-  The media ids a stored media value holds, in order: a gallery list or a
-  single snapshot, as snapshots or bare ids, blanks dropped. One rule for
-  every reader of the stored shape (the editor, the translation lock).
+  The ids a stored media or reference value holds, in order: a list (gallery,
+  list of references) or a single snapshot, as snapshots or bare ids, blanks
+  dropped. One rule for every reader of the stored shape (the editor, the
+  translation lock).
   """
-  @spec media_ids(term()) :: [String.t()]
-  def media_ids(value) do
+  @spec snapshot_ids(term()) :: [String.t()]
+  def snapshot_ids(value) do
     value
     |> List.wrap()
     |> Enum.flat_map(fn
@@ -674,6 +691,141 @@ defmodule KilnCMS.CMS.Changes.ApplyCustomFields do
        %{"id" => record.id, "type" => target, "slug" => record.slug, "title" => record.title}}
     else
       _ -> {:error, "must be an existing #{target || "content"} record"}
+    end
+  end
+
+  # A list of references (`multiple: true`): an ordered list of the same
+  # snapshots a single reference stores. Order is the writer's. Unlike a
+  # gallery, a target named twice is an error rather than quietly kept once —
+  # a list of references is an editorial choice per item (and, from R3, carries
+  # per-link data), so the writer is told which one repeats. A lone id or
+  # snapshot is a one-item list; any id that does not resolve fails the field.
+  #
+  # The messages are for an editor, not a developer: an item is named by its
+  # title wherever one is known (the record's, or the stale snapshot's), and by
+  # its id only when there is nothing else to call it.
+  defp coerce_reference_list(value, %{target_type: target}, read_opts) do
+    items = value |> List.wrap() |> Enum.reject(&blank?/1)
+
+    with {:ok, picked} <- reference_ids(items),
+         ids = Enum.map(picked, &elem(&1, 0)),
+         {:ok, by_id} <- read_references(target, ids, read_opts),
+         :ok <- no_repeats(picked, by_id),
+         :ok <- all_resolved(picked, by_id) do
+      {:ok,
+       Enum.map(ids, fn id ->
+         record = by_id[id]
+         %{"id" => record.id, "type" => target, "slug" => record.slug, "title" => record.title}
+       end)}
+    end
+  end
+
+  # `{uuid, title}` per item — the title a snapshot carried, if it was one.
+  defp reference_ids(items) do
+    items
+    |> Enum.with_index(1)
+    |> Enum.reduce_while({:ok, []}, fn {item, position}, {:ok, acc} ->
+      with {:ok, id} <- extract_id(item), {:ok, uuid} <- Ecto.UUID.cast(id) do
+        {:cont, {:ok, [{uuid, snapshot_title(item)} | acc]}}
+      else
+        _ -> {:halt, {:error, unresolved(position, item_label(item, snapshot_title(item)))}}
+      end
+    end)
+    |> case do
+      {:ok, picked} -> {:ok, Enum.reverse(picked)}
+      error -> error
+    end
+  end
+
+  defp no_repeats(picked, by_id) do
+    ids = Enum.map(picked, &elem(&1, 0))
+
+    case ids -- Enum.uniq(ids) do
+      [] ->
+        :ok
+
+      [id | _] ->
+        {_id, title} = Enum.find(picked, &(elem(&1, 0) == id))
+        record_title = by_id |> Map.get(id, %{}) |> Map.get(:title)
+
+        {:error,
+         "lists #{item_label(id, record_title || title)} twice — each item can only be added once"}
+    end
+  end
+
+  defp all_resolved(picked, by_id) do
+    case Enum.find_index(picked, fn {id, _title} -> not Map.has_key?(by_id, id) end) do
+      nil ->
+        :ok
+
+      index ->
+        {id, title} = Enum.at(picked, index)
+        {:error, unresolved(index + 1, item_label(id, title))}
+    end
+  end
+
+  # One read for the whole list (this runs on every editor validate), as the
+  # caller and under the writing tenant — the same reach a single reference's
+  # `get_record` has, so a list cannot name what a single field could not.
+  defp read_references(_target, [], _read_opts), do: {:ok, %{}}
+
+  defp read_references(target, ids, read_opts) do
+    case KilnCMS.CMS.ContentTypes.get(target) do
+      nil ->
+        {:error, "links to a content type that no longer exists"}
+
+      _ct ->
+        records =
+          KilnCMS.CMS.ContentTypes.list!(
+            target,
+            Keyword.put(read_opts, :query,
+              filter: [id: [in: ids]],
+              select: [:id, :slug, :title]
+            )
+          )
+
+        {:ok, Map.new(records, &{&1.id, &1})}
+    end
+  rescue
+    _error -> {:error, "could not be checked — try saving again"}
+  end
+
+  defp snapshot_title(%{"title" => title}) when is_binary(title) and title != "", do: title
+  defp snapshot_title(_item), do: nil
+
+  # `“Title”` when there is one, else the id as given, else nothing.
+  defp item_label(_item, title) when is_binary(title), do: "“#{title}”"
+
+  defp item_label(item, nil) do
+    case extract_id(item) do
+      {:ok, id} -> "(#{id})"
+      :error -> nil
+    end
+  end
+
+  defp unresolved(position, nil),
+    do: "item #{position} no longer exists or can't be linked — remove it from the list"
+
+  defp unresolved(position, label),
+    do: "item #{position} #{label} no longer exists or can't be linked — remove it from the list"
+
+  # `min_items` / `max_items` on a list field. Only a field that holds items
+  # reaches here — an emptied optional field is `:skip`ped before coercion, and
+  # `required` is what asks for at least one.
+  defp within_bounds(items, def) do
+    count = length(items)
+    min = Map.get(def, :min_items)
+    max = Map.get(def, :max_items)
+
+    cond do
+      is_integer(min) and count < min ->
+        {:error, "needs at least #{min} items (has #{count})"}
+
+      is_integer(max) and count > max ->
+        {:error, "can have at most #{max} items (has #{count})"}
+
+      true ->
+        {:ok, items}
     end
   end
 

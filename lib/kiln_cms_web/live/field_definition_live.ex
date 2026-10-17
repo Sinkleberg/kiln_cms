@@ -517,9 +517,6 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
   # Whether the reference-target select applies to the form's current type.
   defp reference?(form), do: to_string(form[:field_type].value) == "reference"
 
-  # Whether the single-or-gallery toggle applies (a `:media` field).
-  defp media?(form), do: to_string(form[:field_type].value) == "media"
-
   # Whether the compute-formula textarea applies (a `:computed` field, #429).
   defp computed?(form), do: to_string(form[:field_type].value) == "computed"
 
@@ -601,7 +598,7 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
   defp core_type_description(:reference),
     do:
       gettext(
-        "A link to another piece of content, of the type you pick below. For a related article, an author or a parent product."
+        "A link to other content — one record or a list, of the type you pick below. For a related article, an author or a parent product."
       )
 
   defp core_type_description(:geolocation),
@@ -679,41 +676,45 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
 
   attr :form, :any, required: true
   attr :id, :string, required: true
-  # The definition as stored, on the edit form: turning an existing gallery
-  # back into a single image is lossy, and the form says so before saving.
+  # The definition as stored, on the edit form: turning an existing list
+  # (a gallery, a list of references) back into a single item is lossy, and
+  # the form says so before saving.
   attr :stored, :any, default: nil
+  # `{label, name}` pairs, to name a reference's target type in the choices.
+  attr :target_types, :list, default: []
 
-  # Single image or gallery, for a `:media` field only.
+  # Single item or a list, for a `:media` field (a gallery) or a `:reference`
+  # field (a list of references); with the list's optional item bounds.
   defp multiple_field(assigns) do
+    type = list_type(assigns.form)
+    multiple? = assigns.form[:multiple].value in [true, "true"]
+    stored_type = list_type(assigns.stored)
+    target = target_label(assigns.form, assigns.target_types)
+
     assigns =
-      assign(
-        assigns,
-        :narrowing?,
-        match?(%{field_type: :media, multiple: true}, assigns.stored) and
-          (not media?(assigns.form) or assigns.form[:multiple].value not in [true, "true"])
+      assigns
+      |> assign(:type, type)
+      |> assign(:multiple?, multiple?)
+      |> assign(:target, target)
+      |> assign(:choices, multiple_choices(type, target))
+      |> assign(
+        :narrowing,
+        if(stored_type && (type != stored_type or not multiple?), do: stored_type)
       )
 
-    # The warning outlives the toggle: retyping a gallery away from media
+    # The warning outlives the toggle: retyping a list field to another type
     # narrows it just the same (`SyncFieldValues`), so it shows then too.
     ~H"""
-    <div :if={media?(@form) or @narrowing?} class="sm:col-span-2">
-      <fieldset :if={media?(@form)}>
+    <div :if={@type || @narrowing} class="sm:col-span-2">
+      <fieldset :if={@type}>
         <legend class="mb-1 block text-sm font-medium">{gettext("Holds")}</legend>
         <div class="grid gap-2 sm:grid-cols-2">
           <label
-            :for={
-              {value, title, hint, icon} <- [
-                {"false", gettext("A single item"),
-                 gettext("One image — a hero, a logo, a portrait."), "hero-photo"},
-                {"true", gettext("A gallery"),
-                 gettext("Several images, in the order the editor arranges them."),
-                 "hero-squares-2x2"}
-              ]
-            }
+            :for={{value, title, hint, icon} <- @choices}
             for={"#{@id}-#{value}"}
             class={[
               "flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors",
-              if(to_string(@form[:multiple].value in [true, "true"]) == value,
+              if(to_string(@multiple?) == value,
                 do: "border-primary bg-primary/5",
                 else: "border-base-content/15 hover:border-base-content/30"
               )
@@ -724,7 +725,7 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
               id={"#{@id}-#{value}"}
               name={@form[:multiple].name}
               value={value}
-              checked={to_string(@form[:multiple].value in [true, "true"]) == value}
+              checked={to_string(@multiple?) == value}
               class="mt-0.5 size-4 accent-primary"
             />
             <span class="min-w-0">
@@ -736,21 +737,153 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
             </span>
           </label>
         </div>
+        <fieldset
+          :if={@multiple?}
+          id={"#{@id}-bounds"}
+          class="mt-3 rounded-lg border border-base-content/10 bg-base-200/40 p-3"
+        >
+          <legend class="px-1 text-sm font-medium">
+            {bounds_legend(@type, @target)}
+            <span class="font-normal text-base-content/60">{gettext("(optional)")}</span>
+          </legend>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <.input
+              field={@form[:min_items]}
+              type="number"
+              min="0"
+              step="1"
+              inputmode="numeric"
+              label={gettext("Minimum")}
+              placeholder={gettext("No minimum")}
+            />
+            <.input
+              field={@form[:max_items]}
+              type="number"
+              min="1"
+              step="1"
+              inputmode="numeric"
+              label={gettext("Maximum")}
+              placeholder={gettext("No limit")}
+            />
+          </div>
+          <p class="mt-2 text-xs text-base-content/60">
+            {gettext(
+              "Leave a box empty for no limit. Editors are told when they save outside these numbers; an empty field is fine unless Required is ticked."
+            )}
+          </p>
+        </fieldset>
       </fieldset>
       <p
-        :if={@narrowing?}
+        :if={@narrowing}
         id={"#{@id}-narrowing"}
         role="status"
         class="mt-2 flex items-start gap-1.5 text-xs text-warning-ink"
       >
         <.icon name="hero-exclamation-triangle" class="mt-px size-3.5 shrink-0" />
-        {gettext(
-          "Saving keeps only the first image of each gallery already filled in. The others are removed from the content, not from the media library."
-        )}
+        {narrowing_warning(@narrowing)}
       </p>
     </div>
     """
   end
+
+  # One plain line under a reference field in the list: what it links to, and
+  # how many — so an admin can scan the fields without opening each one.
+  defp reference_summary(definition, target_types) do
+    target = type_label_for(target_types, definition.target_type)
+
+    if definition.multiple do
+      gettext("Connects several %{type} records — %{count}",
+        type: target,
+        count: item_bounds_label(definition.min_items, definition.max_items)
+      )
+    else
+      gettext("Connects one %{type}", type: target)
+    end
+  end
+
+  defp item_bounds_label(nil, nil), do: gettext("any number")
+  defp item_bounds_label(min, nil), do: gettext("at least %{min}", min: min)
+  defp item_bounds_label(nil, max), do: gettext("up to %{max}", max: max)
+  defp item_bounds_label(same, same), do: gettext("exactly %{count}", count: same)
+  defp item_bounds_label(min, max), do: gettext("%{min} to %{max}", min: min, max: max)
+
+  # The list-capable type a form or a stored definition is, or nil.
+  defp list_type(nil), do: nil
+
+  defp list_type(%Phoenix.HTML.Form{} = form) do
+    case to_string(form[:field_type].value) do
+      "media" -> :media
+      "reference" -> :reference
+      _other -> nil
+    end
+  end
+
+  defp list_type(%{field_type: type, multiple: true}) when type in [:media, :reference], do: type
+  defp list_type(_stored), do: nil
+
+  # The reference's target type as an admin reads it ("Page"), once picked.
+  defp target_label(form, target_types) do
+    case form[:target_type] && to_string(form[:target_type].value) do
+      blank when blank in [nil, ""] -> nil
+      name -> type_label_for(target_types, name)
+    end
+  end
+
+  defp type_label_for(target_types, name) do
+    case List.keyfind(target_types, name, 1) do
+      {label, _name} -> label
+      nil -> name
+    end
+  end
+
+  defp bounds_legend(:reference, target) when is_binary(target),
+    do: gettext("How many %{type} records can be connected", type: target)
+
+  defp bounds_legend(:media, _target), do: gettext("How many images")
+  defp bounds_legend(_type, _target), do: gettext("How many items")
+
+  defp multiple_choices(:media, _target) do
+    [
+      {"false", gettext("A single item"), gettext("One image — a hero, a logo, a portrait."),
+       "hero-photo"},
+      {"true", gettext("A gallery"),
+       gettext("Several images, in the order the editor arranges them."), "hero-squares-2x2"}
+    ]
+  end
+
+  # Named after what the field connects, as a relationship ("One Page",
+  # "Several Pages") rather than as a data shape, once the target is picked.
+  defp multiple_choices(_reference, target) when is_binary(target) do
+    [
+      {"false", gettext("One %{type}", type: target),
+       gettext("Editors connect a single %{type} — an author, a parent product.", type: target),
+       "hero-link"},
+      {"true", gettext("Several %{type} records", type: target),
+       gettext("Editors connect as many as you allow, in the order they choose."),
+       "hero-queue-list"}
+    ]
+  end
+
+  defp multiple_choices(_reference, _target) do
+    [
+      {"false", gettext("A single item"), gettext("One record — an author, a parent product."),
+       "hero-link"},
+      {"true", gettext("A list"),
+       gettext("Several records, in the order the editor arranges them."), "hero-queue-list"}
+    ]
+  end
+
+  defp narrowing_warning(:media),
+    do:
+      gettext(
+        "Saving keeps only the first image of each gallery already filled in. The others are removed from the content, not from the media library."
+      )
+
+  defp narrowing_warning(:reference),
+    do:
+      gettext(
+        "Saving keeps only the first item of each list already filled in. The others are unlinked from the content; the records themselves are not touched."
+      )
 
   attr :form, :any, required: true
   attr :id, :string, required: true
@@ -942,12 +1075,13 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
               :if={reference?(@form)}
               field={@form[:target_type]}
               type="select"
-              label={gettext("References content of type")}
+              label={gettext("Links to")}
               options={@target_types}
               prompt={gettext("— Pick a type —")}
+              hint={gettext("Editors choose records of this type when they fill the field in.")}
             />
             <.compute_field form={@form} />
-            <.multiple_field form={@form} id="new-field-multiple" />
+            <.multiple_field form={@form} id="new-field-multiple" target_types={@target_types} />
             <.input field={@form[:help_text]} label={gettext("Help text")} />
             <.localization_input field={@form[:localization]} />
             <.options_field form={@form} id="new-field-options" />
@@ -1054,6 +1188,12 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
                         {gettext("gallery")}
                       </span>
                       <span
+                        :if={definition.field_type == :reference and definition.multiple}
+                        class="rounded bg-base-200 px-1.5 py-0.5 text-xs text-base-content/70"
+                      >
+                        {gettext("list")}
+                      </span>
+                      <span
                         :if={definition.required}
                         class="rounded bg-warning/20 px-1.5 py-0.5 text-xs text-warning"
                       >
@@ -1068,6 +1208,13 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
                       class="text-xs text-base-content/60"
                     >
                       {gettext("Options")}: {Enum.join(definition.options, ", ")}
+                    </p>
+                    <p
+                      :if={definition.field_type == :reference}
+                      id={"field-#{definition.id}-links"}
+                      class="text-xs text-base-content/60"
+                    >
+                      {reference_summary(definition, @target_types)}
                     </p>
                     <p :if={definition.compute} class="text-xs text-base-content/60">
                       {gettext("Formula")}: <code>{definition.compute}</code>
@@ -1139,15 +1286,17 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
                     :if={reference?(@edit.form)}
                     field={@edit.form[:target_type]}
                     type="select"
-                    label={gettext("References content of type")}
+                    label={gettext("Links to")}
                     options={@target_types}
                     prompt={gettext("— Pick a type —")}
+                    hint={gettext("Editors choose records of this type when they fill the field in.")}
                   />
                   <.compute_field form={@edit.form} />
                   <.multiple_field
                     form={@edit.form}
                     id={"edit-field-multiple-#{@edit.id}"}
                     stored={definition}
+                    target_types={@target_types}
                   />
                   <.input field={@edit.form[:help_text]} label={gettext("Help text")} />
                   <.localization_input field={@edit.form[:localization]} />
