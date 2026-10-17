@@ -789,10 +789,7 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
   # One plain line under a reference field in the list: what it links to, and
   # how many — so an admin can scan the fields without opening each one.
   defp reference_summary(definition, target_types) do
-    target =
-      Enum.find_value(target_types, definition.target_type, fn {label, name} ->
-        if name == definition.target_type, do: label
-      end)
+    target = type_label_for(target_types, definition.target_type)
 
     if definition.multiple do
       gettext("Connects several %{type} records — %{count}",
@@ -828,7 +825,14 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
   defp target_label(form, target_types) do
     case form[:target_type] && to_string(form[:target_type].value) do
       blank when blank in [nil, ""] -> nil
-      name -> Enum.find_value(target_types, name, fn {label, n} -> if n == name, do: label end)
+      name -> type_label_for(target_types, name)
+    end
+  end
+
+  defp type_label_for(target_types, name) do
+    case List.keyfind(target_types, name, 1) do
+      {label, _name} -> label
+      nil -> name
     end
   end
 
