@@ -108,6 +108,32 @@ defmodule KilnCMS.CMS.FieldDefinition do
 
   def orphaned?(_definition), do: false
 
+  @doc """
+  The content type names a `:reference` definition may point at: its
+  `target_types` when it lists any (a polymorphic field, R2), else its single
+  `target_type`, else none. Every reader of "which types does this field
+  allow" goes through here, so the two options can't be read differently.
+
+      iex> KilnCMS.CMS.FieldDefinition.reference_targets(%{target_type: "page", target_types: []})
+      ["page"]
+
+      iex> KilnCMS.CMS.FieldDefinition.reference_targets(%{target_type: nil, target_types: ["page", "post"]})
+      ["page", "post"]
+  """
+  @spec reference_targets(t() | map()) :: [String.t()]
+  def reference_targets(definition) do
+    case Map.get(definition, :target_types) do
+      [_ | _] = types ->
+        types
+
+      _none ->
+        case Map.get(definition, :target_type) do
+          type when is_binary(type) and type != "" -> [type]
+          _none -> []
+        end
+    end
+  end
+
   admin do
     resource_group :content
     table_columns [:content_type, :name, :label, :field_type, :required, :position]
@@ -140,7 +166,10 @@ defmodule KilnCMS.CMS.FieldDefinition do
       :required,
       :options,
       :target_type,
+      :target_types,
       :multiple,
+      :min_items,
+      :max_items,
       :help_text,
       :position,
       :default,
@@ -213,8 +242,10 @@ defmodule KilnCMS.CMS.FieldDefinition do
     # so switching an existing computed field away isn't a dead end (#429).
     change KilnCMS.CMS.Changes.ClearCompute
 
-    # Same for `multiple`: only a `:media` field can hold a gallery, so the flag
-    # drops on any other type rather than lingering on a field it means nothing to.
+    # Same for `multiple`: only a `:media` field (a gallery) or a `:reference`
+    # field (a list of references) can hold a list, so the flag — and the
+    # `min_items`/`max_items` bounds that go with it — drop on any other type
+    # rather than lingering on a field they mean nothing to.
     change KilnCMS.CMS.Changes.ClearMultiple
 
     # Whether a type is event-shaped (#480) is decided by whether it carries a
@@ -251,8 +282,12 @@ defmodule KilnCMS.CMS.FieldDefinition do
     # A :select field is meaningless without choices.
     validate KilnCMS.CMS.Validations.SelectOptions
 
-    # A :reference field must target a known content type (compiled or dynamic).
+    # A :reference field must target known content types (compiled or
+    # dynamic): one through `target_type`, or several through `target_types`.
     validate KilnCMS.CMS.Validations.ReferenceTarget
+
+    # `min_items` may not exceed `max_items` on a list field.
+    validate KilnCMS.CMS.Validations.ItemBounds
 
     # A :computed field must carry a `compute` formula that parses — and no
     # other type may carry one.
@@ -322,13 +357,31 @@ defmodule KilnCMS.CMS.FieldDefinition do
     # ("page", "recipe", …), compiled or dynamic (ignored otherwise).
     attribute :target_type, :string, public?: true
 
+    # The content types a **polymorphic** `:reference` field may point at
+    # (R2) — several type names, set *instead of* `target_type` (exactly one
+    # of the two is set, `Validations.ReferenceTarget`). Each stored snapshot
+    # names its own `"type"`, so a value is self-describing; a write must name
+    # the type of every item when more than one is allowed. Empty for a
+    # single-type field, which keeps the documented `target_type`.
+    attribute :target_types, {:array, :string}, allow_nil?: false, default: [], public?: true
+
     # Whether a `:media` field holds a **gallery** — an ordered list of media
-    # snapshots — rather than a single one. Off by default, so every existing
-    # media field keeps its single-snapshot shape. Ignored (and cleared, see
-    # `Changes.ClearMultiple`) on every other type. Flipping it on an existing
-    # field reshapes the stored values (`Changes.SyncFieldValues`): a single
-    # becomes a one-image gallery, and a gallery keeps only its first image.
+    # snapshots — or a `:reference` field a **list of references** (ordered
+    # `{id, type, slug, title}` snapshots), rather than a single one. Off by
+    # default, so every existing field keeps its single-snapshot shape. Ignored
+    # (and cleared, see `Changes.ClearMultiple`) on every other type. Flipping
+    # it on an existing field reshapes the stored values
+    # (`Changes.SyncFieldValues`): a single becomes a one-item list, and a list
+    # keeps only its first item.
     attribute :multiple, :boolean, allow_nil?: false, default: false, public?: true
+
+    # Bounds on how many items a `multiple` field holds once it holds any (an
+    # empty optional field is still allowed — `required` asks for at least
+    # one). `nil` means unbounded. Cleared with `multiple` (`ClearMultiple`).
+    # Enforced on write by `Changes.ApplyCustomFields`; tightening one leaves
+    # stored values alone until that record's field is next written.
+    attribute :min_items, :integer, public?: true, constraints: [min: 0]
+    attribute :max_items, :integer, public?: true, constraints: [min: 1]
 
     # Optional helper text rendered under the input.
     attribute :help_text, :string,

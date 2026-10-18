@@ -263,9 +263,9 @@ GET /api/json/posts?filter[locale]=en&custom_filter[price][lte]=20&custom_sort=-
   all.
 - `media`/`reference` fields match on their snapshot's stable `id`
   (`custom_filter[hero_image]=<media uuid>`) and support `eq`/`not_eq`/`in`/`null` only.
-  On a media **gallery** (`multiple: true`) they test membership: `eq` matches
-  a gallery holding that image, `not_eq` one that doesn't, `in` one holding any
-  of the listed images.
+  On a media **gallery** or a **list of references** (`multiple: true`) they
+  test membership: `eq` matches a list holding that id, `not_eq` one that
+  doesn't, `in` one holding any of the listed ids.
 - Records without the field are excluded by every comparison (they're SQL
   `NULL`), and a record whose stored value has another JSON type simply
   doesn't match — it can't error the query.
@@ -426,15 +426,34 @@ consumer can join outgoing/incoming relations (and e.g. per-link quantity
 metadata) without extra requests.
 
 Since 1.1 every `:reference` custom field value also has an edge (#1594):
-`kind: "reference"`, with `field` naming the custom field and `source_type` /
+`kind: "reference"`, with `field` naming the custom field (a list of
+references, `multiple: true`, has one edge per item, `position` its 0-based
+place in the list) and `source_type` /
 `target_type` naming both ends' content types (the same vocabulary as the
-snapshot's `"type"`). So `?include=incoming_links` on a record answers *what
+snapshot's `"type"`; on a field that links to several types, each edge
+carries its own item's type). So `?include=incoming_links` on a record answers *what
 links here* — curated related content and references alike — and
 `?include=content_links` gives a referrer's targets by id, which stay right
 when a target is renamed, where the snapshot's `slug` and `title` may lag
 until the referrer is next saved. The snapshot in `custom_fields` is
 unchanged. `field`, `source_type` and `target_type` are `null` on curated and
 payload links, and on links written before 1.1.
+
+**Writing a reference.** A `:reference` value is read back as the snapshot
+`{"id", "type", "slug", "title"}` (a list of them when the field is
+`multiple`), and a write accepts the same shape. What a write must carry
+depends on how many types the field allows (`target_type` or
+`target_types` on its `field_definition`; the schema export lists them as
+`x-kiln-target-types`):
+
+- **One type**: a bare id is enough (`"custom_fields": {"author":
+  "<uuid>"}`), and so is a snapshot; its `"type"` is not consulted.
+- **Several types**: every item names its type, `{"id": "<uuid>", "type":
+  "post"}`. A bare id, or a type the field does not allow, is refused, naming
+  the item. The id is looked up among that type's records only.
+
+`slug` and `title` on input are ignored; the stored snapshot is always
+re-read from the target.
 
 An edge is returned only when the reader may read **both** of its ends: an
 anonymous reader of a published page never sees the edge from a draft that

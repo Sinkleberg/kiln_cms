@@ -56,6 +56,22 @@ Every summary line below that was shortened links to its own entry there.
 
 ### Added
 
+- **A reference custom field can hold a list of references (`multiple: true`),
+  with optional `min_items` / `max_items`.**
+  ([#2000](https://github.com/The-Verscienta/kiln_cms/pull/2000) · [long form](docs/changelog/unreleased.md#a-reference-custom-field-can-hold-a-list-of-references-multiple-true-with))
+
+- **A reference custom field can link to several content types
+  (`target_types`).**
+  ([#2004](https://github.com/The-Verscienta/kiln_cms/pull/2004) · [long form](docs/changelog/unreleased.md#a-reference-custom-field-can-link-to-several-content-types-targettypes))
+
+- **The editor fills a reference custom field from a search picker instead of a
+  select of up to 500 records.**
+  ([#2002](https://github.com/The-Verscienta/kiln_cms/pull/2002) · [long form](docs/changelog/unreleased.md#the-editor-fills-a-reference-custom-field-from-a-search-picker-instead-of-a))
+
+- **The reference picker can create a record and connect it in one step: "Add
+  new *Type*" next to the search.**
+  ([#2005](https://github.com/The-Verscienta/kiln_cms/pull/2005) · [long form](docs/changelog/unreleased.md#the-reference-picker-can-create-a-record-and-connect-it-in-one-step-add-new))
+
 - **Computed fields have a formula builder: pick a recipe and fill in the
   blanks, or write the formula with value and function palettes, and see the
   result live on your own content.** ([long form](docs/changelog/unreleased.md#computed-field-builder))

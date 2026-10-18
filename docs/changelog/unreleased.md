@@ -7,6 +7,102 @@ carries the reasoning.
 
 ## Added
 
+<a id="a-reference-custom-field-can-hold-a-list-of-references-multiple-true-with"></a>
+
+- **A reference custom field can hold a list of references (`multiple: true`),
+  with optional `min_items` / `max_items`.** Workstream R1 of
+  [relationships-plan.md](../relationships-plan.md). The value is an ordered
+  list of the same `{"id", "type", "slug", "title"}` snapshots a single
+  reference stores, the shape a media gallery already has (#1992). Each item
+  must resolve to a record of the target type the writer can read, in one
+  read for the whole list. A record listed twice is refused, naming it. A
+  lone id is a one-item list, and blanks drop out, so an emptied list clears
+  the field. The bounds apply to a list that holds items; `required` still
+  asks for at least one. Flipping the flag reshapes stored values as it does
+  for a gallery: one becomes a one-item list, a list keeps its first item and
+  the other items' edges are deleted. The fields admin warns before a
+  narrowing save and edits the bounds. Each item has its own `ContentLink`
+  edge at its `position`, and reordering rewrites the positions. Each item is
+  also a re-fire edge (R0, #1998). `custom_filter` `eq` on a list means
+  "contains this id", `not_eq` "does not contain", and `in` "contains any". The
+  schema export types the field as an array of snapshots and reports the
+  bounds as `x-kiln-min-items` / `x-kiln-max-items`. They are not
+  `minItems` / `maxItems`, because a value stored before a bound was
+  tightened may fall outside it. The editor gets a small ordered list with
+  an add select, and the search picker follows in R9. Single references keep
+  their 1.0 shape.
+  ([#2000](https://github.com/The-Verscienta/kiln_cms/pull/2000))
+
+<a id="a-reference-custom-field-can-link-to-several-content-types-targettypes"></a>
+
+- **A reference custom field can link to several content types
+  (`target_types`).** Workstream R2 of
+  [relationships-plan.md](../relationships-plan.md). A `:reference` field
+  names its one type in `target_type`, as before, or several in the new
+  `target_types` list; exactly one of the two is set, and every name must be
+  a compiled or dynamic type on the site, once. Each stored snapshot already
+  names its own `"type"`, so a value is self-describing, and a list of
+  references (R1) may mix types. A write to a field with several types must
+  name each item's type, `{"id", "type"}`; a bare id is refused, and so is a
+  type the field does not allow, naming the item. The id is looked up among
+  that type's records only. A field with one type keeps accepting a bare id.
+  The `ContentLink` edges and the re-fire edges (R0, #1998) take each item's
+  own type, and `custom_filter` keeps matching on the id. The schema export
+  reports every reference field's allowed types as `x-kiln-target-types`, an
+  annotation rather than an `enum`, and the TypeScript export comments them
+  on the field. In the fields admin, *Links to* becomes a set of checkboxes:
+  one ticked type is saved as `target_type`, several as `target_types`. The
+  editor's reference picker (R9) searches every allowed type, shows each
+  result's type, and keeps each pick's type through reorders and saves. The
+  typed GraphQL interface over the allowed types is R7. No existing field
+  changes.
+  ([#2004](https://github.com/The-Verscienta/kiln_cms/pull/2004))
+
+<a id="the-editor-fills-a-reference-custom-field-from-a-search-picker-instead-of-a"></a>
+
+- **The editor fills a reference custom field from a search picker instead of
+  a select of up to 500 records.** Workstream R9 of
+  [relationships-plan.md](../relationships-plan.md), first part. Typing
+  searches the target type by title on the server, as the editor and in their
+  site, one page of 20 at a time with "Show more", so there is no cap and a
+  record the editor may not read is never offered. An empty search lists the
+  most recently edited records. Results and connected records show their
+  title, type and state, and each connected record links to its own editor in
+  a new tab. A list of references (R1) adds several in a row, reorders by
+  dragging a row's handle or with its up and down buttons, and removes rows; a
+  single reference holds one record and offers the search again once it is
+  removed. A full list stops offering more. A stored reference the editor
+  can no longer read stays in place, marked unavailable, rather than being
+  dropped on the next save. The search is a combobox: arrow keys move through
+  the results, Enter picks, Escape closes, and Enter never submits the page.
+  The value is still written into the content form, so saving, the working
+  copy and the stale-edit check behave as they do for any other field.
+  Several target types (R2), per-link fields (R3) and the reverse list (R4)
+  add to the same picker later.
+  ([#2002](https://github.com/The-Verscienta/kiln_cms/pull/2002))
+
+<a id="the-reference-picker-can-create-a-record-and-connect-it-in-one-step-add-new"></a>
+
+- **The reference picker can create a record and connect it in one step: "Add
+  new *Type*" next to the search.** Workstream R9 of
+  [relationships-plan.md](../relationships-plan.md), "Create and connect".
+  Each target type the editor may create gets an "Add new" action under the
+  search; it opens a small form inline with the title and the type's
+  required fields that have no default, nothing else. The record is created
+  as the editor through the type's own create action, so it is an ordinary
+  draft and the type's policies apply, and it is connected as if it had been
+  picked: added to the end of a list, or filling a single reference. The row
+  shows its Draft badge and a link to open it. The connection is part of the
+  document's unsaved change like any pick, so the working copy and the
+  stale-edit check are untouched; abandoning that change leaves the new
+  draft in the content list. The action is hidden when the type's
+  `can_create_*?` helper (new `ContentTypes.can_create?/4`) refuses, when
+  the field is full or locked, and for a type with a required media,
+  reference or plugin-typed field and no default, which the small form
+  can't fill. Enter in the form creates instead of saving the page, and
+  Escape closes it.
+  ([#2005](https://github.com/The-Verscienta/kiln_cms/pull/2005))
+
 <a id="computed-field-builder"></a>
 
 - **Computed fields have a formula builder: pick a recipe and fill in the
@@ -171,6 +267,13 @@ carries the reasoning.
   `mix kiln.media.regenerate_variants` reports the count.
   ([#1955](https://github.com/The-Verscienta/kiln_cms/issues/1955))
 
+<a id="graphql-published-queries-without-offset-return-their-page-fields-hasnextpage"></a>
+
+- **GraphQL `published*` queries without `offset` return their page fields
+  (`hasNextPage`, `hasPreviousPage`, `pageNumber`, `lastPage`) again: an
+  omitted `offset` now means `0`.**
+  ([#1883](https://github.com/The-Verscienta/kiln_cms/issues/1883))
+
 <a id="renaming-a-document-now-re-fires-the-documents-that-point-at-it-through-a"></a>
 
 - **Renaming a document now re-fires the documents that point at it through a
@@ -192,6 +295,13 @@ carries the reasoning.
 
 ## Security
 
+<a id="bandit-1130-fixes-eef-cve-2026-105660-a-client-could-choose-connhostconnport"></a>
+
+- **bandit 1.13.0 fixes EEF-CVE-2026-105660 (a client could choose
+  `conn.host`/`conn.port` via the HTTP/1 request target) and the HTTP/2 DoS
+  EEF-CVE-2026-105659, so the endpoint speaks HTTP/2 again.**
+  ([#1991](https://github.com/The-Verscienta/kiln_cms/pull/1991))
+
 <a id="phoenix-showcase-advisories"></a>
 
 - **The `examples/phoenix_showcase` template's lock clears 23 Hex advisories
@@ -206,3 +316,4 @@ carries the reasoning.
   0.1.13; no `mix.exs` requirement changed. Nothing in CI built the example,
   which is how it went stale, so the Dependency audit job now runs
   `mix hex.audit` in `examples/phoenix_showcase` too.
+

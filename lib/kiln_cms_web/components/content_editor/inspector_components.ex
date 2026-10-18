@@ -24,18 +24,16 @@ defmodule KilnCMSWeb.ContentEditor.InspectorComponents do
   # record rather than kept as an assign, so it cannot go stale against a save —
   # the rail only ever needs to know *that* one is set, never what it is.
   def content_locked?(record), do: not is_nil(Map.get(record || %{}, :access_password_hash))
-  # Options for the pick-list custom fields; other field types need none. A
-  # gallery takes the library rows themselves: it renders thumbnails, and a
-  # just-picked id whose snapshot hasn't resolved yet looks its url up here.
-  def custom_field_options(%{field_type: :media, multiple: true}, media, _refs), do: media
+  # Options for the media custom fields; other field types need none (a
+  # reference searches its target itself — `ReferencePicker`). A gallery takes
+  # the library rows themselves: it renders thumbnails, and a just-picked id
+  # whose snapshot hasn't resolved yet looks its url up here.
+  def custom_field_options(%{field_type: :media, multiple: true}, media), do: media
 
-  def custom_field_options(%{field_type: :media}, media, _refs),
+  def custom_field_options(%{field_type: :media}, media),
     do: Enum.map(media, &{&1.filename, &1.id})
 
-  def custom_field_options(%{field_type: :reference, name: name}, _media, refs),
-    do: Map.get(refs, name, [])
-
-  def custom_field_options(_definition, _media, _refs), do: []
+  def custom_field_options(_definition, _media), do: []
   # Why the intelligence panel came back empty.
   #
   # "Publish this page to index it" used to be one of the answers, and it is
@@ -559,11 +557,10 @@ defmodule KilnCMSWeb.ContentEditor.InspectorComponents do
     """
   end
 
-  # Media / reference pick-lists: the select posts the target id; the stored
+  # A single media pick-list: the select posts the target id; the stored
   # value is the write-time snapshot map (see ApplyCustomFields), so the
-  # current selection is its "id".
-  def custom_field_input(%{definition: %{field_type: type}} = assigns)
-      when type in [:media, :reference] do
+  # current selection is its "id". (A reference is `ReferencePicker`.)
+  def custom_field_input(%{definition: %{field_type: :media}} = assigns) do
     assigns = assign(assigns, :selected_id, snapshot_id(assigns.value))
 
     ~H"""
@@ -937,11 +934,11 @@ defmodule KilnCMSWeb.ContentEditor.InspectorComponents do
     |> Enum.uniq_by(& &1.id)
   end
 
-  # The selected id of a single media/reference field. A list (a value stored
+  # The selected id of a single media field. A list (a value stored
   # while the field was a gallery) selects its first item — what saving it
   # keeps — rather than reading as "None" and clearing it on the next save.
   defp snapshot_id(value),
-    do: value |> KilnCMS.CMS.Changes.ApplyCustomFields.media_ids() |> List.first()
+    do: value |> KilnCMS.CMS.Changes.ApplyCustomFields.snapshot_ids() |> List.first()
 
   defp custom_input_type(:integer), do: "number"
   defp custom_input_type(:float), do: "number"

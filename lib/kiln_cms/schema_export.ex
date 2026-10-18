@@ -41,6 +41,7 @@ defmodule KilnCMS.SchemaExport do
   alias Kiln.Block.JsonSchema
   alias KilnCMS.CMS
   alias KilnCMS.CMS.ContentTypes
+  alias KilnCMS.CMS.FieldDefinition
   alias KilnCMS.CMS.FieldTypes
 
   @dialect "https://json-schema.org/draft/2020-12/schema"
@@ -295,8 +296,24 @@ defmodule KilnCMS.SchemaExport do
   defp custom_field_schema(definition) do
     definition.field_type
     |> base_custom_field_schema(definition)
+    |> put_target_types(definition)
     |> put_localization(Map.get(definition, :localization))
   end
+
+  # The content types a `:reference` field may point at (R2), whichever option
+  # names them — one `target_type` or several `target_types` — so a consumer
+  # reads one key either way and can tell which types a value's `"type"` may
+  # name. An annotation, not an `enum` on that `"type"`, for the reason
+  # `:select` exports none: narrowing the list leaves stored values naming a
+  # type it no longer holds.
+  defp put_target_types(schema, %{field_type: :reference} = definition) do
+    case FieldDefinition.reference_targets(definition) do
+      [] -> schema
+      types -> Map.put(schema, "x-kiln-target-types", types)
+    end
+  end
+
+  defp put_target_types(schema, _definition), do: schema
 
   # Field-level localization (#1327), as `Kiln.Block.JsonSchema` annotates a
   # block field: absent for the default, `:localized`.
@@ -327,12 +344,13 @@ defmodule KilnCMS.SchemaExport do
   # publish anonymously.
   defp base_custom_field_schema(:select, _d), do: %{"type" => ["string", "null"]}
 
-  defp base_custom_field_schema(:media, %{multiple: true}) do
+  defp base_custom_field_schema(:media, %{multiple: true} = d) do
     %{
       "type" => ["array", "null"],
       "items" => %{"type" => "object"},
       "description" => "Write-time snapshots of the picked media items, in gallery order."
     }
+    |> put_item_bounds(d)
   end
 
   defp base_custom_field_schema(:media, _d) do
@@ -340,6 +358,29 @@ defmodule KilnCMS.SchemaExport do
       "type" => ["object", "null"],
       "description" => "Write-time snapshot of the picked media item."
     }
+  end
+
+  # A list of references: the snapshots in the editor's order. The item shape
+  # is spelled out (and open, so a later addition such as link data is not a
+  # breaking change for a validating consumer).
+  defp base_custom_field_schema(:reference, %{multiple: true} = d) do
+    %{
+      "type" => ["array", "null"],
+      "items" => %{
+        "type" => "object",
+        "properties" => %{
+          "id" => %{"type" => "string", "format" => "uuid"},
+          "type" => %{"type" => "string"},
+          "slug" => %{"type" => ["string", "null"]},
+          "title" => %{"type" => ["string", "null"]}
+        },
+        "required" => ["id", "type"],
+        "additionalProperties" => true
+      },
+      "description" =>
+        "Write-time snapshots of the referenced records, in the order the editor arranged them."
+    }
+    |> put_item_bounds(d)
   end
 
   defp base_custom_field_schema(:reference, _d) do
@@ -361,6 +402,20 @@ defmodule KilnCMS.SchemaExport do
       module -> field_type_schema(module, definition)
     end
   end
+
+  # `min_items` / `max_items` (a list field's bounds) as annotations, not as
+  # JSON Schema's `minItems`/`maxItems` — for the reason `:select` exports no
+  # `enum`: the bounds govern what a *write* accepts, and a value stored before
+  # a bound was tightened (or served by `?as_of=`) may fall outside it, so as
+  # assertions they would fail legitimately-published documents.
+  defp put_item_bounds(schema, d) do
+    schema
+    |> put_bound("x-kiln-min-items", Map.get(d, :min_items))
+    |> put_bound("x-kiln-max-items", Map.get(d, :max_items))
+  end
+
+  defp put_bound(schema, _key, nil), do: schema
+  defp put_bound(schema, key, value), do: Map.put(schema, key, value)
 
   # `Code.ensure_loaded?` before every probe: `FieldTypes.get/1` returns a module
   # atom out of a compile-baked literal map and never loads it, so under

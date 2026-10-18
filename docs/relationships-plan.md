@@ -1,7 +1,9 @@
 # Relationships — reaching Directus / Hygraph parity
 
 **Status:** decided, 2026-10-16. D22 and D23 are adopted, and open questions
-1–3 are answered (§7). R0 shipped in
+1–3 are answered (§7). On 2026-10-17 the plan took in what Toolset's
+relationship admin does that it lacked: R1b, "Add new" in the picker, and a
+relationship-first fields admin (R9). R0 shipped in
 [#1998](https://github.com/The-Verscienta/kiln_cms/pull/1998); the rest is not
 built yet. Every workstream is
 **additive** under the 1.0 overlay contract (`docs/overlay-contract.md`): new
@@ -64,9 +66,18 @@ Two gaps found while reading, beyond the feature list:
 | Filter through a relation | `_some`/`_none` on deep filters | `_some`/`_every`/`_none` | `eq`/`in` on one reference id | ✅ R6 |
 | Nested reads through the link | `fields=tags.tags_id.*` | native GraphQL | one `include` level, edges by id | ✅ R7 |
 | Connect / disconnect / reorder writes | ✅ | ✅ with position | tags, related ids only | ✅ R8 |
+| Limit on the target side ("each Author on at most 3 Books") † | — | — | ❌ | ✅ R1b |
+| Create a new target from the picker and connect it | ✅ | ✅ | ❌ | ✅ R9 |
+| Fields admin speaks in relationships, not data types † | partial (relational wizard) | ✅ | type + options, plain wording since R1 | ✅ R9 |
 | Editor UI for all of the above | ✅ | ✅ | `<select>` | ✅ R9 |
 | A real junction table when you need one | auto-created | ❌ | hand-written resource | ✅ generator, R10 |
 | Remote / federated sources | ❌ | Remote Sources | ❌ | out of scope, §6 |
+
+† These rows come from Toolset's relationship admin for WordPress, which the
+editor and fields admin take as their model for non-developers: a wizard that
+asks "one or many?" for both sides, limits on both sides of a many-to-many,
+and a way to add a new related post without leaving the one being edited.
+"—" means neither Directus nor Hygraph offers it as a field option.
 
 Kiln already leads both on: link payloads (vs Hygraph), the both-ends read
 gate, re-fire on reference change (once R0 lands), and owning the database
@@ -140,6 +151,52 @@ Each is one issue and, unless noted, one PR. Order is §5.
   `position`; add the reconcile test that reordering rewrites positions.
 - `SchemaExport` (`/api/schema`, `mix kiln.export.schema --format ts`) reports
   `multiple`, `min_items`, `max_items`.
+
+### R1b — Limits on the target side
+
+R1's `min_items` / `max_items` bound how many records one *source* connects
+to. Toolset also bounds the other end of a many-to-many ("a Book has up to 5
+Authors; an Author is on at most 3 Books"), and editors ask for it when a
+target is a scarce thing — a slot, a seat, a featured position.
+
+- New optional option `max_sources` on a `:reference` definition: how many
+  source records may connect to any one target through this field. Blank =
+  no limit, today's behaviour. It works for single and `multiple` fields
+  alike. There is no `min_sources`: a new target has no sources, and nothing
+  on the source side's write could make it gain one, so a lower bound could
+  never be enforced at write time.
+- **Enforced inside the source record's write**, where the edge is written —
+  the same transaction `ContentLinks.reconcile/1` already runs in. For each
+  target the write *adds* (one this source does not already link to through
+  this field), it counts `content_links` rows with `kind: :reference`, this
+  `field` and that `target_id`, from other sources, and refuses the write with
+  a field error when the count has reached `max_sources`. Removing or
+  reordering targets is never refused.
+- **Race-safe.** Two sources connecting to the last free slot at once must not
+  both pass the count. Before counting, the write takes
+  `pg_advisory_xact_lock` on a key built from org, field and target id (the
+  pattern `KilnCMS.Notifications` already uses for its once-only inserts),
+  taking several in sorted target-id order so two writes never deadlock on
+  each other. The lock is released at commit or rollback, and only writers to
+  the same target through the same field wait on it.
+- **What counts.** Every edge counts, whatever the source's state: a draft or
+  trashed source holds its slot, because trash keeps edges (R5) and restore
+  must not overfill the target. A published source's edit staged in its
+  working copy is checked when its edges are written — when *Publish changes*
+  folds it — and refused there if the target filled up meanwhile, with the
+  same message. Tightening `max_sources` below a target's current count leaves
+  existing edges alone, as R1's bounds do; the cap applies to the next add.
+- Every write path goes through the same check, because every path is the
+  source's update: the editor, R4b's reverse writes and R8's API writes. The
+  refusal names the count ("*Jane Doe* already has 3 of 3 Books connected"),
+  never the sources, so it reveals nothing an actor could not otherwise read.
+- **Editor.** In the picker (R9), a full target is listed but disabled with
+  "Full — 3 of 3 connected", so an editor sees why it can't be picked rather
+  than finding it missing. On the target's own page the reverse field (R4)
+  shows "3 of 3" beside its heading, and once R4b lands its add control is
+  disabled while the target is full.
+- `SchemaExport` reports `max_sources`. Additive: a new option and a new
+  validation on a field that did not have it.
 
 ### R2 — References to several types (polymorphic)
 
@@ -261,12 +318,41 @@ Each is one issue and, unless noted, one PR. Order is §5.
   drag-to-reorder (the gallery's sortable), inline link-field inputs per row,
   remove, and "open target". Built in the house kit (`docs/design-language.md`),
   no DaisyUI.
+- **Create and connect.** Next to "Connect an existing record…", the picker
+  offers "Add new *Type*" (one entry per allowed target type, R2). It opens a
+  small form — the target type's title and its required fields, nothing else
+  — creates the record as a **draft** through that type's normal create
+  action, and connects it to the field in the same step, as if it had been
+  picked. The action is shown only for types the editor may create (the
+  generated `can_create_*?` helper, or the dynamic-type equivalent), and the
+  create is authorized as the editor's own, so the menu never offers what the
+  server would refuse.
+  The new target stays a draft until someone publishes it: the row carries a
+  "Draft" badge with a link to open it, and the both-ends read gate keeps it
+  out of public reads until then. It is an ordinary draft — if the editor
+  abandons the source's change, the new record stays in the content list as a
+  draft and is not deleted behind their back.
 - Related content: the same picker, so `related_<type>s` can finally choose
   across types (new `related_any` many-to-many would be a covered addition —
   or reuse a multi-type reference field; decide in the PR).
 - Reverse fields (R4) render as a read-only list with the same row component.
-- Fields admin: `multiple`, `min/max`, target types (multi-select), link
-  fields (nested list), inverse name, on-delete rule.
+- **Fields admin: a relationship, not a data type.** A non-developer sets up
+  a relationship the way Toolset's wizard asks for one, not by picking a type
+  and filling options. Adding a reference field starts with the two sides
+  named in plain words — "*Recipe* links to *Ingredient*" — then asks how many
+  on each side: "One *Ingredient*" / "Several *Ingredient* records", and,
+  from the other end, how many *Recipes* may connect to one *Ingredient*
+  (R1b). The summary line reads as a sentence from both sides ("Each Recipe
+  connects several Ingredients; each Ingredient is used by any number of
+  Recipes"). This builds on the wording R1 introduced — "Links to", "Connects
+  one *Type*" / "Connects several *Type* records", "How many *Type* records
+  can be connected" — and every later option joins it in the same voice:
+  target types (multi-select, R2), link fields as "Details on each
+  connection" (nested list, R3), the reverse field's name as "What *Ingredient*
+  calls this" (R4), and the on-delete rule as "When a connected *Ingredient*
+  is deleted…" (R5). The stored options (`multiple`, `min_items`,
+  `max_items`, `max_sources`, `target_types`, …) stay what the API and
+  `SchemaExport` report; only the admin's words change.
 
 ### R10 — Graduation generator
 
@@ -286,28 +372,30 @@ order inside that release, so each PR lands on the ones it depends on.
 |---|---|---|
 | 1 | **R0** references in the re-fire graph (bug) | — |
 | 2 | **R1** many-valued references | — |
-| 3 | **R9** picker (multi, reorder, search) | R1 |
-| 4 | **R6** relationship filters | R1 |
-| 5 | **R2** several target types | R1 |
-| 6 | **R7** typed nested reads (GraphQL interface) | R2 |
-| 7 | **R3** link fields | R1, R9 |
-| 8 | **R4** reverse fields (read) | R3 |
-| 9 | **R8** relationship writes | R1, R3 |
-| 10 | **R5** on-delete rule | R1 |
-| 11 | **R4b** reverse writes | D23, R4 |
-| 12 | **R10** graduation generator | R3 |
+| 3 | **R9** picker (multi, reorder, search, create and connect) | R1 |
+| 4 | **R1b** target-side limit | R1 |
+| 5 | **R6** relationship filters | R1 |
+| 6 | **R2** several target types | R1 |
+| 7 | **R7** typed nested reads (GraphQL interface) | R2 |
+| 8 | **R3** link fields | R1, R9 |
+| 9 | **R4** reverse fields (read) | R3 |
+| 10 | **R8** relationship writes | R1, R3 |
+| 11 | **R5** on-delete rule | R1 |
+| 12 | **R4b** reverse writes | D23, R4 |
+| 13 | **R10** graduation generator | R3 |
 
-R9 grows with the release: its first PR is the multi-value picker on R1, and
-R2, R3 and R4 each add their part of the picker (type badges, link-field
-inputs, the reverse list) in their own PR.
+R9 grows with the release: its first PR is the multi-value picker on R1, with
+"Add new *Type*" and the relationship-first fields admin, and R1b, R2, R3 and
+R4 each add their part of the picker and the admin (the "Full" state, type
+badges, link-field inputs, the reverse list) in their own PR.
 
 **Decided before work starts:** D22 and D23 (§3) and open questions 1–3
 (§7), all on 2026-10-16. Nothing on the build path is waiting on a decision.
 The one question left, Q4, is answered by measurement inside R6.
 
-**Parallel tracks.** After R1 merges, three tracks can run at once on separate
-files: R6 (query preparation), R2 → R7 (field validation, GraphQL schema), and
-R9 (editor). R3 → R4 → R4b, R8, R5 and R10 follow R3. R0 is independent of
+**Parallel tracks.** After R1 merges, four tracks can run at once on separate
+files: R6 (query preparation), R2 → R7 (field validation, GraphQL schema),
+R1b (the write-time check in `ContentLinks`), and R9 (editor). R3 → R4 → R4b, R8, R5 and R10 follow R3. R0 is independent of
 everything else.
 
 With 1.5, Kiln matches Directus and Hygraph on every row of §2 except
@@ -321,6 +409,11 @@ to a real join table that neither of them has.
   cached, fired as a snapshot), but it is a separate plan with its own
   threat model. Not needed for M2M parity.
 - **Per-relationship tables created at runtime.** Ruled out by D22.
+- **References to a single field of another record.** A relationship connects
+  whole records — a page or an entry to another page or entry — never one
+  field of a record to a field of another (decided 2026-10-17). A consumer
+  that wants one value from the target reads it through the connection (R7),
+  and link data that belongs to the connection itself is a link field (R3).
 - **Tags and related content shared across locales** — tracked separately in
   [#1859](https://github.com/The-Verscienta/kiln_cms/issues/1859). R1's lists
   should be designed so a shared reference copies cleanly, but the sharing
