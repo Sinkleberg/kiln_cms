@@ -138,6 +138,10 @@ Every summary line below that was shortened links to its own entry there.
   that only skips.**
   ([#2012](https://github.com/The-Verscienta/kiln_cms/pull/2012) · [long form](docs/changelog/unreleased.md#propagation-archived-types-federation-domain-events))
 
+- **A new content type can no longer be named after a built-in webhook event
+  namespace (`release`, `task`, `form`, `experiment`, `membership`).**
+  ([#1994](https://github.com/The-Verscienta/kiln_cms/issues/1994) · [long form](docs/changelog/unreleased.md#reserved-event-namespaces))
+
 - **A variant job no longer takes an image backend's failed or rate-limited
   read for a deleted original.**
   ([long form](docs/changelog/unreleased.md#variant-worker-backend-errors))

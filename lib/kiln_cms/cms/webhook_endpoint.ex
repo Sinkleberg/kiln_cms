@@ -107,8 +107,9 @@ defmodule KilnCMS.CMS.WebhookEndpoint do
   @doc """
   The events that are about something other than a document and are not
   tasks: content releases, experiments, form submissions, memberships and
-  taxonomy. Exact names, not namespaces. Nothing yet stops a site from defining
-  a dynamic type called `experiment` (#1994), and that type's
+  taxonomy. Exact names, not namespaces: a new type can't take one of these
+  namespaces as its name (`reserved_namespaces/0`, #1994), but a type created
+  before that rule may already be called `experiment`, and its
   `experiment.published` is a content event.
 
   Automation reads this (#1995): `release.published` has a content verb, so
@@ -120,6 +121,25 @@ defmodule KilnCMS.CMS.WebhookEndpoint do
     @release_events ++
       @experiment_events ++
       @form_events ++ KilnCMS.Billing.MembershipWebhooks.events() ++ taxonomy_events()
+  end
+
+  @doc """
+  The namespaces of every built-in event that is not a content type's:
+  `release`, `experiment`, `form`, `membership`, the taxonomy namespaces and
+  `task` (#1994). A content type's events are `<name>.<verb>`, so a type named
+  `release` would send `release.published` to every endpoint subscribed to
+  releases, with a document where a release belongs, and receivers could not
+  tell the two apart. `KilnCMS.CMS.Validations.AvailableTypeName` refuses
+  these as a new type's name.
+
+  Derived from the same lists as `events/1`, so a new event family is
+  reserved when it is added to `domain_events/0` (or, like tasks, here).
+  """
+  @spec reserved_namespaces() :: [String.t()]
+  def reserved_namespaces do
+    (domain_events() ++ @task_events)
+    |> Enum.map(fn event -> event |> event_parts() |> elem(0) end)
+    |> Enum.uniq()
   end
 
   @doc """

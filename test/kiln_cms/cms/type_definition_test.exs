@@ -112,6 +112,71 @@ defmodule KilnCMS.CMS.TypeDefinitionTest do
     end
   end
 
+  # A type's events are `<name>.<verb>`; a type named `release` would send
+  # `release.published` alongside content releases, indistinguishable to a
+  # receiver (#1994).
+  describe "built-in webhook event namespaces (#1994)" do
+    test "none can be a new type's name" do
+      actor = admin()
+      reserved = CMS.WebhookEndpoint.reserved_namespaces()
+
+      for name <- ~w(release experiment form membership task tag tag_group category) do
+        assert name in reserved, name
+      end
+
+      for name <- reserved do
+        assert {:error, error} =
+                 CMS.create_type_definition(
+                   %{
+                     name: name,
+                     label: "X",
+                     path_segment: "seg#{System.unique_integer([:positive])}"
+                   },
+                   actor: actor
+                 )
+
+        assert Exception.message(error) =~ "built-in webhook event namespace", name
+      end
+    end
+
+    # The guard for the next event family: one added to `WebhookEndpoint.events/1`
+    # without joining `reserved_namespaces/0` fails here.
+    test "every subscribable event outside a content type is in a reserved namespace" do
+      org_id = KilnCMS.Accounts.default_org_id()
+      types = Enum.map(ContentTypes.all_for_org(org_id), &to_string(&1.type))
+      reserved = CMS.WebhookEndpoint.reserved_namespaces()
+
+      for event <- CMS.WebhookEndpoint.events(org_id) do
+        {namespace, _verb} = CMS.WebhookEndpoint.event_parts(event)
+        assert namespace in types or namespace in reserved, event
+      end
+
+      # ...and the reserved list is exactly those namespaces, nothing extra.
+      for namespace <- reserved do
+        assert Enum.any?(
+                 CMS.WebhookEndpoint.events(org_id),
+                 &String.starts_with?(&1, namespace <> ".")
+               ),
+               namespace
+      end
+    end
+
+    test "a type named after one before the rule can still be edited" do
+      actor = admin()
+
+      legacy =
+        Ash.Seed.seed!(CMS.TypeDefinition, %{
+          name: "release",
+          label: "Legacy",
+          path_segment: "legacy#{System.unique_integer([:positive])}",
+          org_id: KilnCMS.Accounts.default_org_id()
+        })
+
+      assert %{label: "Renamed"} =
+               CMS.update_type_definition!(legacy, %{label: "Renamed"}, actor: actor)
+    end
+  end
+
   describe "updating" do
     test "presentational attributes update; the machine name is create-only" do
       definition = define!(admin())

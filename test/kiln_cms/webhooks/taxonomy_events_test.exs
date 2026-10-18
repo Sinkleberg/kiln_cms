@@ -288,7 +288,7 @@ defmodule KilnCMS.Webhooks.TaxonomyEventsTest do
                    opts
                  )
 
-        assert Exception.message(error) =~ "taxonomy webhook event namespace"
+        assert Exception.message(error) =~ "built-in webhook event namespace"
       end
     end
 

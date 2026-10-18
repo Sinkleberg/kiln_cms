@@ -401,9 +401,9 @@ carries the reasoning.
   experiments, forms, memberships, taxonomy) with a trigger verb matches only
   rules scoped to its own namespace, as docs/content-releases.md promises.
   The list holds exact event names, not namespaces, so a dynamic type named
-  `experiment` keeps all its rules. Until reserved names land (#1994), a
-  dynamic type named `release` is the one exception: its `release.published`
-  no longer reaches "any content type" rules. Tasks, the health sweep and
+  `experiment` keeps all its rules. A dynamic type named `release` is the one
+  exception: its `release.published` no longer reaches "any content type"
+  rules. New types can no longer take that name (#1994). Tasks, the health sweep and
   archived dynamic types are unchanged.
   ([#1995](https://github.com/The-Verscienta/kiln_cms/issues/1995))
 
@@ -421,6 +421,21 @@ carries the reasoning.
   because no `release` type syndicates; it now skips domain events before
   enqueueing. Follows #1995.
   ([#2012](https://github.com/The-Verscienta/kiln_cms/pull/2012))
+
+<a id="reserved-event-namespaces"></a>
+
+- **A new content type can no longer be named after a built-in webhook event
+  namespace (`release`, `task`, `form`, `experiment`, `membership`).** A
+  type's events are `<name>.<verb>`, so a type named `release` sent
+  `release.published` to every endpoint subscribed to content releases, with
+  a document where a release belongs, and automation rules scoped to
+  `release` matched both. Only the taxonomy namespaces (`tag`, `tag_group`,
+  `category`) were refused before. The list is now
+  `WebhookEndpoint.reserved_namespaces/0`, derived from the same event lists
+  as the endpoint picker, and a test fails if a new event family is added
+  without being reserved. The rule applies only when a type is created, so a
+  type that already has one of these names can still be edited.
+  ([#1994](https://github.com/The-Verscienta/kiln_cms/issues/1994))
 
 <a id="variant-worker-backend-errors"></a>
 

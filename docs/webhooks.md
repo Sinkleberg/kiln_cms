@@ -95,6 +95,14 @@ More event names exist outside the `<type>.<verb>` pattern:
   never subscribed to, and delivered on demand regardless of an endpoint's
   active state or event list.
 
+Each of these namespaces (`form`, `membership`, `task`, `release`,
+`experiment`, `tag`, `tag_group`, `category`) is reserved: a new content type
+cannot take one as its name, so `release.published` always means a release
+and never a document of a type called `release`
+([#1994](https://github.com/The-Verscienta/kiln_cms/issues/1994)). A type
+created with one of these names before the rule keeps working and can still be
+edited, but its events still share names with the built-in ones.
+
 The request body is always
 `{"event": "<name>", "delivery_id": "<uuid>", "data": {...}}`. `delivery_id` is
 the ledger row's id: the same on every retry of one delivery, and new for a
@@ -183,7 +191,8 @@ receives none of them until an admin ticks them.
   They do trigger the optional CDN purge, because the cached taxonomy lists
   and every cached document carrying the term change.
 - A content type cannot be named `tag`, `tag_group` or `category`, so these
-  names always mean taxonomy.
+  names always mean taxonomy. The same goes for every other namespace above
+  (`form`, `membership`, `task`, `release`, `experiment`).
 
 ### `affected`: the other pages this change touched
 
