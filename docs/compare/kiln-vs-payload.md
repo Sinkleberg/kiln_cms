@@ -4,8 +4,8 @@
 Next.js, databases, access control, workflows and hosting, with sources and a
 check date on every claim. -->
 
-> **Facts checked 2026-10-06.** Review owner: the Kiln maintainers. The
-> sources are listed [at the end](#sources). See
+> **Facts checked 2026-10-06; relationships checked 2026-10-18.** Review
+> owner: the Kiln maintainers. The sources are listed [at the end](#sources). See
 > [how these pages stay honest](how-kiln-compares.md#how-these-pages-stay-honest).
 
 Payload and Kiln are the closest pair on this list in philosophy. Both are
@@ -23,6 +23,7 @@ site and the API together.
 | Stack | TypeScript on Node.js 20.9+, Next.js-native since 3.0. MongoDB, PostgreSQL or SQLite ([databases][payload-db]) | Elixir and PostgreSQL 17 with pgvector ([deploy](../deploy.md)) |
 | Latest major | 3.0.0, released 2024-11-19; 4.0 is in canary ([releases][payload-releases]) | 1.0.0, released 2026-10-02 ([changelog][kiln-changelog]) |
 | Modeling | Code: collections and fields in the TypeScript config ([access control][payload-access]) | Code (`use KilnCMS.CMS.Content`), or the admin UI on a running site ([extending content](../extending-content.md)) |
+| Relationships | A relationship field stores IDs on the document, to one collection or several (`relationTo`), with `minRows`/`maxRows`. A `join` field shows the other side. Data on a link needs a junction collection you model ([relationship][payload-relationship], [join][payload-join]) | From 1.5: reference fields to one or several types, with typed data on each connection, a reverse field, an on-delete rule and a limit per target, defined in the admin UI ([relations](../extending-content.md)) |
 | APIs | REST, GraphQL and a Local API; API keys per auth collection ([API keys][payload-keys]) | JSON:API and GraphQL, both read and write, plus MCP; scoped API keys ([API overview](../api.md)) |
 | Access control | Functions you write, at collection, field and row level; no roles UI ([access control][payload-access]) | Declarative policies, plus custom roles and per-field grants in the admin UI ([RBAC](../granular-rbac.md)) |
 | Drafts, versions, scheduling | Built in ([drafts][payload-drafts]) | Built in ([content lifecycles](../content-lifecycles.md)) |
@@ -64,7 +65,7 @@ are the way in. See [content portability](../content-portability.md) and
 
 ## Sources
 
-All checked 2026-10-06.
+All checked 2026-10-06 unless marked otherwise.
 
 - [Payload licence][payload-license]
 - [Payload is joining Figma][payload-figma]
@@ -77,6 +78,8 @@ All checked 2026-10-06.
 - [Localization][payload-l10n]
 - [Live preview][payload-preview]
 - [Payload Cloud: new project][payload-new]
+- [Relationship field][payload-relationship] (checked 2026-10-18)
+- [Join field][payload-join] (checked 2026-10-18)
 
 [payload-license]: https://github.com/payloadcms/payload/blob/main/LICENSE.md
 [payload-figma]: https://payloadcms.com/blog/payload-is-joining-figma
@@ -89,6 +92,8 @@ All checked 2026-10-06.
 [payload-l10n]: https://payloadcms.com/docs/configuration/localization
 [payload-preview]: https://payloadcms.com/docs/live-preview/overview
 [payload-new]: https://payloadcms.com/new
+[payload-relationship]: https://payloadcms.com/docs/fields/relationship
+[payload-join]: https://payloadcms.com/docs/fields/join
 [kiln-license]: https://github.com/The-Verscienta/kiln_cms/blob/main/LICENSE
 [kiln-repo]: https://github.com/The-Verscienta/kiln_cms
 [kiln-changelog]: https://github.com/The-Verscienta/kiln_cms/blob/main/CHANGELOG.md

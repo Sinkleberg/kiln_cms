@@ -142,6 +142,11 @@ Every summary line below that was shortened links to its own entry there.
 
 ### Fixed
 
+- **GraphQL's `referencedBy(inverse:)` lists the connecting records on entries
+  of admin-defined types too; it returned an empty list there.**
+  ([long form](docs/changelog/unreleased.md#graphql-referenced-by-inverse-on-entries))
+
+
 - **An automation rule for "any content type" no longer fires when a content
   release is published; a rule scoped to `release` still does.**
   ([#1995](https://github.com/The-Verscienta/kiln_cms/issues/1995) · [long form](docs/changelog/unreleased.md#automation-any-type-rules-ignore-release-published))

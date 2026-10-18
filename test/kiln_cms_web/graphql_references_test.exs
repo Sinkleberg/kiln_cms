@@ -35,6 +35,12 @@ defmodule KilnCMSWeb.GraphqlReferencesTest do
 
   defp ref(record, type), do: %{"id" => record.id, "type" => type}
 
+  defp create_published!(type, attrs, admin) do
+    record = KilnCMS.CMS.ContentTypes.create!(type, Map.put(attrs, :slug, slug()), actor: admin)
+    {:ok, published} = KilnCMS.CMS.ContentTypes.transition(type, "publish", record, actor: admin)
+    published
+  end
+
   # A post field linking to pages and posts, many-valued.
   defp field!(admin) do
     name = "linked_#{System.unique_integer([:positive])}"
@@ -344,6 +350,53 @@ defmodule KilnCMSWeb.GraphqlReferencesTest do
 
       assert {:ok, %{data: %{"postBySlug" => %{"referencedBy" => []}}}} =
                run(query, %{"slug" => ctx.live_post.slug, "inverse" => ctx.inverse})
+    end
+
+    # Found by the end-to-end pass: AshGraphql selects only what the document
+    # asks for, so an Entry parent arrived without `type_definition_id` and
+    # `org_id`, its type could not be named, and the list was always empty.
+    test "names a dynamic type's reverse field on an entry", ctx do
+      n = System.unique_integer([:positive])
+      recipe = CMS.create_type_definition!(%{name: "rec#{n}", label: "Recipe"}, actor: ctx.admin)
+
+      ingredient =
+        CMS.create_type_definition!(%{name: "ing#{n}", label: "Ingredient"}, actor: ctx.admin)
+
+      CMS.create_field_definition!(
+        %{
+          type_definition_id: recipe.id,
+          name: "ingredients",
+          label: "Ingredients",
+          field_type: :reference,
+          target_type: ingredient.name,
+          multiple: true,
+          inverse_label: "Used in recipes"
+        },
+        actor: ctx.admin
+      )
+
+      flour = create_published!(ingredient.name, %{title: "Flour"}, ctx.admin)
+
+      cake =
+        create_published!(
+          recipe.name,
+          %{title: "Cake", custom_fields: %{"ingredients" => [flour.id]}},
+          ctx.admin
+        )
+
+      query = """
+      query ($slug: String!, $type: ID!) {
+        entryBySlug(slug: $slug, locale: "en", typeDefinitionId: $type) {
+          referencedBy(inverse: "used_in_recipes") { field source { id } }
+        }
+      }
+      """
+
+      assert {:ok, %{data: %{"entryBySlug" => %{"referencedBy" => rows}}}} =
+               run(query, %{"slug" => flour.slug, "type" => ingredient.id})
+
+      assert [%{"field" => "ingredients", "source" => %{"id" => id}}] = rows
+      assert id == cake.id
     end
 
     test "is not combined with field or sourceType", ctx do

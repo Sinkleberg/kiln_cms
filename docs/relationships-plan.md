@@ -1,16 +1,37 @@
 # Relationships — reaching Directus / Hygraph parity
 
-**Status:** decided, 2026-10-16. D22 and D23 are adopted, and open questions
-1–3 are answered (§7). On 2026-10-17 the plan took in what Toolset's
-relationship admin does that it lacked: R1b, "Add new" in the picker, and a
-relationship-first fields admin (R9). R0 shipped in
-[#1998](https://github.com/The-Verscienta/kiln_cms/pull/1998); R1, R2, R6, R7
-and R9's first parts are built too (their sections say where). Every workstream is
-**additive** under the 1.0 overlay contract (`docs/overlay-contract.md`): new
-field options, new API fields, new operators, new screens. Nothing reshapes a
-covered surface, so the whole plan ships in **1.5**, a minor release. The one change
-that would reshape something — making the edge the source of truth for a
-reference (D20 in its original form) — stays on 2.0, as
+**Status: built for 1.5** (2026-10-18). Every workstream R0–R10 is merged to
+`main` and checked end to end (§8). One part of R9 is still open: the
+relationship-first fields admin flow and related content through the picker,
+[#2025](https://github.com/The-Verscienta/kiln_cms/issues/2025). D22 and D23
+were adopted on 2026-10-16, and open questions 1–4 are answered (§7). On
+2026-10-17 the plan took in what Toolset's relationship admin does that it
+lacked: R1b, "Add new" in the picker, and a relationship-first fields admin
+(R9).
+
+| Workstream | Pull requests |
+|---|---|
+| R0 re-fire graph | [#1998](https://github.com/The-Verscienta/kiln_cms/pull/1998); follow-up masking unreadable targets [#2013](https://github.com/The-Verscienta/kiln_cms/pull/2013) |
+| R1 many-valued references | [#2000](https://github.com/The-Verscienta/kiln_cms/pull/2000) |
+| R1b target-side limit | [#2017](https://github.com/The-Verscienta/kiln_cms/pull/2017) |
+| R2 several target types | [#2004](https://github.com/The-Verscienta/kiln_cms/pull/2004) |
+| R3 link fields | [#2011](https://github.com/The-Verscienta/kiln_cms/pull/2011) |
+| R4 reverse fields (read) | [#2015](https://github.com/The-Verscienta/kiln_cms/pull/2015) |
+| R4b reverse fields (write) | [#2018](https://github.com/The-Verscienta/kiln_cms/pull/2018) |
+| R5 on-delete rule | [#2017](https://github.com/The-Verscienta/kiln_cms/pull/2017); nightly purge skips restricted records [#2022](https://github.com/The-Verscienta/kiln_cms/pull/2022) |
+| R6 relationship filters | [#2003](https://github.com/The-Verscienta/kiln_cms/pull/2003) |
+| R7 typed nested reads | [#2010](https://github.com/The-Verscienta/kiln_cms/pull/2010) |
+| R8 relationship writes | [#2014](https://github.com/The-Verscienta/kiln_cms/pull/2014) |
+| R9 editor UI | picker [#2002](https://github.com/The-Verscienta/kiln_cms/pull/2002), create and connect [#2005](https://github.com/The-Verscienta/kiln_cms/pull/2005); the admin and picker parts of R1b–R5 came in their own PRs; open: [#2025](https://github.com/The-Verscienta/kiln_cms/issues/2025) |
+| R10 graduation generator | [#2016](https://github.com/The-Verscienta/kiln_cms/pull/2016) |
+| The plan itself | [#1997](https://github.com/The-Verscienta/kiln_cms/pull/1997), [#2001](https://github.com/The-Verscienta/kiln_cms/pull/2001) |
+
+Every workstream is **additive** under the 1.0 overlay contract
+(`docs/overlay-contract.md`): new field options, new API fields, new
+operators, new screens. Nothing reshapes a covered surface, so the whole plan
+ships in **1.5**, a minor release. The one change that would reshape
+something — making the edge the source of truth for a reference (D20 in its
+original form) — stays on 2.0, as
 [content-organization-plan.md](content-organization-plan.md) §4 already says.
 
 **Goal:** an editor can model a many-to-many relationship from the admin UI —
@@ -27,9 +48,9 @@ query surface and the write surface on top of it.
 
 ---
 
-## 1. Where Kiln stands today
+## 1. Where Kiln stood before the plan
 
-What exists, read from the code on 2026-10-16:
+What existed, read from the code on 2026-10-16:
 
 | Mechanism | What it does | Limits |
 |---|---|---|
@@ -54,23 +75,26 @@ Two gaps found while reading, beyond the feature list:
 
 ## 2. The parity checklist
 
-| Capability | Directus | Hygraph | Kiln today | After this plan |
+"Kiln before" is Kiln on 2026-10-16, when the plan was written. The last
+column is what shipped in 1.5, with the workstream that built it.
+
+| Capability | Directus | Hygraph | Kiln before | Shipped in 1.5 |
 |---|---|---|---|---|
-| Many targets per field | ✅ | ✅ | ❌ | ✅ R1 |
-| Ordered targets | ✅ (sort field) | ✅ | edges have `position` | ✅ R1 |
-| Several target types in one field | M2A | union types | ❌ | ✅ R2 |
-| Data on the link | junction fields | ❌ (intermediate model) | untyped `metadata` | ✅ typed, R3 |
-| Reverse field on the other side | ✅ (O2M alias) | ✅ two-way refs | "Linked from" panel only | ✅ R4 |
-| Edit from the other side | ✅ | ✅ | ❌ | ✅ R4b (D23) |
-| On-delete rule per field | ✅ | partial | fixed | ✅ R5 |
-| Filter through a relation | `_some`/`_none` on deep filters | `_some`/`_every`/`_none` | `eq`/`in` on one reference id | ✅ R6 |
-| Nested reads through the link | `fields=tags.tags_id.*` | native GraphQL | one `include` level, edges by id | ✅ R7 |
-| Connect / disconnect / reorder writes | ✅ | ✅ with position | tags, related ids only | ✅ R8 |
-| Limit on the target side ("each Author on at most 3 Books") † | — | — | ❌ | ✅ R1b |
-| Create a new target from the picker and connect it | ✅ | ✅ | ❌ | ✅ R9 |
-| Fields admin speaks in relationships, not data types † | partial (relational wizard) | ✅ | type + options, plain wording since R1 | ✅ R9 |
-| Editor UI for all of the above | ✅ | ✅ | `<select>` | ✅ R9 |
-| A real junction table when you need one | auto-created | ❌ | hand-written resource | ✅ generator, R10 |
+| Many targets per field | ✅ | ✅ | ❌ | ✅ `multiple`, with `min_items` / `max_items` (R1) |
+| Ordered targets | ✅ (sort field) | ✅ | edges have `position` | ✅ list order is the edges' `position`; drag to reorder (R1, R9) |
+| Several target types in one field | M2A | union types | ❌ | ✅ `target_types` (R2); GraphQL `ContentRecord` interface (R7) |
+| Data on the link | junction fields | ❌ (intermediate model) | untyped `metadata` | ✅ typed link fields: text, number, boolean, date, URL, select (R3) |
+| Reverse field on the other side | ✅ (O2M alias) | ✅ two-way refs | "Linked from" panel only | ✅ `inverse_label` / `inverse_name`: a list on the target's page, GraphQL `referencedBy(inverse:)` (R4) |
+| Edit from the other side | ✅ | ✅ | ❌ | ✅ connect, disconnect, reorder from the target, as an edit of the source; held in a published source's working copy (R4b, D23) |
+| On-delete rule per field | ✅ | partial | fixed | ✅ `on_target_delete`: keep, clear or restrict, applied on purge (R5) |
+| Filter through a relation | `_some`/`_none` on deep filters | `_some`/`_every`/`_none` | `eq`/`in` on one reference id | ✅ `custom_filter` `has` / `has_all` / `has_none` / `count`, and on link data (`field.link.name`); also on `tags` and `related_<type>s` (R6, R3) |
+| Nested reads through the link | `fields=tags.tags_id.*` | native GraphQL | one `include` level, edges by id | ✅ GraphQL `references` / `referencedBy`; JSON:API through the delivery API's `?expand=` (R7) |
+| Connect / disconnect / reorder writes | ✅ | ✅ with position | tags, related ids only | ✅ GraphQL `add…References` / `remove…References` / `move…Reference` with Hygraph's positions; JSON:API `PATCH` of the list; payload-link routes (R8) |
+| Limit on the target side ("each Author on at most 3 Books") † | — | — | ❌ | ✅ `max_sources`, checked under a lock; the picker shows a full target as full (R1b) |
+| Create a new target from the picker and connect it | ✅ | ✅ | ❌ | ✅ "Add new *Type*" (R9) |
+| Fields admin speaks in relationships, not data types † | partial (relational wizard) | ✅ | type + options, plain wording since R1 | partial: every option in plain words, with a summary sentence; the relationship-first flow is [#2025](https://github.com/The-Verscienta/kiln_cms/issues/2025) |
+| Editor UI for all of the above | ✅ | ✅ | `<select>` | ✅ search picker, type badges, drag to reorder, link inputs per row, reverse list (R9 and each workstream) |
+| A real junction table when you need one | auto-created | ❌ | hand-written resource | ✅ `mix kiln.gen.join` and `mix kiln.join.retire`, one target type per field (R10) |
 | Remote / federated sources | ❌ | Remote Sources | ❌ | out of scope, §6 |
 
 † These rows come from Toolset's relationship admin for WordPress, which the
@@ -79,9 +103,9 @@ asks "one or many?" for both sides, limits on both sides of a many-to-many,
 and a way to add a new related post without leaving the one being edited.
 "—" means neither Directus nor Hygraph offers it as a field option.
 
-Kiln already leads both on: link payloads (vs Hygraph), the both-ends read
-gate, re-fire on reference change (once R0 lands), and owning the database
-(vs Hygraph).
+Kiln leads both on: link payloads (vs Hygraph), the both-ends read gate,
+re-fire on reference change (R0), a cap on the target side (R1b), and owning
+the database (vs Hygraph).
 
 ## 3. Decisions
 
@@ -126,6 +150,8 @@ Each is one issue and, unless noted, one PR. Order is §5.
 
 ### R0 — References join the re-fire graph (bug fix)
 
+**Built** in [#1998](https://github.com/The-Verscienta/kiln_cms/pull/1998); the read-side masking follow-up below in [#2013](https://github.com/The-Verscienta/kiln_cms/pull/2013).
+
 - `Firing.References.rebuild/4` adds `{target_type, id}` for every live
   `:reference` custom-field value (single or list), next to
   `document_media_refs/1`. The snapshot carries `"type"`; map it through
@@ -149,6 +175,8 @@ Each is one issue and, unless noted, one PR. Order is §5.
   the new title; a reference cycle terminates (existing `visited` set).
 
 ### R1 — Many-valued references
+
+**Built** in [#2000](https://github.com/The-Verscienta/kiln_cms/pull/2000).
 
 - Allow `multiple: true` on `:reference` (today `Changes.ClearMultiple` clears
   it for anything but `:media`). Stored value: an ordered list of snapshots —
@@ -224,12 +252,14 @@ target is a scarce thing — a slot, a seat, a featured position.
 - **Editor.** In the picker (R9), a full target is listed but disabled with
   "Full — 3 of 3 connected", so an editor sees why it can't be picked rather
   than finding it missing. On the target's own page the reverse field (R4)
-  shows "3 of 3" beside its heading, and once R4b lands its add control is
-  disabled while the target is full.
+  shows "3 of 3" beside its heading, and R4b's add control gives way to
+  "Full — 3 of 3 connected" while the target is full.
 - `SchemaExport` reports `max_sources`. Additive: a new option and a new
   validation on a field that did not have it.
 
 ### R2 — References to several types (polymorphic)
+
+**Built** in [#2004](https://github.com/The-Verscienta/kiln_cms/pull/2004).
 
 - New `target_types` (list of type names) beside `target_type`. Exactly one
   of the two is set; `target_type` keeps its meaning and stays the documented
@@ -243,7 +273,7 @@ target is a scarce thing — a slot, a seat, a featured position.
 
 ### R3 — Typed link data ("link fields")
 
-**Built** in the R3 PR. What it settled beyond the bullets below:
+**Built** in [#2011](https://github.com/The-Verscienta/kiln_cms/pull/2011). What it settled beyond the bullets below:
 
 - **Plain types only.** A link field is one of `:string`, `:text`,
   `:integer`, `:float`, `:boolean`, `:date`, `:datetime`, `:url`, `:select`
@@ -284,7 +314,7 @@ target is a scarce thing — a slot, a seat, a featured position.
 
 ### R4 — Reverse fields (read)
 
-**Built** in the R4 PR. What it settled beyond the bullets below:
+**Built** in [#2015](https://github.com/The-Verscienta/kiln_cms/pull/2015). What it settled beyond the bullets below:
 
 - **Names.** `inverse_label` is what the target's editor shows;
   `inverse_name` is the machine name, suggested from the label when blank
@@ -315,7 +345,7 @@ target is a scarce thing — a slot, a seat, a featured position.
 
 ### R4b — Reverse fields (write) — per D23
 
-**Built** in the R4b PR. What it settled beyond the bullets below:
+**Built** in [#2018](https://github.com/The-Verscienta/kiln_cms/pull/2018). What it settled beyond the bullets below:
 
 - **One click, one source.** `ReverseFields.connect/4`, `disconnect/4` and
   `move/5` edit the field's items as the source's editor shows them (the
@@ -337,7 +367,10 @@ target is a scarce thing — a slot, a seat, a featured position.
   and nothing of the working copy.
 - **Adding** reuses the R9 picker with `rows: false` and `notify:`, so search
   and "Add new *Type*" work as they do on the source side. R1b's cap
-  (`max_sources`) applies through the source's own update when it lands.
+  (`max_sources`) applies through the source's own update. A connection
+  held in a published source's working copy takes no slot until it is
+  published, and its *Publish changes* is refused if the target filled up
+  in the meantime.
 
 - Add/remove/reorder from the target side issues `update` on each affected
   source record (array append/remove in its `custom_fields`), as the editor's
@@ -454,7 +487,7 @@ Anonymous and editor readers are within noise of each other.
 
 ### R7 — Typed nested reads
 
-**Built** in the R7 PR. GraphQL as below. JSON:API took the `?expand=`
+**Built** in [#2010](https://github.com/The-Verscienta/kiln_cms/pull/2010). GraphQL as below. JSON:API took the `?expand=`
 fallback; the spike's outcome is under the JSON:API bullet and in §7 Q1.
 
 - **GraphQL.** Every content type gets `references(field: String!, limit,
@@ -507,7 +540,7 @@ fallback; the spike's outcome is under the JSON:API bullet and in §7 Q1.
 
 ### R8 — Relationship writes
 
-**Built** in the R8 PR. What it settled beyond the bullets below:
+**Built** in [#2014](https://github.com/The-Verscienta/kiln_cms/pull/2014). What it settled beyond the bullets below:
 
 - **Per-type names.** The mutations follow AshGraphql's naming, as
   `updatePost` does: `addPostReferences`, `removePostReferences`,
@@ -546,6 +579,18 @@ fallback; the spike's outcome is under the JSON:API bullet and in §7 Q1.
   [content-organization-plan.md](content-organization-plan.md).
 
 ### R9 — Editor UI
+
+**Built in part.** The picker is [#2002](https://github.com/The-Verscienta/kiln_cms/pull/2002) and create-and-connect is
+[#2005](https://github.com/The-Verscienta/kiln_cms/pull/2005). Each of R1b, R2, R3, R4, R4b and R5 added its own piece of
+the picker and the fields admin: the "Full" state, type badges, link inputs,
+the reverse list, and the options' wording. Two parts were not built and are
+open in [#2025](https://github.com/The-Verscienta/kiln_cms/issues/2025):
+
+- the relationship-first fields admin flow, which names both sides first and
+  then asks how many on each. In 1.5 each option is worded in plain language
+  inside the ordinary field form, and the field list sums the field up in a
+  sentence;
+- related content (`related_<type>s`) through the same picker.
 
 - Replace the reference `<select>` with a picker component: search-as-you-type
   across the allowed target types (server-side, no 500 cap), type badges,
@@ -590,7 +635,7 @@ fallback; the spike's outcome is under the JSON:API bullet and in §7 Q1.
 
 ### R10 — Graduation generator
 
-**Built** in the R10 PR. How to use it is in
+**Built** in [#2016](https://github.com/The-Verscienta/kiln_cms/pull/2016). How to use it is in
 [extending-content.md](extending-content.md), "When to use a dedicated join
 resource". What the PR settled beyond the bullets below:
 
@@ -676,9 +721,10 @@ files: R6 (query preparation), R2 → R7 (field validation, GraphQL schema),
 R1b (the write-time check in `ContentLinks`), and R9 (editor). R3 → R4 → R4b, R8, R5 and R10 follow R3. R0 is independent of
 everything else.
 
-With 1.5, Kiln matches Directus and Hygraph on every row of §2 except
-federation, goes beyond Hygraph on link data, and offers a graduation path
-to a real join table that neither of them has.
+As shipped, 1.5 matches Directus and Hygraph on every row of §2 except two:
+federation (out of scope) and the fields admin's relationship-first flow
+(#2025). It goes beyond Hygraph on link data. Its graduation path from an
+admin-defined field to a typed join table is something neither of them has.
 
 ## 6. Out of scope
 
@@ -722,3 +768,50 @@ Answered on 2026-10-17:
    `has`/`has_all`/`has_none` are index probes and need no cap; `count` costs
    about 5 µs per record scanned (100 ms for 20,000 records over 600k edges)
    and ships paginated without a further cap.
+
+## 8. End-to-end check (2026-10-18)
+
+Each workstream was tested on its own. After R8 merged, one pass walked the
+whole feature on `main`, in a browser, the way an admin who isn't a
+developer would. It is kept as `e2e/tests/relationships_journey.spec.js`:
+
+- **Fields admin.** A *Recipe* type gets an *Ingredients* field that links to
+  two types (*Ingredient*, *Spice*), with `multiple`, the inverse label "Used
+  in recipes", `max_sources` 2, `on_target_delete` restrict, and link fields
+  *Quantity* (integer) and *Role* (text).
+- **Source side.** Two records of different types are picked, link values are
+  filled in, and they survive a save and a reload.
+- **Target side (R4/R4b).** *Flour* shows the reverse list with link data and
+  "1 of 2". Connecting a published recipe holds the change in its working
+  copy and shows it as pending, and the slot count does not change.
+  Connecting a draft recipe fills the target ("Full — 2 of 2").
+- **The cap (R1b).** The published recipe's *Publish changes* is then
+  refused ("… is full"). Another recipe's picker lists *Flour* as full. An
+  API add to the full target is refused too.
+- **On delete (R5).** Purging a connected *Spice* under `:restrict` is
+  refused, with a message naming the field. After the rule is switched to
+  `:clear`, the purge goes through and the spice is gone from the recipe.
+- **APIs**, with a key minted in the admin. JSON:API `custom_filter` `has`,
+  `has_none`, `count` and link-field filters; delivery `?expand=` with link
+  data and the target's artifact; GraphQL `references` and
+  `referencedBy(inverse:)`; `addEntryReferences` at `start`,
+  `moveEntryReference` `after`.
+- **Graduation (R10), in a scratch checkout.** The two-type field is refused
+  with a message saying why. A one-type field with link fields goes through
+  all three steps: the resource and its table, the copy (3 of 3 connections,
+  link values typed), and retirement, which removes the field, its values
+  and its edges and keeps the join rows.
+
+What it found:
+
+- `referencedBy(inverse:)` returned nothing on dynamic-type entries.
+  AshGraphql loads only the attributes a document selects, so the entry's
+  type could not be named. Fixed in the same PR, with a test.
+- `mix kiln.gen.join` does not carry `on_target_delete` or `max_sources`
+  over to the join resource:
+  [#2024](https://github.com/The-Verscienta/kiln_cms/issues/2024).
+- Copy in the fields admin and the reverse picker puts "a"/"A" before a type
+  label ("A Ingredient …"):
+  [#2023](https://github.com/The-Verscienta/kiln_cms/issues/2023).
+- R9's relationship-first admin flow and the related-content picker were
+  never built: [#2025](https://github.com/The-Verscienta/kiln_cms/issues/2025).
