@@ -4,8 +4,9 @@
 databases, permissions, relationships, collaborative editing, workflows and
 pricing, with sources and a check date on every claim. -->
 
-> **Facts checked 2026-10-06; relationships checked 2026-10-18.** Review
-> owner: the Kiln maintainers. The sources are listed [at the end](#sources). See
+> **Facts checked 2026-10-06.** Review owner: the Kiln maintainers. The
+> sources are listed [at the end](#sources). The relationships facts were
+> added on 2026-10-18, with their sources. See
 > [how these pages stay honest](how-kiln-compares.md#how-these-pages-stay-honest).
 
 Directus is a data platform first. Point it at an SQL database and it turns the
@@ -92,7 +93,7 @@ API are the way in. See [content portability](../content-portability.md) and
 
 ## Sources
 
-All checked 2026-10-06 unless marked otherwise.
+All checked 2026-10-06.
 
 - [Directus licence][directus-license]
 - [v12.0.0 release notes][directus-12]
@@ -103,13 +104,16 @@ All checked 2026-10-06 unless marked otherwise.
 - [Directus releases][directus-releases]
 - [Getting started overview][directus-overview]
 - [Access control][directus-access]
-- [Relationships][directus-relations] (checked 2026-10-18)
-- [Interfaces][directus-interfaces] (checked 2026-10-18)
-- [Fields][directus-fields] (checked 2026-10-18)
-- [Filter rules][directus-filters] (checked 2026-10-18)
-- [Global query parameters][directus-query] (checked 2026-10-18)
 - [Collaborative editing][directus-collab]
 - [Scheduling content with Flows][directus-schedule]
+
+Added 2026-10-18, for the relationships facts:
+
+- [Relationships][directus-relations]
+- [Interfaces][directus-interfaces]
+- [Fields][directus-fields]
+- [Filter rules][directus-filters]
+- [Global query parameters][directus-query]
 
 [directus-license]: https://github.com/directus/directus/blob/main/license
 [directus-12]: https://github.com/directus/directus/releases/tag/v12.0.0

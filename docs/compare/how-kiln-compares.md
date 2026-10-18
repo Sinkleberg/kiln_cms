@@ -4,9 +4,9 @@
 Ghost, Strapi, Payload and Directus, plus step-by-step migration guides from
 WordPress and Ghost. -->
 
-> **Facts checked 2026-10-06; the relationships row checked 2026-10-18.**
-> Review owner: the Kiln maintainers
-> ([@The-Verscienta](https://github.com/The-Verscienta)).
+> **Facts checked 2026-10-06.** Review owner: the Kiln maintainers
+> ([@The-Verscienta](https://github.com/The-Verscienta)). The relationships
+> row was added on 2026-10-18.
 
 These pages compare Kiln with the systems people most often weigh it against.
 Each page says where the other system is the better choice, as well as where

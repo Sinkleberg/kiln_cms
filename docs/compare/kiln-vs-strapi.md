@@ -4,8 +4,9 @@
 roles, review workflows, localization and cloud pricing, with sources and a
 check date on every claim. -->
 
-> **Facts checked 2026-10-06; relationships checked 2026-10-18.** Review
-> owner: the Kiln maintainers. The sources are listed [at the end](#sources). See
+> **Facts checked 2026-10-06.** Review owner: the Kiln maintainers. The
+> sources are listed [at the end](#sources). The relationships facts were
+> added on 2026-10-18, with their sources. See
 > [how these pages stay honest](how-kiln-compares.md#how-these-pages-stay-honest).
 
 Strapi is the best-known open-source headless CMS. You model content in its
@@ -64,14 +65,13 @@ are the way in. See [content portability](../content-portability.md) and
 
 ## Sources
 
-All checked 2026-10-06 unless marked otherwise.
+All checked 2026-10-06.
 
 - [Strapi licence][strapi-license]
 - [Database configuration][strapi-db]
 - [Strapi releases][strapi-releases]
 - [API tokens][strapi-tokens]
 - [Content-Type Builder][strapi-ctb]
-- [Models][strapi-models] (checked 2026-10-18)
 - [RBAC][strapi-rbac]
 - [Review workflows][strapi-review]
 - [Content history][strapi-history]
@@ -81,6 +81,10 @@ All checked 2026-10-06 unless marked otherwise.
 - [Internationalization][strapi-i18n]
 - [Strapi Cloud pricing][strapi-cloud]
 - [Self-hosted pricing][strapi-self]
+
+Added 2026-10-18, for the relationships facts:
+
+- [Models][strapi-models]
 
 [strapi-license]: https://github.com/strapi/strapi/blob/develop/LICENSE
 [strapi-db]: https://docs.strapi.io/cms/configurations/database

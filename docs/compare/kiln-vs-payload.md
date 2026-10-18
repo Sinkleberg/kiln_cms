@@ -4,8 +4,9 @@
 Next.js, databases, access control, workflows and hosting, with sources and a
 check date on every claim. -->
 
-> **Facts checked 2026-10-06; relationships checked 2026-10-18.** Review
-> owner: the Kiln maintainers. The sources are listed [at the end](#sources). See
+> **Facts checked 2026-10-06.** Review owner: the Kiln maintainers. The
+> sources are listed [at the end](#sources). The relationships facts were
+> added on 2026-10-18, with their sources. See
 > [how these pages stay honest](how-kiln-compares.md#how-these-pages-stay-honest).
 
 Payload and Kiln are the closest pair on this list in philosophy. Both are
@@ -65,7 +66,7 @@ are the way in. See [content portability](../content-portability.md) and
 
 ## Sources
 
-All checked 2026-10-06 unless marked otherwise.
+All checked 2026-10-06.
 
 - [Payload licence][payload-license]
 - [Payload is joining Figma][payload-figma]
@@ -78,8 +79,11 @@ All checked 2026-10-06 unless marked otherwise.
 - [Localization][payload-l10n]
 - [Live preview][payload-preview]
 - [Payload Cloud: new project][payload-new]
-- [Relationship field][payload-relationship] (checked 2026-10-18)
-- [Join field][payload-join] (checked 2026-10-18)
+
+Added 2026-10-18, for the relationships facts:
+
+- [Relationship field][payload-relationship]
+- [Join field][payload-join]
 
 [payload-license]: https://github.com/payloadcms/payload/blob/main/LICENSE.md
 [payload-figma]: https://payloadcms.com/blog/payload-is-joining-figma
