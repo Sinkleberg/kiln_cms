@@ -379,6 +379,10 @@ target is a scarce thing — a slot, a seat, a featured position.
   *Publish changes* is then refused by the usual "not found" check.
 - The trash names the field and the count when a purge is refused, and
   "Empty trash" reports the records it kept.
+- The nightly purge of old trash reads through `:purgeable`
+  (`Preparations.SkipRestrictedTargets`), which leaves out the records a
+  `:restrict` field still links to, so it never schedules a purge that would
+  only be refused; such a record waits in the trash until it is unlinked.
 
 - New option `on_target_delete`: `:keep` (today's behaviour, default),
   `:clear` (purging a target removes it from every referrer's value, as a

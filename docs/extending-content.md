@@ -153,8 +153,9 @@ UI" workflow, scoped to fields.
   refuses the purge while any record connects through the field; the trash
   explains why and what to do. All three act on the **permanent** delete
   only: moving a record to the trash keeps every connection, so restoring it
-  needs nothing. The nightly purge of old trash is refused the same way, so a
-  restricted record stays in the trash until it is unlinked. In the fields
+  needs nothing. The nightly purge of old trash leaves a restricted record
+  out (the content types' `:purgeable` read), so it stays in the trash,
+  without a failed job each night, until it is unlinked. In the fields
   admin the rule is asked as "When a linked *Type* is deleted for good…";
   the schema export reports a non-default rule as
   `x-kiln-on-target-delete`. Both options clear on any field type but
