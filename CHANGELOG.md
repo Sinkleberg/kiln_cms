@@ -89,6 +89,10 @@ Every summary line below that was shortened links to its own entry there.
   result live on your own content.**
   ([#2006](https://github.com/The-Verscienta/kiln_cms/pull/2006) · [long form](docs/changelog/unreleased.md#computed-field-builder))
 
+- **A computed field can read another computed field: `{{ sum(subtotal,
+  shipping) }}` over a computed `subtotal`.**
+  ([#2008](https://github.com/The-Verscienta/kiln_cms/pull/2008) · [long form](docs/changelog/unreleased.md#a-computed-field-can-read-another-computed-field-sumsubtotal-shipping-over-a))
+
 - **kilncms.dev now publishes Kiln's security policy at `/security`, and a
   security notice per published GitHub advisory at
   `/security-notices/<ghsa-id>`, with a feed.**
