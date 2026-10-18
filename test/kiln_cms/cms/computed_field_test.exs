@@ -257,8 +257,9 @@ defmodule KilnCMS.CMS.ComputedFieldTest do
       page = CMS.create_page!(%{title: "Chained", slug: slug()}, actor: actor)
 
       assert page.custom_fields[first.name] == "chained"
-      # Deliberate: one pass, so the second sees nothing for the first.
-      assert page.custom_fields[second.name] == "prefix-"
+      # Deliberate: one pass, so the second sees nothing for the first — and
+      # a template whose only expression is blank is blank itself.
+      refute Map.has_key?(page.custom_fields, second.name)
     end
   end
 

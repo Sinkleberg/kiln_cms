@@ -57,24 +57,58 @@ defmodule KilnCMS.CMS.Computed do
   | `truncate(text, n)` | `text` cut to `n` characters, ellipsized |
   | `concat(a, b, …)` | the arguments stringified and joined |
   | `join(sep, a, b, …)` | the non-blank arguments joined by `sep` |
-  | `sum/product/min/max(a, b, …)` | over the numeric arguments (non-numbers ignored) |
+  | `sum/min/max(a, b, …)` | over the numeric arguments (non-numbers ignored) |
+  | `product(a, b, …)` | the arguments multiplied — `nil` unless every one is numeric |
   | `subtract(a, b)` / `divide(a, b)` | `nil` if either side isn't numeric (or on divide by zero) |
   | `round(n)` / `round(n, precision)` | `n` rounded |
+  | `replace(text, find, replacement)` | every `find` in `text` replaced |
+  | `if(condition, then)` / `if(condition, then, otherwise)` | `then` when `condition` holds, else `otherwise` (or blank) |
+  | `equals/greater_than/less_than(a, b)` | a boolean; numbers compare as numbers, text ignoring case |
+  | `contains(text, part)` | whether `part` occurs in `text`, ignoring case |
+  | `is_empty(value)` / `not(condition)` | a boolean |
+  | `and/or(a, b, …)` | a boolean over the arguments' truthiness |
   | `default(a, b)` | `a` unless blank, else `b` |
+  | `days_between(start, end)` | whole days from `start` to `end` (ISO dates or datetimes) |
+  | `year(date)` | the date's year |
+  | `format_date(date, pattern)` | the date through `Calendar.strftime/2` |
+
+  A condition holds unless it is blank, `false`, `0`, the text `"false"`, or an
+  empty list or map, so an unticked boolean field and an empty one both read as
+  "no". A list or map value (a gallery, a reference) is empty only when it
+  holds nothing.
+
+  An interpolated template whose expressions **all** come out blank is blank
+  itself: `{{ size }} EU` on a record without a size has no value, rather than
+  the value "EU".
+
+  There is deliberately no `today()`: a formula is evaluated on write *and*
+  re-evaluated on fire, and a clock would make the stored value and the fired
+  one disagree on any day but the one the record was saved.
 
   Evaluation is **total**: every function returns a value or `nil`, and
   `evaluate/2` never raises — a computed field can't make a document
   unsaveable.
   """
+  use Gettext, backend: KilnCMSWeb.Gettext
+
   require Logger
 
   alias KilnCMS.Slug
 
-  @typedoc "A parsed template: literal text and expression segments, in order."
-  @opaque template :: [{:text, String.t()} | {:expr, term()}]
+  @typedoc """
+  A parsed template: literal text and expression segments, in order. Public
+  rather than opaque because `KilnCMS.CMS.Computed.Recipes` recognizes a
+  recipe by the shape of its parse.
+  """
+  @type template :: [{:text, String.t()} | {:expr, ast()}]
+
+  @typedoc "One parsed expression: a literal, a reference, or a call."
+  @type ast ::
+          {:lit, String.t() | number()} | {:ref, String.t()} | {:call, String.t(), [ast()]}
 
   # Allowed function names → allowed arities (`:variadic` for any count ≥ 1).
   # The allowlist *is* the sandbox: a name that isn't here fails to parse.
+  # `catalog/0` carries the wording the formula builder shows for each one.
   @functions %{
     "word_count" => [1],
     "char_count" => [1],
@@ -85,16 +119,29 @@ defmodule KilnCMS.CMS.Computed do
     "capitalize" => [1],
     "trim" => [1],
     "truncate" => [2],
+    "replace" => [3],
     "concat" => :variadic,
     "join" => :variadic,
     "sum" => :variadic,
-    "product" => :variadic,
-    "min" => :variadic,
-    "max" => :variadic,
     "subtract" => [2],
+    "product" => :variadic,
     "divide" => [2],
     "round" => [1, 2],
-    "default" => [2]
+    "min" => :variadic,
+    "max" => :variadic,
+    "if" => [2, 3],
+    "equals" => [2],
+    "greater_than" => [2],
+    "less_than" => [2],
+    "contains" => [2],
+    "is_empty" => [1],
+    "and" => :variadic,
+    "or" => :variadic,
+    "not" => [1],
+    "default" => [2],
+    "days_between" => [2],
+    "year" => [1],
+    "format_date" => [2]
   }
 
   # Document scalars a formula may reference by bare name. `body` is the block
@@ -115,6 +162,148 @@ defmodule KilnCMS.CMS.Computed do
   @doc "The function names a template may call."
   @spec functions() :: [String.t()]
   def functions, do: @functions |> Map.keys() |> Enum.sort()
+
+  @doc """
+  Every callable function with the wording the formula builder shows: its
+  `signature`, a one-line `summary`, and a `category` (`:text`, `:numbers`,
+  `:logic`, `:dates`), in the order the builder lists them. The arities come
+  from the allowlist itself, so the builder can't offer a call the parser
+  refuses.
+  """
+  @spec catalog() :: [
+          %{
+            name: String.t(),
+            arities: [non_neg_integer()] | :variadic,
+            category: atom(),
+            signature: String.t(),
+            summary: String.t()
+          }
+        ]
+  def catalog do
+    [
+      entry("word_count", :text, "word_count(text)", gettext("How many words the text has.")),
+      entry(
+        "char_count",
+        :text,
+        "char_count(text)",
+        gettext("How many characters the text has.")
+      ),
+      entry(
+        "reading_time",
+        :text,
+        "reading_time(text, words_per_minute?)",
+        gettext("Whole minutes it takes to read the text.")
+      ),
+      entry(
+        "slugify",
+        :text,
+        "slugify(text)",
+        gettext("The text as a URL-safe slug: \"Hello World\" → hello-world.")
+      ),
+      entry("upcase", :text, "upcase(text)", gettext("The text in CAPITALS.")),
+      entry("downcase", :text, "downcase(text)", gettext("The text in lower case.")),
+      entry(
+        "capitalize",
+        :text,
+        "capitalize(text)",
+        gettext("The text with its first letter capitalized.")
+      ),
+      entry("trim", :text, "trim(text)", gettext("The text without leading or trailing spaces.")),
+      entry(
+        "truncate",
+        :text,
+        "truncate(text, length)",
+        gettext("The text cut to a number of characters, with … when it was cut.")
+      ),
+      entry(
+        "replace",
+        :text,
+        "replace(text, find, replacement)",
+        gettext("The text with every occurrence of find replaced.")
+      ),
+      entry(
+        "concat",
+        :text,
+        "concat(a, b, …)",
+        gettext("The values joined together with nothing between them.")
+      ),
+      entry(
+        "join",
+        :text,
+        "join(separator, a, b, …)",
+        gettext("The values that aren't empty, joined by the separator.")
+      ),
+      entry(
+        "sum",
+        :numbers,
+        "sum(a, b, …)",
+        gettext("The values added up. Values that aren't numbers are skipped.")
+      ),
+      entry("subtract", :numbers, "subtract(a, b)", gettext("a minus b.")),
+      entry("product", :numbers, "product(a, b, …)", gettext("The values multiplied together.")),
+      entry("divide", :numbers, "divide(a, b)", gettext("a divided by b. Empty when b is zero.")),
+      entry(
+        "round",
+        :numbers,
+        "round(number, decimals?)",
+        gettext("The number rounded, to a whole number or to some decimal places.")
+      ),
+      entry("min", :numbers, "min(a, b, …)", gettext("The smallest of the numbers.")),
+      entry("max", :numbers, "max(a, b, …)", gettext("The largest of the numbers.")),
+      entry(
+        "if",
+        :logic,
+        "if(condition, then, otherwise?)",
+        gettext("then when the condition holds, otherwise the third value (or empty).")
+      ),
+      entry(
+        "equals",
+        :logic,
+        "equals(a, b)",
+        gettext("Whether a and b are the same. Text is compared ignoring case.")
+      ),
+      entry("greater_than", :logic, "greater_than(a, b)", gettext("Whether a is more than b.")),
+      entry("less_than", :logic, "less_than(a, b)", gettext("Whether a is less than b.")),
+      entry(
+        "contains",
+        :logic,
+        "contains(text, part)",
+        gettext("Whether the text contains part, ignoring case.")
+      ),
+      entry("is_empty", :logic, "is_empty(value)", gettext("Whether the value is empty.")),
+      entry("and", :logic, "and(a, b, …)", gettext("Whether every condition holds.")),
+      entry("or", :logic, "or(a, b, …)", gettext("Whether at least one condition holds.")),
+      entry("not", :logic, "not(condition)", gettext("The opposite of the condition.")),
+      entry(
+        "default",
+        :logic,
+        "default(value, fallback)",
+        gettext("The value, or the fallback when the value is empty.")
+      ),
+      entry(
+        "days_between",
+        :dates,
+        "days_between(start, end)",
+        gettext("Days from the start date to the end date.")
+      ),
+      entry("year", :dates, "year(date)", gettext("The year of a date.")),
+      entry(
+        "format_date",
+        :dates,
+        "format_date(date, pattern)",
+        gettext("The date written out: \"%B %-d, %Y\" → October 17, 2026.")
+      )
+    ]
+  end
+
+  defp entry(name, category, signature, summary),
+    do: %{
+      name: name,
+      arities: Map.fetch!(@functions, name),
+      category: category,
+      signature: signature,
+      summary: summary
+    }
 
   @doc "The document scalars a template may reference by bare name."
   @spec document_refs() :: [String.t()]
@@ -153,37 +342,74 @@ defmodule KilnCMS.CMS.Computed do
   # the reason a document can't be saved — so a raise anywhere below blanks the
   # value and leaves a trail instead of propagating.
   def evaluate(source, context) do
+    case evaluate_checked(source, context) do
+      {:ok, value} ->
+        value
+
+      {:error, {:parse, _message}} ->
+        nil
+
+      {:error, {:raised, message}} ->
+        Logger.warning("computed field evaluation failed: #{message}")
+        nil
+    end
+  end
+
+  @doc """
+  `evaluate/2`, but saying *why* there is no value: `{:error, {:parse,
+  message}}` for a template that doesn't parse, `{:error, {:raised, message}}`
+  for one that parses and then fails on this document (a date pattern asking a
+  date for its hour). The formula builder's preview shows either instead of
+  calling the field empty; the write and fire paths go through `evaluate/2`,
+  which blanks both.
+  """
+  @spec evaluate_checked(template() | String.t(), map()) ::
+          {:ok, term()} | {:error, {:parse | :raised, String.t()}}
+  def evaluate_checked(source, context) do
     case template(source) do
-      {:ok, template} -> run(template, context)
-      :error -> nil
+      {:ok, template} -> {:ok, run(template, context)}
+      {:error, message} -> {:error, {:parse, message}}
     end
   rescue
-    error ->
-      Logger.warning("computed field evaluation failed: #{Exception.message(error)}")
-      nil
+    error -> {:error, {:raised, Exception.message(error)}}
   end
 
   defp template(source) when is_list(source), do: {:ok, source}
-
-  defp template(source) do
-    case parse(source) do
-      {:ok, template} -> {:ok, template}
-      {:error, _message} -> :error
-    end
-  end
+  defp template(source), do: parse(source)
 
   defp run([{:expr, ast}], context), do: ast |> eval(context) |> blank_to_nil() |> bounded()
 
+  # Interpolation. When **every** expression comes out absent, so does the
+  # value: the literal text around them is a label for a value, not a value.
+  # Without this, `{{ days_between(start, end) }} days` on a record with no
+  # dates stores "days", and `Size {{ size }} EU` stores "Size  EU" — junk that
+  # search, `custom_filter` and delivery all treat as a real value.
   defp run(template, context) do
-    template
-    |> Enum.map_join("", fn
-      {:text, text} -> text
-      {:expr, ast} -> ast |> eval(context) |> stringify()
-    end)
-    |> String.trim()
-    |> blank_to_nil()
-    |> bounded()
+    values = for {:expr, ast} <- template, do: eval(ast, context)
+
+    if Enum.all?(values, &absent?/1) do
+      nil
+    else
+      template
+      |> Enum.map_reduce(values, fn
+        {:text, text}, values -> {text, values}
+        {:expr, _ast}, [value | values] -> {stringify(value), values}
+      end)
+      |> elem(0)
+      |> Enum.join()
+      |> String.trim()
+      |> blank_to_nil()
+      |> bounded()
+    end
   end
+
+  # No value at all — unlike `blank?/1`, `false` and `0` are values here: a
+  # template interpolating an unticked boolean still says so.
+  defp absent?(nil), do: true
+  defp absent?(value) when is_binary(value), do: String.trim(value) == ""
+  defp absent?(value) when is_list(value), do: value == []
+  defp absent?(value) when is_map(value), do: map_size(value) == 0
+  defp absent?(_value), do: false
 
   # Backstop on the derived value's size, for the paths `bounded_join/2` doesn't
   # cover (`{{ body }}` on a huge document, interpolation of several fields).
@@ -449,7 +675,17 @@ defmodule KilnCMS.CMS.Computed do
   end
 
   defp call("sum", args), do: reduce_numbers(args, &(&1 + &2))
-  defp call("product", args), do: reduce_numbers(args, &(&1 * &2))
+  # Unlike the sum, a product with a missing factor has no answer: price ×
+  # (no quantity) is not the price, and `product(divide(part, 0), 100)` is not
+  # 100. Every argument must be numeric.
+  defp call("product", args) do
+    numbers = Enum.map(args, &number/1)
+
+    if Enum.all?(numbers, &match?({:ok, _}, &1)),
+      do: numbers |> Enum.map(fn {:ok, n} -> n end) |> Enum.reduce(&(&1 * &2)),
+      else: nil
+  end
+
   defp call("min", args), do: reduce_numbers(args, &Kernel.min/2)
   defp call("max", args), do: reduce_numbers(args, &Kernel.max/2)
 
@@ -489,8 +725,110 @@ defmodule KilnCMS.CMS.Computed do
 
   defp call("default", [value, fallback]), do: if(blank?(value), do: fallback, else: value)
 
-  # `sum`/`product`/`min`/`max` ignore arguments that aren't numeric — an unset
-  # optional price should not blank out the total.
+  defp call("replace", [text, find, replacement]) do
+    case stringify(find) do
+      "" -> stringify(text)
+      pattern -> bounded_replace(stringify(text), pattern, stringify(replacement))
+    end
+  end
+
+  defp call("if", [condition, then]), do: call("if", [condition, then, nil])
+
+  defp call("if", [condition, then, otherwise]),
+    do: if(truthy?(condition), do: then, else: otherwise)
+
+  defp call("equals", [a, b]), do: compare(a, b) == :eq
+  # An ordering needs two values: a blank is neither more nor less than
+  # anything, so an unpriced product is not "less than 100".
+  defp call("greater_than", [a, b]),
+    do: not absent?(a) and not absent?(b) and compare(a, b) == :gt
+
+  defp call("less_than", [a, b]), do: not absent?(a) and not absent?(b) and compare(a, b) == :lt
+
+  defp call("contains", [text, part]) do
+    case part |> stringify() |> String.downcase() do
+      "" -> false
+      needle -> text |> stringify() |> String.downcase() |> String.contains?(needle)
+    end
+  end
+
+  defp call("is_empty", [value]), do: blank?(value)
+  defp call("and", args), do: Enum.all?(args, &truthy?/1)
+  defp call("or", args), do: Enum.any?(args, &truthy?/1)
+  defp call("not", [value]), do: not truthy?(value)
+
+  defp call("days_between", [start, finish]) do
+    with {:ok, from} <- date(start),
+         {:ok, to} <- date(finish),
+         do: Date.diff(to, from),
+         else: (_ -> nil)
+  end
+
+  defp call("year", [value]) do
+    case date(value) do
+      {:ok, date} -> date.year
+      :error -> nil
+    end
+  end
+
+  defp call("format_date", [value, pattern]) do
+    case {date(value), stringify(pattern)} do
+      {{:ok, date}, ""} -> Date.to_iso8601(date)
+      {{:ok, date}, format} -> Calendar.strftime(date, format)
+      {:error, _format} -> nil
+    end
+  end
+
+  # Spreadsheet truthiness: a blank, `false`, zero or the text "false" doesn't
+  # hold. A boolean custom field stores a real boolean, but a select or text
+  # field holding "false" means the same thing to the admin who wrote the
+  # condition.
+  defp truthy?(value) when value in [nil, false, 0, [], %{}], do: false
+  defp truthy?(value) when is_float(value), do: value != 0.0
+
+  defp truthy?(value) when is_binary(value),
+    do: String.trim(value) |> String.downcase() |> then(&(&1 not in ["", "false"]))
+
+  defp truthy?(_value), do: true
+
+  # Numbers compare as numbers when both sides are numeric ("10" > "9");
+  # anything else compares as trimmed, case-folded text, which also orders ISO
+  # dates correctly. A blank on either side is never equal to a non-blank (and
+  # `greater_than`/`less_than` refuse a blank before comparing at all).
+  defp compare(a, b) do
+    case {number(a), number(b)} do
+      {{:ok, left}, {:ok, right}} ->
+        cond do
+          left == right -> :eq
+          left > right -> :gt
+          true -> :lt
+        end
+
+      _text ->
+        left = a |> stringify() |> String.trim() |> String.downcase()
+        right = b |> stringify() |> String.trim() |> String.downcase()
+
+        cond do
+          left == right -> :eq
+          left > right -> :gt
+          true -> :lt
+        end
+    end
+  end
+
+  # A date or datetime custom field stores ISO 8601 text; the date part is the
+  # first ten characters of either.
+  defp date(value) when is_binary(value) do
+    case value |> String.trim() |> String.slice(0, 10) |> Date.from_iso8601() do
+      {:ok, date} -> {:ok, date}
+      {:error, _reason} -> :error
+    end
+  end
+
+  defp date(_value), do: :error
+
+  # `sum`/`min`/`max` ignore arguments that aren't numeric — an unset optional
+  # price should not blank out the total. (`product` doesn't: see its clause.)
   defp reduce_numbers(args, fun) do
     case Enum.flat_map(args, &numeric/1) do
       [] -> nil
@@ -555,7 +893,27 @@ defmodule KilnCMS.CMS.Computed do
 
   defp words(text), do: text |> stringify() |> String.split(~r/\s+/u, trim: true)
 
+  # A list or map (a gallery, a reference, a multi-select, a geolocation) is
+  # blank only when it holds nothing — `stringify/1` renders every one as "",
+  # which would make `is_empty(gallery)` true on a document full of images.
+  defp blank?(value) when is_list(value), do: value == []
+  defp blank?(value) when is_map(value), do: map_size(value) == 0
   defp blank?(value), do: value in [nil, false] or String.trim(stringify(value)) == ""
+
+  # `replace` can multiply its input (`replace(body, " ", body)` is quadratic in
+  # the body), so the result's size is worked out from the match count before
+  # anything is built, rather than built and then measured by `bounded/1`.
+  defp bounded_replace(text, pattern, replacement) do
+    matches = text |> :binary.matches(pattern) |> length()
+    size = byte_size(text) + matches * (byte_size(replacement) - byte_size(pattern))
+
+    if size > @max_output do
+      Logger.warning("computed field replace() would exceed #{@max_output} bytes; blanked")
+      nil
+    else
+      String.replace(text, pattern, replacement)
+    end
+  end
 
   # Stringification for interpolation: JSON-native values only, so a map/list
   # (a geolocation, a multi-select) renders as nothing rather than leaking an
