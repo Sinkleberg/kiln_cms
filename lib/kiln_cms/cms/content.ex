@@ -2042,8 +2042,13 @@ defmodule KilnCMS.CMS.Content do
 
           trigger :purge_trashed do
             action :purge
-            read_action :trashed
-            worker_read_action :trashed
+            # `:purgeable`, not `:trashed`: a record a `:restrict` reference
+            # field still links to (R5) would refuse its purge every night.
+            # It stays in the trash, unscheduled, until it is unlinked; the
+            # worker re-reads through the same action, so one linked since
+            # it was scheduled is dropped as no longer applying.
+            read_action :purgeable
+            worker_read_action :purgeable
             queue :default
             scheduler_cron "0 3 * * *"
             # Strict-tenancy prep (#419): schedulers scan per org, not globally.
@@ -2083,7 +2088,7 @@ defmodule KilnCMS.CMS.Content do
 
       # Let `:trashed` see soft-deleted rows and `:purge` actually hard-delete.
       archive do
-        exclude_read_actions([:trashed])
+        exclude_read_actions([:trashed, :purgeable])
         exclude_destroy_actions([:purge])
       end
 
@@ -3071,6 +3076,16 @@ defmodule KilnCMS.CMS.Content do
           # `required?: false` keeps plain `list_trashed_*` calls returning lists.
           pagination keyset?: true, required?: false
           filter expr(not is_nil(^ref(:archived_at)))
+        end
+
+        # The trash the nightly purge may delete: `:trashed` minus the records
+        # a `:reference` field set to keep linked records from being deleted
+        # (`on_target_delete: :restrict`, R5) still links to — the purge
+        # would only be refused. Read by the `purge_trashed` trigger.
+        read :purgeable do
+          pagination keyset?: true, required?: false
+          filter expr(not is_nil(^ref(:archived_at)))
+          prepare KilnCMS.CMS.Preparations.SkipRestrictedTargets
         end
 
         # Bring a soft-deleted record back by clearing its archival timestamp.
