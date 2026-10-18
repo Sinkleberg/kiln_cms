@@ -309,7 +309,7 @@ defmodule KilnCMS.AutomationTest do
       assert {:ok, "tag", :updated, :scoped} = Automation.trigger("tag.updated")
 
       # Exact events, not namespaces: a dynamic type that shares a domain
-      # namespace (nothing reserves the names yet, #1994) keeps its content
+      # namespace (created before #1994 reserved them) keeps its content
       # events.
       assert {:ok, "experiment", :published, :any} = Automation.trigger("experiment.published")
       assert {:ok, "form", :updated, :any} = Automation.trigger("form.updated")

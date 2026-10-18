@@ -99,8 +99,9 @@ defmodule KilnCMS.Propagation do
   def open(event, payload, org, withdraws?, endpoints) do
     # The exact domain events, not a registry lookup: the registry
     # (`ContentTypes.get/2`) leaves archived dynamic types out, whose entries
-    # still fire and deliver `<name>.*`. Until reserved names land (#1994), a
-    # dynamic type named `release` is the one type this misses.
+    # still fire and deliver `<name>.*`. New types can't take a domain
+    # namespace as their name (#1994); a type named `release` from before that
+    # rule is the one this misses.
     with false <- event in WebhookEndpoint.domain_events(),
          kind when not is_nil(kind) <- kind(event, withdraws?),
          {type, _verb} <- WebhookEndpoint.event_parts(event),

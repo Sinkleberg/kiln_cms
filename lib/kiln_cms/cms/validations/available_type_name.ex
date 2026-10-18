@@ -8,11 +8,13 @@ defmodule KilnCMS.CMS.Validations.AvailableTypeName do
     * a **reserved router segment** (`/editor`, `/api`, `/search`, …), since
       dynamic types are delivered at `/<path_segment>/<slug>`;
     * a configured **locale prefix** (`/fr/...` routes);
-    * a **taxonomy webhook namespace** (`tag`, `tag_group`, `category`,
-      #1965) for the `name`: a content type's events are `<name>.<verb>`, so a
-      type named `tag` would send `tag.created` and `tag.deleted`, the same
-      names the taxonomy sends. Only when the name is being written, so a type
-      created before this rule can still be edited.
+    * a **built-in webhook event namespace** for the `name`
+      (`KilnCMS.CMS.WebhookEndpoint.reserved_namespaces/0`: `release`, `task`,
+      `form`, `tag`, …; #1965, #1994): a content type's events are
+      `<name>.<verb>`, so a type named `release` would send
+      `release.published`, the name content releases send. Only when the name
+      is being written, so a type created before this rule can still be
+      edited.
 
   Dynamic-vs-dynamic uniqueness is enforced by the resource's identities, not
   here.
@@ -32,13 +34,13 @@ defmodule KilnCMS.CMS.Validations.AvailableTypeName do
 
   defp check_event_namespace(changeset) do
     name = Ash.Changeset.get_attribute(changeset, :name)
-    namespaces = KilnCMS.CMS.Taxonomy.event_types()
+    namespaces = KilnCMS.CMS.WebhookEndpoint.reserved_namespaces()
 
     if Ash.Changeset.changing_attribute?(changeset, :name) and name in namespaces do
       {:error,
        InvalidAttribute.exception(
          field: :name,
-         message: "is a taxonomy webhook event namespace (#{Enum.join(namespaces, ", ")})",
+         message: "is a built-in webhook event namespace (#{Enum.join(namespaces, ", ")})",
          value: name
        )}
     else
