@@ -7,6 +7,30 @@ carries the reasoning.
 
 ## Added
 
+<a id="custom-filter-relationship-operators-has-has-all-has-none-count"></a>
+
+- **`custom_filter` filters through relationships: `has`, `has_all`, `has_none`
+  and `count` on a reference field, and `has`/`has_all`/`has_none` on `tags`
+  and `related_<type>s`.** Workstream R6 of
+  [relationships-plan.md](../relationships-plan.md), on JSON:API
+  (`custom_filter[ingredients][has][]=<id>`) and GraphQL (`customFilter:
+  {ingredients: {has: [...]}}`). `has` matches a record holding any of the
+  ids, `has_all` every one, `has_none` none of them, and `count` compares how
+  many targets it holds (`eq`/`gt`/`gte`/`lt`/`lte`). They read the
+  relationship's `content_links` edges (or taggings) through their indexes,
+  never the jsonb snapshot, so `eq`/`in` keep their meaning. A target the
+  reader may not read does not exist for the filter: a draft never matches
+  and is never counted for an anonymous caller, so a filter cannot reveal that
+  a draft exists. The gate is the target type's own read policy, as
+  `Ash.can/3` derives it for the actor. The plan sketched the built-ins under
+  `filter[tags][has]`, but AshJsonApi and AshGraphql own that grammar and take
+  no new operators, so they sit in `custom_filter` beside the reference ones
+  (a custom field named `tags` keeps the name). Measured on 600k edges: the
+  set operators take about a millisecond in the database, and `count` about
+  5 µs per record it scans. A rewrite of the gate that the measurement
+  prompted took a full `count` scan from 5.3 s to 135 ms.
+  ([#2003](https://github.com/The-Verscienta/kiln_cms/pull/2003))
+
 <a id="a-reference-custom-field-can-hold-a-list-of-references-multiple-true-with"></a>
 
 - **A reference custom field can hold a list of references (`multiple: true`),

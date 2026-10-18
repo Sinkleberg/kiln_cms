@@ -56,6 +56,10 @@ Every summary line below that was shortened links to its own entry there.
 
 ### Added
 
+- **`custom_filter` filters through relationships: `has`, `has_all`, `has_none`
+  and `count` on a reference field, and `has`/`has_all`/`has_none` on `tags`.**
+  ([#2003](https://github.com/The-Verscienta/kiln_cms/pull/2003) · [long form](docs/changelog/unreleased.md#custom-filter-relationship-operators-has-has-all-has-none-count))
+
 - **A reference custom field can hold a list of references (`multiple: true`),
   with optional `min_items` / `max_items`.**
   ([#2000](https://github.com/The-Verscienta/kiln_cms/pull/2000) · [long form](docs/changelog/unreleased.md#a-reference-custom-field-can-hold-a-list-of-references-multiple-true-with))

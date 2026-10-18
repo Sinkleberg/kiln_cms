@@ -265,17 +265,64 @@ target is a scarce thing — a slot, a seat, a featured position.
 
 ### R6 — Filter through relationships
 
+**Built** in [#2003](https://github.com/The-Verscienta/kiln_cms/pull/2003), except link-field filters, which wait for R3.
+
 - `custom_filter` on a reference field gains `has` (any of), `has_all`,
-  `has_none`, and `count` (with `gt`/`lt`/…), compiled to `exists` over
-  `content_links` (`kind: :reference`, `field`, `target_id`) — indexed, not a
-  jsonb scan. `eq`/`in` keep their current meaning for single references.
-- The same operators on the built-ins: `tags`, `related_<type>s`
-  (`filter[tags][has]=…` / `filter: {tags: {has: [...]}}`), so Hygraph's
-  `tags_some` has a direct equivalent.
+  `has_none`, and `count` (with `eq`/`gt`/`gte`/`lt`/`lte`), compiled to
+  `exists` over `content_links` (`kind: :reference`, `field`, `target_id`):
+  indexed, not a jsonb scan. `eq`/`in` keep their current meaning for single
+  references, and R1's list meaning for lists.
+- The same set operators on the built-ins `tags` and `related_<type>s`, so
+  Hygraph's `tags_some` has a direct equivalent. **Where they live changed:**
+  the plan sketched `filter[tags][has]=…`, but the derived `filter[...]`
+  grammar belongs to AshJsonApi and AshGraphql, which take operators from the
+  destination's fields and have no hook for new ones. So they are
+  `custom_filter[tags][has]=…` / `customFilter: {tags: {has: [...]}}`, next to
+  the reference operators. A custom field that is itself named `tags` keeps
+  the name. The derived `filter[tags][id][in]` (any of) still works.
 - Link-field filters from R3: `custom_filter[ingredients.link.role]=main`.
-- Read-side authz: the `exists` runs under the reader's both-ends policy, so a
-  filter cannot be used to probe for draft targets (add the test that a
-  draft-only match returns nothing to an anonymous reader).
+  Not built; they come with R3.
+- Read-side authz: every edge condition carries `exists(<target resource>,
+  id == parent(target_id) and <reader's read filter>)`, the filter being the
+  one `Ash.can/3` derives from the target's own read policy for that actor.
+  It has the `Checks.LinkEndsReadable` meaning without that check's per-row
+  reads, which a filter cannot run. Tested: a draft-only match returns nothing
+  to an anonymous reader and the record to an editor; `count` counts only
+  readable targets; `has_none` of a draft is true for an anonymous reader.
+
+**Measured (Q4), 2026-10-17.** `scripts/benchmarks/relationship_filters.exs`
+seeds 20,000 published posts, 2,000 published pages and 100 draft pages,
+and 597,500 reference edges: 25 per post, and 1,000 on each of 100 posts.
+It times the `:published` read (`page[limit]=25`) in-process, 20 runs each,
+on an Apple M5 Pro with PostgreSQL 17 on the same machine (load average 6–9).
+
+| Filter | p50 ms | p95 ms | In PostgreSQL ms |
+|---|---|---|---|
+| `has` (one id, rare or common) | 2.3 | 3.3 | 0.7–0.9 |
+| `has_all` (two common ids) | 2.6–3.9 | 3.2–4.5 | 0.7 |
+| `has_none` (one common id) | 12.6–13.4 | 13.0–13.8 | 11.2 |
+| `has` of a draft, anonymous | 1.4 | 1.6 | 0.3 |
+| `count` (`gt 500`, `eq 25`, `eq 0`) | 92–102 | 93–127 | 101–110 |
+
+Anonymous and editor readers are within noise of each other.
+
+- **`has`, `has_all`, `has_none` need no cap.** They are index probes on
+  `(org_id, source_id, target_id, kind, field)`, and their cost does not
+  grow with the number of edges. Each takes at most 100 ids.
+- **`count` scales with the records it scans, not with the page size.** It
+  is a per-record aggregate, so a filter that has to look at every
+  candidate (a selective comparison, or a sort no index serves, as with the
+  keyset tiebreak above) costs about 5 µs per record. That is about 100 ms
+  for 20,000 records with 600k edges. With an index-served sort and a
+  common match it stops at the page: 3 ms. That is acceptable for 1.5 without
+  a cap; a site that counts on every request over a much larger type should
+  combine `count` with a narrowing filter.
+- **One fix came out of the measurement.** The first version took 5.3 s
+  (and timed out at 15 s under load) on the full scan: PostgreSQL pulled the
+  target gate's `EXISTS` up into a join and re-hashed all 2,000 readable
+  pages once per post. Writing the gate as `(EXISTS …) IS TRUE` keeps it a
+  subplan, hashed once per query: 135 ms in PostgreSQL for the same scan.
+  `has` went from about 5 ms to under 1 ms with it.
 
 ### R7 — Typed nested reads
 
@@ -391,7 +438,7 @@ badges, link-field inputs, the reverse list) in their own PR.
 
 **Decided before work starts:** D22 and D23 (§3) and open questions 1–3
 (§7), all on 2026-10-16. Nothing on the build path is waiting on a decision.
-The one question left, Q4, is answered by measurement inside R6.
+The one question that was left, Q4, was answered by measurement in R6.
 
 **Parallel tracks.** After R1 merges, four tracks can run at once on separate
 files: R6 (query preparation), R2 → R7 (field validation, GraphQL schema),
@@ -435,7 +482,9 @@ Answered on 2026-10-16:
    its working copy?** Yes, as part of D23. The editor shows the edit as
    pending until that source's changes are published.
 
-Still open:
+Answered on 2026-10-17:
 
-4. **R6 cost:** `count` over edges on large lists. Measure at scale (see
-   `docs/benchmarks.md`) before exposing it unpaginated.
+4. **R6 cost:** `count` over edges on large lists. Measured in R6 (§4, R6):
+   `has`/`has_all`/`has_none` are index probes and need no cap; `count` costs
+   about 5 µs per record scanned (100 ms for 20,000 records over 600k edges)
+   and ships paginated without a further cap.

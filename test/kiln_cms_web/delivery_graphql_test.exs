@@ -99,6 +99,65 @@ defmodule KilnCMSWeb.DeliveryGraphqlTest do
       assert Enum.map(sorted, & &1["id"]) == [cheap.id, mid.id, dear.id]
     end
 
+    test "customFilter takes the relationship operators, and tags (R6)" do
+      admin = admin()
+      refs = "refs#{System.unique_integer([:positive])}"
+
+      CMS.create_field_definition!(
+        %{
+          content_type: :post,
+          name: refs,
+          label: "Refs",
+          field_type: :reference,
+          target_type: "page",
+          multiple: true
+        },
+        actor: admin
+      )
+
+      page! = fn title ->
+        CMS.create_page!(%{title: title, slug: slug()}, actor: admin)
+      end
+
+      live = page!.("Live") |> then(&CMS.publish_page!(&1, %{}, actor: admin))
+      draft = page!.("Draft")
+      tag = CMS.create_tag!(%{name: "gtag-#{slug()}", slug: slug()}, actor: admin)
+
+      post =
+        CMS.create_post!(
+          %{
+            title: "Referrer",
+            slug: slug(),
+            tag_ids: [tag.id],
+            custom_fields: %{refs => [live.id, draft.id]}
+          },
+          actor: admin
+        )
+        |> then(&CMS.publish_post!(&1, %{}, actor: admin))
+
+      query = """
+      query ($cf: JsonString) {
+        publishedPosts(limit: 100, customFilter: $cf) { results { id } }
+      }
+      """
+
+      ids = fn filter ->
+        assert {:ok, %{data: %{"publishedPosts" => %{"results" => results}}}} =
+                 run(query, %{"cf" => Jason.encode!(filter)})
+
+        Enum.map(results, & &1["id"])
+      end
+
+      assert ids.(%{refs => %{"has" => [live.id]}}) == [post.id]
+      assert ids.(%{refs => %{"has_all" => [live.id], "count" => %{"gte" => 1}}}) == [post.id]
+      assert ids.(%{"tags" => %{"has" => [tag.id]}}) == [post.id]
+      assert ids.(%{"tags" => %{"has_none" => [tag.id]}, refs => %{"has" => [live.id]}}) == []
+
+      # Anonymous: the draft end does not exist, so it neither matches nor counts.
+      assert ids.(%{refs => %{"has" => [draft.id]}}) == []
+      assert ids.(%{refs => %{"count" => 1}}) == [post.id]
+    end
+
     test "pageBySlug returns a published page" do
       admin = admin()
       page_slug = slug()
