@@ -7,6 +7,20 @@ carries the reasoning.
 
 ## Added
 
+<a id="connections-can-be-added-removed-and-reordered-from-the-record-they-point-at"></a>
+
+- **Connections can be added, removed and reordered from the record they
+  point at, and each change is saved as an edit of the record that holds it.**
+  Workstream R4b of [relationships-plan.md](../relationships-plan.md)
+  (decision D23). The reverse field gains a picker and per-row remove and
+  move. Each change runs the source's own update as the editor, so its
+  permissions, validations, history and lock apply. A published source's
+  change waits in its working copy, and the row says "goes live when
+  *Source* is published" with a link. A source the editor may not change
+  shows a lock. A lock conflict fails only its row. Nothing reshapes: no
+  schema change.
+  ([#2018](https://github.com/The-Verscienta/kiln_cms/pull/2018))
+
 <a id="a-reference-field-can-name-its-other-side-and-every-record-it-connects-shows"></a>
 
 - **A reference field can name its other side, and every record it connects
