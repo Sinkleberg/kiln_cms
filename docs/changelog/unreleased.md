@@ -464,6 +464,7 @@ carries the reasoning.
   it. The resolver now looks the type up for such entries, in one read per
   batch. Compiled types were not affected. The same pass is kept as a browser
   test of the whole feature (`e2e/tests/relationships_journey.spec.js`).
+  ([#2026](https://github.com/The-Verscienta/kiln_cms/pull/2026))
 
 <a id="automation-any-type-rules-ignore-release-published"></a>
 

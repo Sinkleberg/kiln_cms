@@ -144,7 +144,7 @@ Every summary line below that was shortened links to its own entry there.
 
 - **GraphQL's `referencedBy(inverse:)` lists the connecting records on entries
   of admin-defined types too; it returned an empty list there.**
-  ([long form](docs/changelog/unreleased.md#graphql-referenced-by-inverse-on-entries))
+  ([#2026](https://github.com/The-Verscienta/kiln_cms/pull/2026) · [long form](docs/changelog/unreleased.md#graphql-referenced-by-inverse-on-entries))
 
 
 - **An automation rule for "any content type" no longer fires when a content
