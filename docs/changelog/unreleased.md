@@ -377,6 +377,21 @@ carries the reasoning.
   archived dynamic types are unchanged.
   ([#1995](https://github.com/The-Verscienta/kiln_cms/issues/1995))
 
+<a id="propagation-archived-types-federation-domain-events"></a>
+
+- **Publishing or withdrawing an entry of an archived dynamic type now opens
+  a propagation record, and domain events no longer enqueue a federation job
+  that only skips.** `KilnCMS.Propagation.open/5` checked an event's namespace
+  against the content-type registry, which leaves archived dynamic types out.
+  Their entries still fire `<name>.*` (#938) and webhooks still deliver them,
+  so those transitions were delivered but never measured. It now rules out
+  the exact domain events (`WebhookEndpoint.domain_events/0`) instead, and
+  `release.published` stays excluded. The ActivityPub announcer enqueued an
+  `AnnounceWorker` job for `release.published`, which the worker then skipped
+  because no `release` type syndicates; it now skips domain events before
+  enqueueing. Follows #1995.
+  ([#2012](https://github.com/The-Verscienta/kiln_cms/pull/2012))
+
 <a id="variant-worker-backend-errors"></a>
 
 - **A variant job no longer takes an image backend's failed or rate-limited

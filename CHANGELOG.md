@@ -125,6 +125,11 @@ Every summary line below that was shortened links to its own entry there.
   release is published; a rule scoped to `release` still does.**
   ([#1995](https://github.com/The-Verscienta/kiln_cms/issues/1995) · [long form](docs/changelog/unreleased.md#automation-any-type-rules-ignore-release-published))
 
+- **Publishing or withdrawing an entry of an archived dynamic type now opens
+  a propagation record, and domain events no longer enqueue a federation job
+  that only skips.**
+  ([#2012](https://github.com/The-Verscienta/kiln_cms/pull/2012) · [long form](docs/changelog/unreleased.md#propagation-archived-types-federation-domain-events))
+
 - **A variant job no longer takes an image backend's failed or rate-limited
   read for a deleted original.**
   ([long form](docs/changelog/unreleased.md#variant-worker-backend-errors))
