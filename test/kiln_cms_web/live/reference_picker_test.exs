@@ -329,6 +329,233 @@ defmodule KilnCMSWeb.ReferencePickerTest do
     end
   end
 
+  describe "create and connect" do
+    defp new_button(field, type \\ "page"), do: "#custom-field-#{field}-new-#{type}"
+    defp new_form(field), do: "#custom-field-#{field}-new-form"
+
+    defp fill_new(lv, field, params) do
+      lv
+      |> element("#{new_form(field)}-title")
+      |> render_change(%{"_kiln_ref_new" => %{field => params}})
+    end
+
+    defp create(lv, field), do: lv |> element("#{new_form(field)}-submit") |> render_click()
+
+    defp pages_titled(title, admin) do
+      CMS.list_pages!(actor: admin, query: [filter: [title: title]])
+    end
+
+    test "creates a draft of the target type and adds it to the list", ctx do
+      lv = open_editor(ctx.conn, ctx.admin, ctx.post)
+      search(lv, "see_also", ctx.word)
+      pick(lv, "see_also", ctx.published.id)
+
+      assert has_element?(lv, new_button("see_also"), "Add new Page")
+      lv |> element(new_button("see_also")) |> render_click()
+
+      assert has_element?(lv, new_form("see_also"), "New Page")
+      # The search's list closes, and the menu gives way to the form.
+      refute has_element?(lv, "#custom-field-see_also-listbox")
+      refute has_element?(lv, new_button("see_also"))
+
+      title = "#{ctx.word} Fresh"
+      fill_new(lv, "see_also", %{"title" => title})
+      html = create(lv, "see_also")
+
+      assert [created] = pages_titled(title, ctx.admin)
+      assert created.state == :draft
+      assert html =~ "Created “#{title}” as a draft and connected it."
+
+      # Connected after what was there, as a pick would be — a row with a
+      # Draft badge and a link to open it.
+      assert list_ids(lv, "see_also") == [ctx.published.id, created.id]
+      assert has_element?(lv, "#cf-ref-see_also-#{created.id}", "Draft")
+
+      assert has_element?(
+               lv,
+               ~s(#cf-ref-see_also-#{created.id} a[href="/editor/content/page/#{created.id}"])
+             )
+
+      refute has_element?(lv, new_form("see_also"))
+      assert has_element?(lv, new_button("see_also"))
+
+      save(lv)
+
+      assert Enum.map(stored(ctx.post, ctx.admin)["see_also"], & &1["id"]) ==
+               [ctx.published.id, created.id]
+    end
+
+    test "fills a single reference, which then offers nothing more", ctx do
+      lv = open_editor(ctx.conn, ctx.admin, ctx.post)
+
+      lv |> element(new_button("hero")) |> render_click()
+      fill_new(lv, "hero", %{"title" => "#{ctx.word} Hero"})
+      create(lv, "hero")
+
+      assert [created] = pages_titled("#{ctx.word} Hero", ctx.admin)
+      assert single_value(lv, "hero") == [created.id]
+      refute has_element?(lv, new_button("hero"))
+      refute has_element?(lv, "#custom-field-hero-search")
+
+      save(lv)
+      assert stored(ctx.post, ctx.admin)["hero"]["id"] == created.id
+    end
+
+    test "asks for a title and the type's required fields, and creates nothing until given",
+         ctx do
+      CMS.create_field_definition!(
+        %{
+          content_type: :page,
+          name: "subtitle",
+          label: "Subtitle",
+          field_type: :string,
+          required: true
+        },
+        actor: ctx.admin
+      )
+
+      # A required field with a default doesn't need asking.
+      CMS.create_field_definition!(
+        %{
+          content_type: :page,
+          name: "tier",
+          label: "Tier",
+          field_type: :select,
+          options: ["gold", "silver"],
+          default: "silver",
+          required: true
+        },
+        actor: ctx.admin
+      )
+
+      lv = open_editor(ctx.conn, ctx.admin, ctx.post)
+      lv |> element(new_button("see_also")) |> render_click()
+
+      assert has_element?(lv, "#{new_form("see_also")}-cf-subtitle")
+      refute has_element?(lv, "#{new_form("see_also")}-cf-tier")
+
+      assert create(lv, "see_also") =~ "Give it a title."
+
+      title = "#{ctx.word} Needs more"
+      fill_new(lv, "see_also", %{"title" => title})
+      assert create(lv, "see_also") =~ "Subtitle (subtitle) is required"
+      assert pages_titled(title, ctx.admin) == []
+      assert list_ids(lv, "see_also") == []
+
+      fill_new(lv, "see_also", %{"title" => title, "custom_fields" => %{"subtitle" => "Sub"}})
+      create(lv, "see_also")
+
+      assert [created] = pages_titled(title, ctx.admin)
+      assert created.custom_fields["subtitle"] == "Sub"
+      assert created.custom_fields["tier"] == "silver"
+      assert list_ids(lv, "see_also") == [created.id]
+    end
+
+    test "cancel closes the form and creates nothing", ctx do
+      lv = open_editor(ctx.conn, ctx.admin, ctx.post)
+      lv |> element(new_button("see_also")) |> render_click()
+      fill_new(lv, "see_also", %{"title" => "#{ctx.word} Never"})
+
+      lv |> element("#{new_form("see_also")} button[data-ref-new-cancel]") |> render_click()
+
+      refute has_element?(lv, new_form("see_also"))
+      assert has_element?(lv, new_button("see_also"))
+      assert pages_titled("#{ctx.word} Never", ctx.admin) == []
+    end
+
+    test "is not offered for a type with a required field the form can't render", ctx do
+      CMS.create_field_definition!(
+        %{content_type: :page, name: "cover", label: "Cover", field_type: :media, required: true},
+        actor: ctx.admin
+      )
+
+      lv = open_editor(ctx.conn, ctx.admin, ctx.post)
+
+      assert has_element?(lv, "#custom-field-see_also-search")
+      refute has_element?(lv, new_button("see_also"))
+    end
+
+    test "creates an entry of an admin-defined target type", ctx do
+      type =
+        CMS.create_type_definition!(%{name: "ingr#{uniq()}", label: "Ingredient"},
+          actor: ctx.admin
+        )
+
+      CMS.create_field_definition!(
+        %{
+          content_type: :post,
+          name: "ingredients",
+          label: "Ingredients",
+          field_type: :reference,
+          target_type: type.name,
+          multiple: true
+        },
+        actor: ctx.admin
+      )
+
+      lv = open_editor(ctx.conn, ctx.admin, ctx.post)
+      lv |> element(new_button("ingredients", type.name)) |> render_click()
+      fill_new(lv, "ingredients", %{"title" => "#{ctx.word} Basil"})
+      create(lv, "ingredients")
+
+      assert [created] =
+               KilnCMS.CMS.ContentTypes.list!(type.name,
+                 actor: ctx.admin,
+                 tenant: ctx.post.org_id,
+                 query: [filter: [title: "#{ctx.word} Basil"]]
+               )
+
+      assert created.state == :draft
+      assert list_ids(lv, "ingredients") == [created.id]
+
+      # Admin-defined types are authored under one `entry` grant.
+      scoped = authed_user(:editor, %{editable_types: ["post"]})
+      lv = open_editor(ctx.conn, scoped, ctx.post)
+      refute has_element?(lv, new_button("ingredients", type.name))
+    end
+
+    test "is hidden from an editor who may not create the target type", ctx do
+      scoped = authed_user(:editor, %{editable_types: ["post"]})
+      lv = open_editor(ctx.conn, scoped, ctx.post)
+
+      assert has_element?(lv, "#custom-field-see_also-search")
+      refute has_element?(lv, new_button("see_also"))
+
+      # Nor does a hand-sent event open the form or create anything.
+      lv |> element("#custom-field-see_also") |> render_hook("ref_new", %{"type" => "page"})
+      refute has_element?(lv, new_form("see_also"))
+
+      # An editor who may author pages is offered it.
+      unscoped = authed_user(:editor)
+      lv = open_editor(ctx.conn, unscoped, ctx.post)
+      assert has_element?(lv, new_button("see_also"), "Add new Page")
+    end
+
+    test "a full list offers no Add new, and a stale form can't overfill it", ctx do
+      lv = open_editor(ctx.conn, ctx.admin, ctx.post)
+      search(lv, "see_also", ctx.word)
+      pick(lv, "see_also", ctx.published.id)
+      pick(lv, "see_also", ctx.draft.id)
+
+      # Open the form at two of three, then fill the list another way.
+      lv |> element(new_button("see_also")) |> render_click()
+      fill_new(lv, "see_also", %{"title" => "#{ctx.word} Overflow"})
+      search(lv, "see_also", ctx.word)
+      pick(lv, "see_also", ctx.other.id)
+
+      assert render(lv) =~ "3 of 3"
+      refute has_element?(lv, new_button("see_also"))
+      refute has_element?(lv, new_form("see_also"))
+
+      lv |> element("#custom-field-see_also") |> render_hook("ref_new_create", %{})
+      lv |> element("#custom-field-see_also") |> render_hook("ref_new", %{"type" => "page"})
+
+      refute has_element?(lv, new_form("see_also"))
+      assert pages_titled("#{ctx.word} Overflow", ctx.admin) == []
+      assert length(list_ids(lv, "see_also")) == 3
+    end
+  end
+
   # R2: a field that allows several types searches all of them, shows each
   # result's type, and keys every row by `"type:id"`, which reaches the write
   # as `%{"id", "type"}` — so the saved snapshot keeps the type it was picked as.
@@ -354,6 +581,27 @@ defmodule KilnCMSWeb.ReferencePickerTest do
         CMS.create_post!(%{title: "#{word} Delta", slug: "rp-#{uniq()}"}, actor: admin)
 
       %{other_post: other_post}
+    end
+
+    test "offers Add new for each allowed type, and connects what it creates by its type", ctx do
+      lv = open_editor(ctx.conn, ctx.admin, ctx.post)
+
+      assert has_element?(lv, new_button("mixed", "page"), "Add new Page")
+      assert has_element?(lv, new_button("mixed", "post"), "Add new Post")
+
+      lv |> element(new_button("mixed", "post")) |> render_click()
+      assert has_element?(lv, new_form("mixed"), "New Post")
+      fill_new(lv, "mixed", %{"title" => "#{ctx.word} Echo"})
+      create(lv, "mixed")
+
+      [created] = CMS.list_posts!(actor: ctx.admin, query: [filter: [title: "#{ctx.word} Echo"]])
+      assert created.state == :draft
+      assert list_ids(lv, "mixed") == ["post:#{created.id}"]
+      assert has_element?(lv, "#cf-ref-mixed-post-#{created.id}", "Draft")
+
+      save(lv)
+      assert [%{"type" => "post", "id" => id}] = stored(ctx.post, ctx.admin)["mixed"]
+      assert id == created.id
     end
 
     test "search spans every allowed type; picks keep their type through a save", ctx do
