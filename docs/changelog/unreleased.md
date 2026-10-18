@@ -7,6 +7,34 @@ carries the reasoning.
 
 ## Added
 
+<a id="computed-field-builder"></a>
+
+- **Computed fields have a formula builder: pick a recipe and fill in the
+  blanks, or write the formula with value and function palettes, and see the
+  result live on your own content.** Custom fields → *Computed* used to be a
+  single text box for a `{{ … }}` template, which only someone who already
+  knew the syntax could fill. It now opens in a **Recipe** view: twelve common
+  computations (reading time, word count, a value with a label, combine
+  values, URL slug, shortened text, first non-empty value, total, multiply,
+  percentage, *if … then …*, days between dates), each with dropdowns over
+  the document's values and the type's other fields. The **Formula** view is
+  the template with buttons that insert a value or a function at the caret and
+  every function listed with what it does. Both preview the result against the
+  type's five most recently edited documents. The formula language gains
+  conditions (`if`, `equals`, `greater_than`, `less_than`, `contains`,
+  `is_empty`, `and`, `or`, `not`), `replace`, and dates (`days_between`,
+  `year`, `format_date`). Nothing new is stored and there is no migration: a
+  recipe writes an ordinary `compute` formula, and editing a field opens the
+  recipe view only when the formula is exactly a recipe's output, so a formula
+  changed by hand is never rewritten. Three evaluation rules change for
+  existing formulas, each of which used to store a wrong value rather than
+  none: an interpolated template whose expressions are all blank is now blank
+  (`{{ size }} EU` on a record without a size was "EU"); `product` is blank
+  when a factor is missing (it used to skip it, so price × no quantity was the
+  price); and `default` sees a filled list or map value (a gallery, a
+  reference) as filled. Affected computed values change on the next save or
+  fire. See docs/extending-content.md, "Computed fields".
+
 <a id="kilncmsdev-now-publishes-kilns-security-policy-at-security-and-a-security"></a>
 
 - **kilncms.dev now publishes Kiln's security policy at `/security`, and a

@@ -56,6 +56,10 @@ Every summary line below that was shortened links to its own entry there.
 
 ### Added
 
+- **Computed fields have a formula builder: pick a recipe and fill in the
+  blanks, or write the formula with value and function palettes, and see the
+  result live on your own content.** ([long form](docs/changelog/unreleased.md#computed-field-builder))
+
 - **kilncms.dev now publishes Kiln's security policy at `/security`, and a
   security notice per published GitHub advisory at
   `/security-notices/<ghsa-id>`, with a feed.**

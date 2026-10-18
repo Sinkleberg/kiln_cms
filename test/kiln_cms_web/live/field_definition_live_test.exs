@@ -189,9 +189,17 @@ defmodule KilnCMSWeb.FieldDefinitionLiveTest do
     {:ok, lv, _html} = conn |> log_in(admin) |> live(~p"/editor/fields")
 
     # The formula input only appears once the type is `computed` — the same
-    # conditional treatment `target_type` gets for `:reference`.
+    # conditional treatment `target_type` gets for `:reference` — and a new
+    # field starts in the recipe view, so the hand-written formula needs the
+    # formula view.
     form = form(lv, "#new-field-form", field_definition: %{field_type: "computed"})
     assert render_change(form) =~ "Formula"
+
+    lv
+    |> form("#new-field-form",
+      field_definition: %{field_type: "computed", builder: %{mode: "formula"}}
+    )
+    |> render_change()
 
     html =
       lv
@@ -1020,5 +1028,204 @@ defmodule KilnCMSWeb.FieldDefinitionLiveTest do
       %{name: "fd#{System.unique_integer([:positive])}", label: label},
       actor: admin
     )
+  end
+
+  # The formula builder: a recipe view for admins who don't write formulas, a
+  # formula view with palettes for those who do, and a preview for both.
+  describe "the computed-field builder" do
+    defp computed_change(lv, field_definition) do
+      lv
+      |> element("#new-field-form")
+      |> render_change(%{
+        "field_definition" =>
+          Map.merge(%{"field_type" => "computed", "scopes" => ["page"]}, field_definition)
+      })
+    end
+
+    test "a recipe writes the formula, previews it, and is what gets saved", %{conn: conn} do
+      admin = authed_user(:admin)
+
+      CMS.create_page!(
+        %{
+          title: "Preview me",
+          slug: "fd-#{System.unique_integer([:positive])}",
+          blocks: [%{"_type" => "quote", "text" => String.duplicate("word ", 460)}]
+        },
+        actor: admin
+      )
+
+      {:ok, lv, _html} = conn |> log_in(admin) |> live(~p"/editor/fields")
+
+      html = computed_change(lv, %{})
+      assert html =~ "Pick what this field should work out"
+      assert has_element?(lv, "#new-field-recipe-reading_time")
+
+      html =
+        computed_change(lv, %{"builder" => %{"mode" => "recipe", "recipe" => "reading_time"}})
+
+      assert has_element?(lv, ~s|#new-field-compute[value="{{ reading_time(body) }} min read"]|)
+      assert html =~ "Preview me"
+      assert has_element?(lv, "#new-field-preview output", "2 min read")
+
+      lv
+      |> element("#new-field-form")
+      |> render_submit(%{
+        "field_definition" => %{
+          "scopes" => ["page"],
+          "label" => "Reading time",
+          "name" => "reading_minutes",
+          "field_type" => "computed",
+          "compute" => "",
+          "builder" => %{
+            "mode" => "recipe",
+            "recipe" => "reading_time",
+            "slots" => %{"source" => "body", "suffix" => "minutes"}
+          }
+        }
+      })
+
+      saved =
+        :page
+        |> CMS.field_definitions_for!(authorize?: false)
+        |> Enum.find(&(&1.name == "reading_minutes"))
+
+      assert saved.compute == "{{ reading_time(body) }} minutes"
+    end
+
+    test "a recipe's value picker offers the type's other fields", %{conn: conn} do
+      admin = authed_user(:admin)
+
+      CMS.create_field_definition!(
+        %{content_type: :page, name: "price", label: "Price", field_type: :integer},
+        actor: admin
+      )
+
+      CMS.create_page!(
+        %{
+          title: "Pricey",
+          slug: "fd-#{System.unique_integer([:positive])}",
+          custom_fields: %{"price" => 150}
+        },
+        actor: admin
+      )
+
+      {:ok, lv, _html} = conn |> log_in(admin) |> live(~p"/editor/fields")
+
+      computed_change(lv, %{"builder" => %{"mode" => "recipe", "recipe" => "conditional"}})
+      assert has_element?(lv, ~s|#new-field-slot-value option[value="price"]|, "Price")
+
+      computed_change(lv, %{
+        "builder" => %{
+          "mode" => "recipe",
+          "recipe" => "conditional",
+          "slots" => %{
+            "value" => "price",
+            "operator" => "greater_than",
+            "compare" => "100",
+            "then" => "Premium",
+            "otherwise" => "Standard"
+          }
+        }
+      })
+
+      assert has_element?(
+               lv,
+               ~s|#new-field-compute[value='{{ if(greater_than(price, 100), "Premium", "Standard") }}']|
+             )
+
+      assert has_element?(lv, "#new-field-preview output", "Premium")
+
+      # "is empty" compares with nothing, so its box goes away.
+      computed_change(lv, %{
+        "builder" => %{
+          "mode" => "recipe",
+          "recipe" => "conditional",
+          "slots" => %{"operator" => "is_empty"}
+        }
+      })
+
+      refute has_element?(lv, "#new-field-slot-compare")
+    end
+
+    test "the formula view lists the functions and values, and previews errors", %{conn: conn} do
+      {:ok, lv, _html} = conn |> log_in(authed_user(:admin)) |> live(~p"/editor/fields")
+
+      computed_change(lv, %{"builder" => %{"mode" => "formula"}})
+
+      assert has_element?(lv, "#new-field-formula[phx-hook]")
+      assert has_element?(lv, ~s|#new-field-formula button[data-insert-fn="days_between"]|)
+      assert has_element?(lv, ~s|#new-field-formula button[data-insert-ref="body"]|, "Body text")
+
+      computed_change(lv, %{
+        "builder" => %{"mode" => "formula"},
+        "compute" => "{{ upcase(title) }}"
+      })
+
+      # No pages yet, so the preview runs on sample text.
+      assert has_element?(lv, "#new-field-preview output", "A SAMPLE TITLE")
+
+      computed_change(lv, %{
+        "builder" => %{"mode" => "formula"},
+        "compute" => "{{ upcse(title) }}"
+      })
+
+      assert has_element?(lv, "#new-field-preview", "calls unknown function upcse/1")
+    end
+
+    test "editing reopens a recipe's field in the recipe view, a hand formula in the formula view",
+         %{conn: conn} do
+      admin = authed_user(:admin)
+
+      recipe =
+        CMS.create_field_definition!(
+          %{
+            content_type: :page,
+            name: "page_slug",
+            label: "Slug",
+            field_type: :computed,
+            compute: "{{ slugify(title) }}"
+          },
+          actor: admin
+        )
+
+      hand =
+        CMS.create_field_definition!(
+          %{
+            content_type: :page,
+            name: "shout",
+            label: "Shout",
+            field_type: :computed,
+            compute: "{{ upcase(slugify(title)) }}"
+          },
+          actor: admin
+        )
+
+      {:ok, lv, _html} = conn |> log_in(admin) |> live(~p"/editor/fields")
+
+      lv |> element("#field-#{recipe.id} button[phx-click=edit]") |> render_click()
+      assert has_element?(lv, "#edit-field-#{recipe.id}-recipe-slug[checked]")
+
+      lv |> element("#field-#{hand.id} button[phx-click=edit]") |> render_click()
+      assert has_element?(lv, "#edit-field-#{hand.id}-formula textarea", "upcase(slugify(title))")
+
+      # Switching it to the recipe view keeps the formula until a recipe is
+      # picked, and says so.
+      lv
+      |> element("#edit-field-#{hand.id}")
+      |> render_change(%{
+        "field_definition" => %{
+          "field_type" => "computed",
+          "compute" => "{{ upcase(slugify(title)) }}",
+          "builder" => %{"mode" => "recipe"}
+        }
+      })
+
+      assert render(lv) =~ "doesn&#39;t match a recipe"
+
+      assert has_element?(
+               lv,
+               ~s|#edit-field-#{hand.id}-compute[value="{{ upcase(slugify(title)) }}"]|
+             )
+    end
   end
 end

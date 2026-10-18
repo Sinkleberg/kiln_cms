@@ -142,16 +142,28 @@ CMS.create_field_definition!(%{
 
 - **Syntax**: literal text plus `{{ … }}` expressions. A template that is
   *only* an expression keeps the native type (`{{ word_count(body) }}` → an
-  integer); anything else is string interpolation.
+  integer); anything else is string interpolation. When every expression in
+  an interpolated template is blank, the value is blank: `{{ size }} EU` on a
+  record without a size has no value, not the value "EU".
 - **References**: `title`, `slug`, `locale`, `excerpt`, `body` (the block
   tree's plain text), `seo_title`, `seo_description`, `seo_keywords` — then the
   record's other custom fields by name. `field.<name>` always means the custom
   field, for names that collide with a document scalar.
-- **Functions**: `word_count`, `reading_time`, `char_count`, `slugify`,
-  `upcase`, `downcase`, `capitalize`, `trim`, `truncate`, `concat`, `join`,
-  `sum`, `product`, `min`, `max`, `subtract`, `divide`, `round`, `default`.
-  There is no `eval`: the allowlist *is* the sandbox, and an unknown function
-  or wrong arity fails when the **field is defined**, not silently per record.
+- **Functions**: text (`word_count`, `reading_time`, `char_count`,
+  `slugify`, `upcase`, `downcase`, `capitalize`, `trim`, `truncate`,
+  `replace`, `concat`, `join`), numbers (`sum`, `subtract`, `product`,
+  `divide`, `round`, `min`, `max`), conditions (`if`, `equals`,
+  `greater_than`, `less_than`, `contains`, `is_empty`, `and`, `or`, `not`,
+  `default`) and dates (`days_between`, `year`, `format_date`). A condition
+  holds unless it is blank, `false`, `0`, the text `"false"`, or an empty list
+  or map; a list or map value (a gallery, a reference) is empty only when it
+  holds nothing. `sum`, `min` and `max` skip non-numbers, but `product` is
+  blank unless every factor is a number, and a blank is neither more nor less
+  than anything. There is no
+  `today()`: the formula runs again on every fire, and a clock would make the
+  stored and fired values disagree. There is no `eval` either: the allowlist
+  *is* the sandbox, and an unknown function or wrong arity fails when the
+  **field is defined**, not silently per record.
 - **Read-only**: the write pass never consults the submitted payload, so a
   computed field cannot be set through the editor, JSON:API, GraphQL or MCP.
 - **Evaluated twice**: on write (so the value is stored and participates in
@@ -159,6 +171,27 @@ CMS.create_field_definition!(%{
   **editing a formula reaches published content on the next fire**, with no
   re-save sweep). A stale stored value therefore never reaches an artifact.
 - **One pass**: a computed field never feeds another computed field.
+
+**Building a formula without writing one.** Custom fields → Add a field →
+*Computed* opens the formula builder, in two views over the same `compute`
+formula:
+
+- **Recipe** — pick a common computation (reading time, word count, a value
+  with a label, combine values, URL slug, shortened text, first non-empty
+  value, total, multiply, percentage, *if … then …*, days between dates) and
+  fill its blanks from dropdowns of the document's values and the type's other
+  fields. The page shows the formula the recipe writes
+  (`KilnCMS.CMS.Computed.Recipes`).
+- **Formula** — write the template by hand, with buttons that insert a value
+  or a function at the caret, and every function listed with its signature and
+  what it does.
+
+Both preview the result live against the type's most recently edited
+documents (or sample text when there are none), through the same evaluator
+the save and publish paths use. Nothing extra is stored: editing a field
+re-reads its formula, and opens it in the recipe view when it is exactly a
+recipe's output, in the formula view otherwise — so a formula changed by hand
+is never rewritten by a recipe.
 
 **When to use a real attribute instead.** Custom fields cover the long tail of
 editor-owned fields. A field that is core, needs a DB constraint/index, or is
