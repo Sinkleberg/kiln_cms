@@ -7,6 +7,22 @@ carries the reasoning.
 
 ## Added
 
+<a id="a-reference-field-can-name-its-other-side-and-every-record-it-connects-shows"></a>
+
+- **A reference field can name its other side, and every record it connects
+  shows the records connecting to it: "Recipes using this ingredient".**
+  Workstream R4 of [relationships-plan.md](../relationships-plan.md). New
+  optional `inverse_label` / `inverse_name` on a `:reference` field definition
+  (the name is suggested from the label, and unique among the reverse fields
+  of each target type). The target's editor shows a read-only reverse field:
+  the sources, with each connection's link values, ordered by title and ten
+  to a page, read as the editor so a source they could not open is neither
+  listed nor counted. The fields admin asks "What *Ingredient* calls this".
+  GraphQL `referencedBy` gains `inverse:`, and the schema export reports
+  `x-kiln-inverse` and `x-kiln-reverse-fields`. Additive: two nullable
+  columns, a new argument, new annotations.
+  ([#2015](https://github.com/The-Verscienta/kiln_cms/pull/2015))
+
 <a id="typed-nested-reads-through-references"></a>
 
 - **Reads follow reference fields to the records on the other end: GraphQL's

@@ -56,6 +56,10 @@ Every summary line below that was shortened links to its own entry there.
 
 ### Added
 
+- **A reference field can name its other side, and every record it connects
+  shows the records connecting to it: "Recipes using this ingredient".**
+  ([#2015](https://github.com/The-Verscienta/kiln_cms/pull/2015) · [long form](docs/changelog/unreleased.md#a-reference-field-can-name-its-other-side-and-every-record-it-connects-shows))
+
 - **Reads follow reference fields to the records on the other end: GraphQL's
   typed `references` / `referencedBy`, and `?expand=` on `/api/content`.**
   ([#2010](https://github.com/The-Verscienta/kiln_cms/pull/2010) · [long form](docs/changelog/unreleased.md#typed-nested-reads-through-references))
