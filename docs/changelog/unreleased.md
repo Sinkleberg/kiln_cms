@@ -319,6 +319,7 @@ carries the reasoning.
   `AnnounceWorker` job for `release.published`, which the worker then skipped
   because no `release` type syndicates; it now skips domain events before
   enqueueing. Follows #1995.
+  ([#2012](https://github.com/The-Verscienta/kiln_cms/pull/2012))
 
 <a id="variant-worker-backend-errors"></a>
 

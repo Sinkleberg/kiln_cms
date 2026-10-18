@@ -116,7 +116,7 @@ Every summary line below that was shortened links to its own entry there.
 - **Publishing or withdrawing an entry of an archived dynamic type now opens
   a propagation record, and domain events no longer enqueue a federation job
   that only skips.**
-  ([long form](docs/changelog/unreleased.md#propagation-archived-types-federation-domain-events))
+  ([#2012](https://github.com/The-Verscienta/kiln_cms/pull/2012) · [long form](docs/changelog/unreleased.md#propagation-archived-types-federation-domain-events))
 
 - **A variant job no longer takes an image backend's failed or rate-limited
   read for a deleted original.**
