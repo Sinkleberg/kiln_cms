@@ -105,6 +105,10 @@ Every summary line below that was shortened links to its own entry there.
 
 ### Fixed
 
+- **An automation rule for "any content type" no longer fires when a content
+  release is published; a rule scoped to `release` still does.**
+  ([#1995](https://github.com/The-Verscienta/kiln_cms/issues/1995) · [long form](docs/changelog/unreleased.md#automation-any-type-rules-ignore-release-published))
+
 - **A variant job no longer takes an image backend's failed or rate-limited
   read for a deleted original.**
   ([long form](docs/changelog/unreleased.md#variant-worker-backend-errors))
