@@ -146,12 +146,10 @@ defmodule KilnCMS.CMS.Computed.DailyRefresh do
     |> Enum.count(&(refresh(&1, org_id, today) == :written))
   end
 
-  # authorize?: false — kept deliberately, as in `KilnCMS.Firing.Sweep` and
-  # `KilnCMS.Events.Sweep`: a system grant on the content READ policy would hand
-  # every system caller every document on the site. This read is one tenant,
-  # published rows only, of one type; and it must see audience-gated and
-  # passphrase-locked records too, whose countdowns are as stale as anyone's.
-  # The WRITE goes through the policies, as the `:computed_fields` actor.
+  # Read without a policy check, as `KilnCMS.Firing.Sweep` and
+  # `KilnCMS.Events.Sweep` do: a system grant on the content READ policy would
+  # hand every system caller every document on the site. The WRITE goes
+  # through the policies, as the `:computed_fields` actor.
   defp page(descriptor, org_id, cursor, batch) do
     filter =
       case cursor do
@@ -160,6 +158,8 @@ defmodule KilnCMS.CMS.Computed.DailyRefresh do
       end
 
     ContentTypes.list!(descriptor,
+      # authorize?: false — one tenant, published rows of one type only, and it
+      # must see audience-gated and passphrase-locked records too.
       authorize?: false,
       tenant: org_id,
       query: [filter: filter, sort: [id: :asc], limit: batch]

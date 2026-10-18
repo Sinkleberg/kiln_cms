@@ -57,23 +57,8 @@ Every summary line below that was shortened links to its own entry there.
 ### Added
 
 - **Computed fields can use today's date: `today()`, `years_between`, and "Days
-  until a date" and "Age in years" recipes, refreshed once a day.** A formula
-  runs on write and again on fire, so a clock inside the engine would let a
-  record and its artifact disagree; instead `today()` answers a date pinned
-  once per evaluation pass — the site's day, in the events timezone
-  (`config :kiln_cms, KilnCMS.Events, time_zone:`). A write pins it for its
-  slug, alias and every computed field, and the fire it enqueues carries it,
-  so the artifact matches what was stored even after midnight; publishing now
-  re-derives computed fields on the publish day. A formula that calls
-  `today()` is time-dependent, and a new hourly AshOban scheduled action on
-  `FieldDefinition` (`:refresh_time_dependent`) re-derives and re-fires, on the
-  first tick after the site's midnight, the published records of every type
-  with one, as the `:computed_fields` system actor — writing only the records
-  whose value moved, versioned for the sync API, with no webhook, no
-  `updated_at` change and no lock bump for an open editor. The builder lists
-  `today()` under *Dates*, previews on today's date, and notes that the value
-  refreshes daily. No migration. See docs/extending-content.md, "Computed
-  fields".
+  until a date" and "Age in years" recipes, refreshed once a day.**
+  ([#2009](https://github.com/The-Verscienta/kiln_cms/pull/2009) · [long form](docs/changelog/unreleased.md#computed-fields-can-use-todays-date-today-yearsbetween-and-days-until-a-date))
 
 - **`custom_filter` filters through relationships: `has`, `has_all`, `has_none`
   and `count` on a reference field, and `has`/`has_all`/`has_none` on `tags`.**
@@ -133,8 +118,8 @@ Every summary line below that was shortened links to its own entry there.
   ([long form](docs/changelog/unreleased.md#regeneration-pixel-cap))
 
 - **GraphQL `published*` queries without `offset` return their page fields
-  (`hasNextPage`, `hasPreviousPage`, `pageNumber`, `lastPage`) again: an
-  omitted `offset` now means `0`.**
+  (`hasNextPage`, `hasPreviousPage`, `pageNumber`, `lastPage`) again: an omitted
+  `offset` now means `0`.**
   ([#1883](https://github.com/The-Verscienta/kiln_cms/issues/1883))
 
 - **Renaming a document now re-fires the documents that point at it through a
@@ -147,7 +132,7 @@ Every summary line below that was shortened links to its own entry there.
 - **bandit 1.13.0 fixes EEF-CVE-2026-105660 (a client could choose
   `conn.host`/`conn.port` via the HTTP/1 request target) and the HTTP/2 DoS
   EEF-CVE-2026-105659, so the endpoint speaks HTTP/2 again.**
-  ([#1991](https://github.com/The-Verscienta/kiln_cms/pull/1991))
+  ([#1991](https://github.com/The-Verscienta/kiln_cms/issues/1991))
 
 - **The `examples/phoenix_showcase` template's lock clears 23 Hex advisories
   (phoenix, phoenix_live_view, bandit, plug, mint, hpax, lazy_html), and CI
