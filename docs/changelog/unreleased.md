@@ -7,6 +7,50 @@ carries the reasoning.
 
 ## Added
 
+<a id="reference-target-limit-and-delete-rule"></a>
+
+- **Reference fields gain `max_sources`, a limit per target, and
+  `on_target_delete`: keep, clear or restrict on a permanent delete.** Workstreams R1b and R5 of
+  [relationships-plan.md](../relationships-plan.md). `max_sources` bounds the
+  other end of a relationship ("each Author is on at most 3 Books"): checked
+  inside the source record's own write, where its edges are written, so the
+  editor, API writes and *Publish changes* on a working copy are all held to
+  it. Only a target the write adds is checked; every connection counts,
+  drafts and trashed records included; a per-target advisory lock keeps two
+  records racing for the last slot from both getting it; and the refusal
+  names the count, never the other records. Tightening it leaves existing
+  connections alone. The picker lists a full target disabled, "Full — 3 of 3
+  connected". `on_target_delete` acts on the permanent delete only: `:keep`
+  (the default, today's behaviour) leaves a broken reference, `:clear` takes
+  the record out of every referrer's value as a versioned system write that
+  re-fires published referrers and keeps link data and edges in step, and
+  `:restrict` refuses the purge while anything connects, which the trash
+  explains in plain words. The fields admin asks both from the other side, in
+  the relationship's own words. The schema export reports
+  `x-kiln-max-sources` and a non-default `x-kiln-on-target-delete`. Additive:
+  two new options with defaults that keep every field as it was.
+  ([#2017](https://github.com/The-Verscienta/kiln_cms/pull/2017))
+
+<a id="graduate-a-reference-field-to-a-join-resource"></a>
+
+- **`mix kiln.gen.join <type>.<field>` graduates a reference field to a typed
+  Ash join resource, copies its connections, and retires the field.**
+  Workstream R10 of [relationships-plan.md](../relationships-plan.md), the
+  graduation path D22 promises. The first run writes the resource and its
+  code interfaces: two `belongs_to`s, `position`, one typed attribute per link
+  field, a `unique_connection` identity, an index on `target_id`, and the
+  content read rule as policies. `mix ash.codegen` then makes its table. A
+  second run, `--data-migration`, writes a migration that copies the field's
+  `content_links` edges into the table in plain SQL. `mix kiln.join.retire`
+  (or `KilnCMS.Release.retire_join_field/2`) then deletes the field
+  definition, its stored values and its edges. It refuses while any
+  connection is missing from the join table, or while a working copy holds
+  an unpublished change. A field that links to several types is refused:
+  split it first. Retiring removes the field from `custom_fields`, so move
+  readers to the join resource before that step. See
+  [extending-content.md](../extending-content.md).
+  ([#2016](https://github.com/The-Verscienta/kiln_cms/pull/2016))
+
 <a id="connections-can-be-added-removed-and-reordered-from-the-record-they-point-at"></a>
 
 - **Connections can be added, removed and reordered from the record they
