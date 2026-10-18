@@ -18,7 +18,8 @@ UI" workflow, scoped to fields.
 - **Define**: `KilnCMS.CMS.FieldDefinition` rows describe each field
   (`content_type`, `name`, `label`, `field_type`, `required`, `options`,
   `target_type`, `target_types`, `multiple`, `min_items`, `max_items`,
-  `max_sources`, `on_target_delete`, `help_text`, `position`, `default`, `compute`). Field types: `:string`,
+  `max_sources`, `on_target_delete`, `inverse_label`, `inverse_name`,
+  `link_of_id`, `help_text`, `position`, `default`, `compute`). Field types: `:string`,
   `:text`, `:integer`, `:float`, `:boolean`, `:date`, `:datetime`, `:url`,
   `:select`, `:media`, `:reference`, `:geolocation`, `:datetime_range`,
   `:recurrence`, `:computed` — plus
@@ -97,7 +98,7 @@ UI" workflow, scoped to fields.
   its targets call it — `inverse_label` ("Recipes using this ingredient")
   and `inverse_name` (`used_in_recipes`, suggested from the label when left
   blank). Every record of each type the field may point at then shows a
-  read-only **reverse field** in its editor: the records connecting to it
+  **reverse field** in its editor: the records connecting to it
   through that field, with each connection's link values, ordered by title,
   ten to a page. Nothing is stored for it; it is read from the reference's
   edges as the editor, so a source the editor could not open is neither
@@ -401,9 +402,11 @@ There are two ways to fill that payload:
   fields and copied from the snapshot's `"link"` map in the same transaction
   as the write, so the two copies cannot disagree. Don't write those edges
   yourself: they are rebuilt from the field's value on every save.
-- **Free-form, in code** — a curated link (any other `kind`) created with
-  `CMS.create_content_link!/2`. Its `metadata` is whatever map you give it;
-  nothing declares or checks its keys.
+- **Free-form, in code or over the API** — a curated link (any other
+  `kind`) created with `CMS.create_content_link!/2`, or through
+  `POST /api/json/content-links` by anyone who may update the source record
+  (see [json-api.md](json-api.md), *Writing relationships*). Its `metadata`
+  is whatever map you give it; nothing declares or checks its keys.
 
 ```elixir
 CMS.create_content_link!(%{
@@ -413,8 +416,13 @@ CMS.create_content_link!(%{
 }, actor: editor)
 ```
 
-Read the payload from either end via the `content_links` (outgoing) and
-`incoming_links` (reverse) relationships on any content record:
+A headless client reads a reference field's connections through GraphQL
+`references(field:)` / `referencedBy`, or the delivery API's `?expand=`, and
+writes them with a `PATCH` of the list or the GraphQL `add…References` /
+`remove…References` / `move…Reference` mutations
+([headless-graphql-api.md](headless-graphql-api.md), [api.md](api.md)). In
+Elixir, read the payload from either end via the `content_links` (outgoing)
+and `incoming_links` (reverse) relationships on any content record:
 
 ```elixir
 recipe = CMS.get_page!(id, load: [:content_links], actor: actor)

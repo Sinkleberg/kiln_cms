@@ -453,6 +453,19 @@ carries the reasoning.
 
 ## Fixed
 
+<a id="graphql-referenced-by-inverse-on-entries"></a>
+
+- **GraphQL's `referencedBy(inverse:)` now lists the connecting records on an
+  entry of an admin-defined type; it returned an empty list there.** Found by
+  the end-to-end pass that closed out the relationships plan
+  ([relationships-plan.md](../relationships-plan.md) §8). The reverse field is
+  named per content type, and an entry's type comes from its
+  `type_definition_id`, which AshGraphql does not load unless the query selects
+  it. The resolver now looks the type up for such entries, in one read per
+  batch. Compiled types were not affected. The same pass is kept as a browser
+  test of the whole feature (`e2e/tests/relationships_journey.spec.js`).
+  ([#2026](https://github.com/The-Verscienta/kiln_cms/pull/2026))
+
 <a id="automation-any-type-rules-ignore-release-published"></a>
 
 - **An automation rule for "any content type" no longer fires when a content

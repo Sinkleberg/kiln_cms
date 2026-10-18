@@ -5,7 +5,8 @@ roles, review workflows, localization and cloud pricing, with sources and a
 check date on every claim. -->
 
 > **Facts checked 2026-10-06.** Review owner: the Kiln maintainers. The
-> sources are listed [at the end](#sources). See
+> sources are listed [at the end](#sources). The relationships facts were
+> added on 2026-10-18, with their sources. See
 > [how these pages stay honest](how-kiln-compares.md#how-these-pages-stay-honest).
 
 Strapi is the best-known open-source headless CMS. You model content in its
@@ -23,6 +24,7 @@ paid plans.
 | Latest major | 5.0.0, released 2024-09-18 ([releases][strapi-releases]) | 1.0.0, released 2026-10-02 ([changelog][kiln-changelog]) |
 | APIs | REST and GraphQL; API tokens can be read-only, full access or custom ([API tokens][strapi-tokens]) | JSON:API and GraphQL, both read and write, plus MCP; scoped API keys ([API overview](../api.md)) |
 | Modeling | Content-Type Builder in the admin UI, which works in development only and writes the model to code ([builder][strapi-ctb]) | In code, or in the admin UI on a running site with no deploy ([extending content](../extending-content.md)) |
+| Relationships | One-to-one, one-to-many, many-to-one and many-to-many relations to one content type each, one-way or both ways; no polymorphic relations or data on the link are documented ([builder][strapi-ctb], [models][strapi-models]) | From 1.5: reference fields to one or several types, with typed data on each connection, a reverse field, an on-delete rule and a limit per target, defined in the admin UI ([relations](../extending-content.md)) |
 | Custom roles, field-level permissions | Free ([RBAC][strapi-rbac]) | Free ([RBAC](../granular-rbac.md)) |
 | Review workflows | Enterprise only ([review workflows][strapi-review]) | Built in: draft, in review, published, with notifications ([content lifecycles](../content-lifecycles.md)) |
 | Content history | Growth plan (14 days) or Enterprise ([history][strapi-history]) | Built in: every version kept, with a tamper-evident history ([provenance](../provenance.md)) |
@@ -80,11 +82,16 @@ All checked 2026-10-06.
 - [Strapi Cloud pricing][strapi-cloud]
 - [Self-hosted pricing][strapi-self]
 
+Added 2026-10-18, for the relationships facts:
+
+- [Models][strapi-models]
+
 [strapi-license]: https://github.com/strapi/strapi/blob/develop/LICENSE
 [strapi-db]: https://docs.strapi.io/cms/configurations/database
 [strapi-releases]: https://github.com/strapi/strapi/releases
 [strapi-tokens]: https://docs.strapi.io/cms/features/api-tokens
 [strapi-ctb]: https://docs.strapi.io/cms/features/content-type-builder
+[strapi-models]: https://docs.strapi.io/cms/backend-customization/models
 [strapi-rbac]: https://docs.strapi.io/cms/features/rbac
 [strapi-review]: https://docs.strapi.io/cms/features/review-workflows
 [strapi-history]: https://docs.strapi.io/cms/features/content-history

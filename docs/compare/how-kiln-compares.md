@@ -5,7 +5,8 @@ Ghost, Strapi, Payload and Directus, plus step-by-step migration guides from
 WordPress and Ghost. -->
 
 > **Facts checked 2026-10-06.** Review owner: the Kiln maintainers
-> ([@The-Verscienta](https://github.com/The-Verscienta)).
+> ([@The-Verscienta](https://github.com/The-Verscienta)). The relationships
+> row was added on 2026-10-18.
 
 These pages compare Kiln with the systems people most often weigh it against.
 Each page says where the other system is the better choice, as well as where
@@ -28,8 +29,9 @@ Moving over:
 
 The main differences side by side. Each cell links to its source: Kiln's own
 documentation for Kiln, and the vendor's documentation, pricing page or
-licence for everything else. All checked 2026-10-06. Each product's page has
-the detail behind a cell.
+licence for everything else. All checked 2026-10-06, except the
+relationships row, checked 2026-10-18. Each product's page has the detail
+behind a cell.
 
 | | Kiln | [WordPress](kiln-vs-wordpress.md) | [Ghost](kiln-vs-ghost.md) | [Strapi](kiln-vs-strapi.md) | [Payload](kiln-vs-payload.md) | [Directus](kiln-vs-directus.md) |
 |---|---|---|---|---|---|---|
@@ -37,6 +39,7 @@ the detail behind a cell.
 | **Stack** | [Elixir][kiln-deploy] | [PHP][wp-req] | [Node.js][ghost-install] | [Node.js][strapi-db] | [TypeScript, inside Next.js][payload-db] | [Node.js][directus-db] |
 | **Databases** | [PostgreSQL][kiln-deploy] | [MySQL, MariaDB][wp-req] | [MySQL][ghost-install] | [PostgreSQL, MySQL, MariaDB, SQLite][strapi-db] | [MongoDB, PostgreSQL, SQLite][payload-db] | [PostgreSQL, MySQL, Oracle, SQL Server, SQLite, CockroachDB][directus-db] |
 | **Custom content types** | [Yes, in code or the admin UI][kiln-types] | [In code, or by plugin][wp-cpt] | [No: posts and pages][ghost-schema] | [Yes, admin UI in development][strapi-ctb] | [Yes, in code][payload-access] | [Yes, from your database][directus-overview] |
+| **Many-to-many with data on the link** | [From 1.5, in the admin UI][kiln-relations] | — | — | [Many-to-many; no link data documented][strapi-models] | [Through a junction collection you model][payload-join] | [Junction collection fields][directus-relations] |
 | **Read/write API** | [Yes][kiln-api] | [Yes (REST)][wp-rest-auth] | [Yes (Admin API)][ghost-admin-api] | [Yes][strapi-tokens] | [Yes][payload-keys] | [Yes][directus-overview] |
 | **GraphQL** | [Built in][kiln-graphql] | [Plugin][wpgraphql] | [No][ghost-content-api] | [Built in][strapi-self] | [Built in][payload-keys] | [Built in][directus-overview] |
 | **Custom roles** | [Yes, in the admin UI][kiln-rbac] | [In code, or by plugin][wp-roles] | [No: fixed roles][ghost-staff] | [Yes][strapi-rbac] | [Written as code][payload-access] | [Yes][directus-access] |
@@ -96,6 +99,7 @@ as welcome.
 [kiln-license]: https://github.com/The-Verscienta/kiln_cms/blob/main/LICENSE
 [kiln-deploy]: ../deploy.md
 [kiln-types]: ../extending-content.md
+[kiln-relations]: ../relationships-plan.md
 [kiln-api]: ../api.md
 [kiln-graphql]: ../headless-graphql-api.md
 [kiln-rbac]: ../granular-rbac.md
@@ -131,6 +135,7 @@ as welcome.
 [strapi-license]: https://github.com/strapi/strapi/blob/develop/LICENSE
 [strapi-db]: https://docs.strapi.io/cms/configurations/database
 [strapi-ctb]: https://docs.strapi.io/cms/features/content-type-builder
+[strapi-models]: https://docs.strapi.io/cms/backend-customization/models
 [strapi-tokens]: https://docs.strapi.io/cms/features/api-tokens
 [strapi-self]: https://strapi.io/pricing-self-hosted
 [strapi-rbac]: https://docs.strapi.io/cms/features/rbac
@@ -141,6 +146,7 @@ as welcome.
 [payload-license]: https://github.com/payloadcms/payload/blob/main/LICENSE.md
 [payload-db]: https://payloadcms.com/docs/database/overview
 [payload-access]: https://payloadcms.com/docs/access-control/overview
+[payload-join]: https://payloadcms.com/docs/fields/join
 [payload-keys]: https://payloadcms.com/docs/authentication/api-keys
 [payload-l10n]: https://payloadcms.com/docs/configuration/localization
 [payload-preview]: https://payloadcms.com/docs/live-preview/overview
@@ -149,6 +155,7 @@ as welcome.
 [directus-license]: https://github.com/directus/directus/blob/main/license
 [directus-db]: https://directus.com/docs/configuration/database
 [directus-overview]: https://directus.com/docs/getting-started/overview
+[directus-relations]: https://directus.com/docs/guides/data-model/relationships
 [directus-access]: https://directus.com/docs/guides/auth/access-control
 [directus-l10n]: https://directus.com/docs/configuration/translations
 [directus-collab]: https://directus.com/docs/guides/content/collaborative-editing

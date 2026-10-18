@@ -57,7 +57,7 @@ defmodule KilnCMSWeb.Graphql.References do
       {:error, "pass either inverse, or field and sourceType, not both"}
     else
       key = {:inverse, inverse, window(args), actor(resolution), tenant(resolution)}
-      item = {id, ContentTypes.type_name_for(parent)}
+      item = {id, parent_type(parent)}
 
       batch({__MODULE__, :load_inverse_edges, key}, item, &{:ok, Map.get(&1, id, [])})
     end
@@ -81,6 +81,7 @@ defmodule KilnCMSWeb.Graphql.References do
   # reverse field of that name lists nothing, as an unknown `field:` does.
   def load_inverse_edges({:inverse, name, window, actor, tenant}, items) do
     items
+    |> resolve_types(actor, tenant)
     |> Enum.group_by(&elem(&1, 1), &elem(&1, 0))
     |> Enum.reduce(%{}, fn {type, ids}, acc ->
       case ReverseFields.find(type, name, tenant) do
@@ -92,6 +93,42 @@ defmodule KilnCMSWeb.Graphql.References do
           Map.merge(acc, load_edges({:referenced_by, scope, window, actor, tenant}, ids))
       end
     end)
+  end
+
+  # A parent's content type. A compiled type is its resource, but a
+  # dynamic-type entry is named by its definition, and AshGraphql selects only
+  # the attributes the document asked for, so `type_definition_id` and
+  # `org_id` are usually not loaded. Such parents are looked up in the batch.
+  defp parent_type(%resource{} = parent) do
+    dynamic? = Ash.Resource.Info.attribute(resource, :type_definition_id) != nil
+
+    if dynamic? and not Enum.all?([:type_definition_id, :org_id], &loaded?(parent, &1)),
+      do: {:unresolved, resource},
+      else: ContentTypes.type_name_for(parent)
+  end
+
+  defp loaded?(record, key), do: not match?(%Ash.NotLoaded{}, Map.get(record, key))
+
+  # One read per resource for the parents `parent_type/1` could not name,
+  # as the reader, who has just read them.
+  defp resolve_types(items, actor, tenant) do
+    {unresolved, known} = Enum.split_with(items, &match?({_id, {:unresolved, _}}, &1))
+
+    resolved =
+      unresolved
+      |> Enum.group_by(fn {_id, {:unresolved, resource}} -> resource end, &elem(&1, 0))
+      |> Enum.flat_map(fn {resource, ids} ->
+        resource
+        |> Ash.Query.filter(id in ^ids)
+        |> Ash.Query.select([:id, :type_definition_id, :org_id])
+        |> Ash.read(actor: actor, tenant: tenant)
+        |> case do
+          {:ok, records} -> Enum.map(records, &{&1.id, ContentTypes.type_name_for(&1)})
+          {:error, _error} -> []
+        end
+      end)
+
+    known ++ resolved
   end
 
   @doc false
