@@ -130,6 +130,7 @@ carries the reasoning.
   price); and `default` sees a filled list or map value (a gallery, a
   reference) as filled. Affected computed values change on the next save or
   fire. See docs/extending-content.md, "Computed fields".
+  ([#2006](https://github.com/The-Verscienta/kiln_cms/pull/2006))
 
 <a id="kilncmsdev-now-publishes-kilns-security-policy-at-security-and-a-security"></a>
 
