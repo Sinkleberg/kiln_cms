@@ -69,7 +69,9 @@ test.describe("reference picker", () => {
     await page.fill('#new-field-form input[name="field_definition[label]"]', "See also");
     await page.fill('#new-field-form input[name="field_definition[name]"]', `${name}_see`);
     await page.selectOption('#new-field-form select[name="field_definition[field_type]"]', "reference");
-    await page.selectOption('#new-field-form select[name="field_definition[target_type]"]', "page");
+    // "Links to" is a set of checkboxes since R2 (#2004): one ticked type is
+    // saved as `target_type`.
+    await page.locator("#new-field-targets-page").check();
     await page.locator("#new-field-multiple-true").check();
     await page.locator("#new-field-form button[type=submit]").click();
     await expect(page.locator(`code:text-is("${name}_see")`)).toBeVisible();

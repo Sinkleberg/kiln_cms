@@ -30,10 +30,13 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
   # and plugin types take a shape a single box can't give.
   @default_types ~w(string text url integer float boolean date datetime select)
 
+  import KilnCMSWeb.ComputedBuilderComponents, only: [compute_builder: 1]
+
   alias KilnCMS.CMS
   alias KilnCMS.CMS.Computed
   alias KilnCMS.CMS.ContentTypes
   alias KilnCMS.CMS.FieldDefinition
+  alias KilnCMSWeb.ComputedBuilder
 
   @impl true
   def mount(_params, _session, socket) do
@@ -51,8 +54,14 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
        |> assign(:target_types, ContentTypes.options(org))
        |> assign(:edit, nil)
        |> assign(:default_scopes, [])
+       |> assign(:samples, %{})
+       # The builder's static lists, built once: each is a page of gettext
+       # calls, and rebuilding them per keystroke is wasted work.
+       |> assign(:recipes, Computed.Recipes.all())
+       |> assign(:function_categories, KilnCMSWeb.ComputedBuilderComponents.categories())
        |> reset_create_form()
-       |> load_definitions()}
+       |> load_definitions()
+       |> assign_create_builder()}
     else
       # Defense-in-depth: the `:live_admin_required` on_mount guard already
       # redirects non-admins before mount; mirror its flash here for consistency.
@@ -75,7 +84,8 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
     {:noreply,
      socket
      |> assign(:default_scopes, default_scopes)
-     |> assign(:scopes, default_scopes)}
+     |> assign(:scopes, default_scopes)
+     |> assign_create_builder()}
   end
 
   def handle_params(_params, _uri, socket), do: {:noreply, socket}
@@ -89,6 +99,7 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
     name_edited? = name_edited?(event["_target"], params, socket.assigns.name_edited?)
     params = if name_edited?, do: params, else: suggest_name(params)
     params = drop_default_on_type_change(params, socket.assigns.form)
+    {params, builder} = ComputedBuilder.apply_params(params, socket.assigns.builder)
 
     form =
       socket.assigns.form
@@ -100,7 +111,9 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
      |> assign(:form, form)
      |> assign(:scopes, scopes)
      |> assign(:name_edited?, name_edited?)
-     |> assign(:scope_error, nil)}
+     |> assign(:scope_error, nil)
+     |> assign(:builder, builder)
+     |> assign_create_builder()}
   end
 
   def handle_event("create", %{"field_definition" => params}, socket) when is_map(params) do
@@ -108,8 +121,9 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
     # A submit without a preceding change event (or with the name cleared)
     # still gets the name its label suggests.
     params = if blank?(params["name"]), do: suggest_name(params), else: params
+    {params, builder} = ComputedBuilder.apply_params(params, socket.assigns.builder)
     assigns = socket.assigns
-    socket = assign(socket, :scopes, scopes)
+    socket = socket |> assign(:scopes, scopes) |> assign(:builder, builder)
 
     forms =
       Enum.map(scopes, fn scope ->
@@ -137,7 +151,7 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
         # Submitting an invalid form writes nothing; it is what marks every
         # error on it for display.
         {:error, form} = AshPhoenix.Form.submit(invalid, params: nil)
-        {:noreply, assign(socket, :form, form)}
+        {:noreply, socket |> assign(:form, form) |> assign_create_builder()}
 
       true ->
         {:noreply, create_all(socket, forms)}
@@ -147,11 +161,17 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
   # --- inline edit -----------------------------------------------------------
 
   def handle_event("edit", %{"id" => id}, socket) when is_binary(id) do
+    form = edit_form(id, socket.assigns.actor, socket.assigns.current_org)
+
     {:noreply,
-     assign(socket, :edit, %{
+     socket
+     |> assign(:edit, %{
        id: id,
-       form: edit_form(id, socket.assigns.actor, socket.assigns.current_org)
-     })}
+       form: form,
+       builder: ComputedBuilder.new(form[:compute].value),
+       ctx: nil
+     })
+     |> assign_edit_builder()}
   end
 
   def handle_event("cancel_edit", _params, socket), do: {:noreply, assign(socket, :edit, nil)}
@@ -159,23 +179,30 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
   def handle_event("validate_edit", %{"field_definition" => params}, socket)
       when is_map(params) do
     params = drop_default_on_type_change(params, socket.assigns.edit.form)
+    {params, builder} = ComputedBuilder.apply_params(params, socket.assigns.edit.builder)
 
     edit = %{
       socket.assigns.edit
-      | form: AshPhoenix.Form.validate(socket.assigns.edit.form, normalize(params))
+      | form: AshPhoenix.Form.validate(socket.assigns.edit.form, normalize(params)),
+        builder: builder
     }
 
-    {:noreply, assign(socket, :edit, edit)}
+    {:noreply, socket |> assign(:edit, edit) |> assign_edit_builder()}
   end
 
   def handle_event("save_edit", %{"field_definition" => params}, socket) when is_map(params) do
+    {params, builder} = ComputedBuilder.apply_params(params, socket.assigns.edit.builder)
+
     case AshPhoenix.Form.submit(socket.assigns.edit.form, params: normalize(params)) do
       {:ok, _definition} ->
         {:noreply,
          socket |> assign(:edit, nil) |> load_definitions() |> put_flash(:info, gettext("Saved."))}
 
       {:error, form} ->
-        {:noreply, assign(socket, :edit, %{socket.assigns.edit | form: form})}
+        {:noreply,
+         socket
+         |> assign(:edit, %{socket.assigns.edit | form: form, builder: builder})
+         |> assign_edit_builder()}
     end
   end
 
@@ -272,6 +299,7 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
     |> assign(:scopes, socket.assigns.default_scopes)
     |> assign(:scope_error, nil)
     |> assign(:name_edited?, false)
+    |> assign(:builder, ComputedBuilder.new())
   end
 
   # The machine name tracks the label until the admin types into the name
@@ -303,6 +331,166 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
   end
 
   defp drop_default_on_type_change(params, _form), do: params
+
+  # --- formula builder -------------------------------------------------------
+
+  # The builder's values, samples and preview for the add form. A formula is
+  # shared by every type ticked, so the value picker offers the fields of all
+  # of them; the preview runs on the first.
+  defp assign_create_builder(socket) do
+    %{form: form, scopes: scopes, builder: builder} = socket.assigns
+
+    if computed?(form) do
+      {socket, ctx} = builder_ctx(socket, scopes, form[:compute].value, builder, nil)
+      assign(socket, :builder_ctx, ctx)
+    else
+      assign(socket, :builder_ctx, nil)
+    end
+  end
+
+  defp assign_edit_builder(%{assigns: %{edit: edit}} = socket) do
+    definition = Enum.find(socket.assigns.definitions, &(&1.id == edit.id))
+
+    if definition && computed?(edit.form) do
+      {socket, ctx} =
+        builder_ctx(
+          socket,
+          [scope_param(definition)],
+          edit.form[:compute].value,
+          edit.builder,
+          definition.name
+        )
+
+      assign(socket, :edit, %{edit | ctx: ctx})
+    else
+      socket
+    end
+  end
+
+  defp builder_ctx(socket, scopes, compute, builder, own_name) do
+    scope = List.first(scopes)
+    {socket, documents} = samples(socket, scope)
+    sample = Enum.find(documents, &(&1.id == builder.sample)) || List.first(documents)
+
+    # Projected onto the type's current editable fields, as the write path
+    # (`ApplyCustomFields`) and firing both do: a value left in the jsonb by a
+    # field deleted since must not preview a result the save would never give.
+    context =
+      if sample,
+        do:
+          Computed.Context.from_document(
+            sample,
+            Map.take(
+              sample.custom_fields || %{},
+              editable_names(socket.assigns.definitions, scope)
+            )
+          ),
+        else: sample_context()
+
+    {socket,
+     %{
+       values: value_options(socket.assigns.definitions, scopes, own_name),
+       samples: Enum.map(documents, &{sample_label(&1), &1.id}),
+       sample: sample && sample.id,
+       preview: ComputedBuilder.preview(compute, context)
+     }}
+  end
+
+  # The values a formula may reference: the document's own, then this type's
+  # other editable fields. A computed field never feeds another (one pass), so
+  # none is offered; a field sharing a document value's name is reached as
+  # `field.<name>`.
+  defp value_options(definitions, scopes, own_name) do
+    fields =
+      definitions
+      |> Enum.filter(
+        &(scope_param(&1) in scopes and &1.field_type != :computed and &1.name != own_name)
+      )
+      |> Enum.uniq_by(& &1.name)
+      |> Enum.map(&{&1.label, field_ref(&1.name)})
+
+    document = Enum.map(Computed.document_refs(), &{document_ref_label(&1), &1})
+
+    Enum.reject(
+      [{gettext("This document"), document}, {gettext("Custom fields"), fields}],
+      &match?({_group, []}, &1)
+    )
+  end
+
+  defp field_ref(name),
+    do: if(name in Computed.document_refs(), do: "field." <> name, else: name)
+
+  defp document_ref_label("title"), do: gettext("Title")
+  defp document_ref_label("slug"), do: gettext("Slug")
+  defp document_ref_label("locale"), do: gettext("Language")
+  defp document_ref_label("excerpt"), do: gettext("Summary")
+  defp document_ref_label("body"), do: gettext("Body text")
+  defp document_ref_label("seo_title"), do: gettext("SEO title")
+  defp document_ref_label("seo_description"), do: gettext("SEO description")
+  defp document_ref_label("seo_keywords"), do: gettext("SEO keywords")
+  defp document_ref_label(ref), do: ref
+
+  # A computed field never feeds another (one pass), so its stored value is
+  # left out along with any key no definition declares.
+  defp editable_names(definitions, scope) do
+    for definition <- definitions,
+        definition.field_type != :computed,
+        scope_param(definition) == scope,
+        do: definition.name
+  end
+
+  # A type's five most recently edited documents, read once per type per page
+  # visit — the preview re-evaluates on every keystroke, but against these.
+  defp samples(socket, nil), do: {socket, []}
+
+  defp samples(%{assigns: %{samples: cache}} = socket, scope) do
+    case Map.fetch(cache, scope) do
+      {:ok, documents} ->
+        {socket, documents}
+
+      :error ->
+        documents = load_samples(socket.assigns, scope)
+        {assign(socket, :samples, Map.put(cache, scope, documents)), documents}
+    end
+  end
+
+  defp load_samples(assigns, scope) do
+    descriptor =
+      case scope do
+        "def:" <> id -> Enum.find(assigns.dynamic_types, &(&1.definition.id == id))
+        type -> Enum.find(assigns.content_types, &(to_string(&1.type) == type))
+      end
+
+    if descriptor do
+      ContentTypes.list!(descriptor,
+        actor: assigns.actor,
+        tenant: assigns.current_org,
+        query: [sort: [updated_at: :desc], limit: 5]
+      )
+    else
+      []
+    end
+  end
+
+  defp sample_label(%{title: title}) when is_binary(title) and title != "", do: title
+  defp sample_label(_document), do: gettext("Untitled")
+
+  # What the preview runs on for a type with no content yet: enough body text
+  # that reading time and word count say something.
+  defp sample_context do
+    title = gettext("A sample title")
+
+    %{
+      document: %{
+        "title" => title,
+        "slug" => KilnCMS.Slug.slugify(title),
+        "locale" => "en",
+        "excerpt" => gettext("A short summary of the sample document."),
+        "body" => String.duplicate(gettext("Sample body text for the preview. "), 80)
+      },
+      fields: %{}
+    }
+  end
 
   # --- order helpers ---------------------------------------------------------
 
@@ -663,10 +851,6 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
     end
   end
 
-  # A literal, so the `{{ … }}` never reaches HEEx as markup (curly braces are
-  # interpolation in a template, including inside attribute strings).
-  defp compute_placeholder, do: "{{ reading_time(body) }} min read"
-
   attr :form, :any, required: true
   attr :id, :string, required: true
   # `{label, name}` pairs: every content type on the site, compiled or dynamic.
@@ -745,29 +929,6 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
       target_type: form[:target_type].value,
       target_types: List.wrap(form[:target_types].value) |> Enum.reject(&(&1 in [nil, ""]))
     })
-  end
-
-  attr :form, :any, required: true
-
-  # The formula behind a `:computed` field (#429), shown only for that type —
-  # the same conditional treatment `target_type` gets for `:reference`.
-  defp compute_field(assigns) do
-    ~H"""
-    <div :if={computed?(@form)} class="sm:col-span-2">
-      <.input
-        field={@form[:compute]}
-        label={gettext("Formula")}
-        placeholder={compute_placeholder()}
-      />
-      <p class="mt-1 text-xs text-base-content/60">
-        {gettext(
-          "Derived from the document on every save and every publish — editors can't type into it. Values: %{refs}, plus this type's other fields by name. Functions: %{functions}.",
-          refs: Enum.join(Computed.document_refs(), ", "),
-          functions: Enum.join(Computed.functions(), ", ")
-        )}
-      </p>
-    </div>
-    """
   end
 
   attr :form, :any, required: true
@@ -1181,7 +1342,15 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
               hint={type_description(@form[:field_type].value, @field_types)}
             />
             <.target_types_field form={@form} id="new-field-targets" target_types={@target_types} />
-            <.compute_field form={@form} />
+            <.compute_builder
+              :if={computed?(@form)}
+              form={@form}
+              builder={@builder}
+              ctx={@builder_ctx}
+              recipes={@recipes}
+              categories={@function_categories}
+              id="new-field"
+            />
             <.multiple_field form={@form} id="new-field-multiple" target_types={@target_types} />
             <.input field={@form[:help_text]} label={gettext("Help text")} />
             <.localization_input field={@form[:localization]} />
@@ -1388,7 +1557,15 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
                     id={"edit-field-targets-#{@edit.id}"}
                     target_types={@target_types}
                   />
-                  <.compute_field form={@edit.form} />
+                  <.compute_builder
+                    :if={computed?(@edit.form)}
+                    form={@edit.form}
+                    builder={@edit.builder}
+                    ctx={@edit.ctx}
+                    recipes={@recipes}
+                    categories={@function_categories}
+                    id={"edit-field-#{@edit.id}"}
+                  />
                   <.multiple_field
                     form={@edit.form}
                     id={"edit-field-multiple-#{@edit.id}"}
