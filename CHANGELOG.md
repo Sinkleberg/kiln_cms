@@ -56,6 +56,11 @@ Every summary line below that was shortened links to its own entry there.
 
 ### Added
 
+- **API clients can connect, disconnect and reorder references: GraphQL's
+  `add<Type>References`, `remove<Type>References` and `move<Type>Reference`, and
+  payload-link routes at `/api/json/content-links`.**
+  ([#2014](https://github.com/The-Verscienta/kiln_cms/pull/2014) · [long form](docs/changelog/unreleased.md#api-clients-can-connect-disconnect-and-reorder-references-graphqls))
+
 - **Reference fields gain `max_sources`, a limit per target, and
   `on_target_delete`: keep, clear or restrict on a permanent delete.**
   ([#2017](https://github.com/The-Verscienta/kiln_cms/pull/2017) · [long form](docs/changelog/unreleased.md#reference-target-limit-and-delete-rule))
@@ -179,7 +184,7 @@ Every summary line below that was shortened links to its own entry there.
 - **A reference custom field no longer reveals a draft target to a reader who
   cannot read it: the fired artifact, JSON:API and GraphQL leave that item out
   of `custom_fields`.**
-  ([long form](docs/changelog/unreleased.md#reference-snapshot-hides-unreadable-targets))
+  ([#2013](https://github.com/The-Verscienta/kiln_cms/issues/2013) · [long form](docs/changelog/unreleased.md#reference-snapshot-hides-unreadable-targets))
 
 ## [1.4.0] - 2026-10-14
 
