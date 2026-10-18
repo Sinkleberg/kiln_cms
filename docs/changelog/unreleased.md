@@ -25,7 +25,10 @@ carries the reasoning.
   the record out of every referrer's value as a versioned system write that
   re-fires published referrers and keeps link data and edges in step, and
   `:restrict` refuses the purge while anything connects, which the trash
-  explains in plain words. The fields admin asks both from the other side, in
+  explains in plain words; the nightly purge of old trash skips such a record
+  rather than failing on it each night
+  ([#2022](https://github.com/The-Verscienta/kiln_cms/pull/2022)). The fields
+  admin asks both from the other side, in
   the relationship's own words. The schema export reports
   `x-kiln-max-sources` and a non-default `x-kiln-on-target-delete`. Additive:
   two new options with defaults that keep every field as it was.
