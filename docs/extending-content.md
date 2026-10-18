@@ -93,6 +93,20 @@ UI" workflow, scoped to fields.
   on them with `custom_filter[ingredients.link.role]=main` (see
   [json-api.md](json-api.md)). The schema export types the `"link"` object
   and lists the names as `x-kiln-link-fields`.
+- **Reverse fields (the other side)**: a `:reference` field may name what
+  its targets call it — `inverse_label` ("Recipes using this ingredient")
+  and `inverse_name` (`used_in_recipes`, suggested from the label when left
+  blank). Every record of each type the field may point at then shows a
+  read-only **reverse field** in its editor: the records connecting to it
+  through that field, with each connection's link values, ordered by title,
+  ten to a page. Nothing is stored for it; it is read from the reference's
+  edges as the editor, so a source the editor could not open is neither
+  listed nor counted. The machine name is unique among the reverse fields
+  of every type the reference may point at. In the fields admin it is
+  *What Ingredient calls this*; GraphQL reads it as
+  `referencedBy(inverse: "used_in_recipes")`; the schema export reports
+  `x-kiln-inverse` on the reference and `x-kiln-reverse-fields` on each
+  target type. `KilnCMS.CMS.ReverseFields` is the reader.
 - **Item bounds**: on either kind of list (`multiple: true`), optional
   `min_items` / `max_items` bound how many items a value holds once it holds
   any — an empty optional field is still allowed; `required` asks for at
