@@ -56,6 +56,10 @@ Every summary line below that was shortened links to its own entry there.
 
 ### Added
 
+- **A reference custom field can carry link fields: typed details on each
+  connection, such as the quantity of each ingredient a recipe connects.**
+  ([#2011](https://github.com/The-Verscienta/kiln_cms/pull/2011) · [long form](docs/changelog/unreleased.md#a-reference-custom-field-can-carry-link-fields-details-on-each-connection))
+
 - **Computed fields can use today's date: `today()`, `years_between`, and "Days
   until a date" and "Age in years" recipes, refreshed once a day.**
   ([#2009](https://github.com/The-Verscienta/kiln_cms/pull/2009) · [long form](docs/changelog/unreleased.md#computed-fields-can-use-todays-date-today-yearsbetween-and-days-until-a-date))
