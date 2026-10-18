@@ -56,6 +56,10 @@ Every summary line below that was shortened links to its own entry there.
 
 ### Added
 
+- **Connections can be added, removed and reordered from the record they point
+  at, and each change is saved as an edit of the record that holds it.**
+  ([#2018](https://github.com/The-Verscienta/kiln_cms/pull/2018) · [long form](docs/changelog/unreleased.md#connections-can-be-added-removed-and-reordered-from-the-record-they-point-at))
+
 - **A reference field can name its other side, and every record it connects
   shows the records connecting to it: "Recipes using this ingredient".**
   ([#2015](https://github.com/The-Verscienta/kiln_cms/pull/2015) · [long form](docs/changelog/unreleased.md#a-reference-field-can-name-its-other-side-and-every-record-it-connects-shows))
