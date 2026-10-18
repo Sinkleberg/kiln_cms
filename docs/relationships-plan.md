@@ -296,6 +296,30 @@ target is a scarce thing — a slot, a seat, a featured position.
 
 ### R4b — Reverse fields (write) — per D23
 
+**Built** in the R4b PR. What it settled beyond the bullets below:
+
+- **One click, one source.** `ReverseFields.connect/4`, `disconnect/4` and
+  `move/5` edit the field's items as the source's editor shows them (the
+  working copy over the live row) and save them the way its Save does:
+  `update` on a draft, `save_working_copy` on a published source, as the
+  editor, on the struct the list last read — so a source saved since fails
+  the optimistic lock, on that row only, and the list is read again so a
+  retry starts from what is there.
+- **Reorder is the target's place in the source's list** (up/down on a
+  multiple field). The reverse side has no order of its own to store.
+- **A single reference is never taken over.** Connecting to a source whose
+  single field already holds another record is refused ("change it from its
+  own page"): replacing a connection is the source's decision.
+- **Pending changes are listed to writers only.** A published source whose
+  working copy adds, removes or moves the connection shows it as pending
+  ("Removal pending · goes live when “Bread” is published", with a link);
+  a held connection with no live edge is found by jsonb containment on
+  `working_fields`. A reader who may not write the source sees what is live
+  and nothing of the working copy.
+- **Adding** reuses the R9 picker with `rows: false` and `notify:`, so search
+  and "Add new *Type*" work as they do on the source side. R1b's cap
+  (`max_sources`) applies through the source's own update when it lands.
+
 - Add/remove/reorder from the target side issues `update` on each affected
   source record (array append/remove in its `custom_fields`), as the editor's
   actor, through the normal action — so policies, versioning, the lock and

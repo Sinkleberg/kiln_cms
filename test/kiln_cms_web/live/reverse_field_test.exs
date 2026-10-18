@@ -168,9 +168,9 @@ defmodule KilnCMSWeb.ReverseFieldTest do
       assert has_element?(lv, "#{root}-#{bread.id}-details", "Quantity: 250")
       assert has_element?(lv, "#{root}-#{cake.id} a[href='/editor/content/post/#{cake.id}']")
 
-      # Read-only: no remove or move controls, and nothing posts into the form.
-      refute has_element?(lv, "#{root} [data-ref-remove]")
-      refute has_element?(lv, "#{root} input")
+      # Nothing of the list posts into the editor form: the connections are
+      # the posts' values, not this page's.
+      refute has_element?(lv, "#{root}-items input")
     end
 
     test "a record of another type shows no reverse field", ctx do

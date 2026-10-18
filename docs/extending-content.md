@@ -107,6 +107,13 @@ UI" workflow, scoped to fields.
   `referencedBy(inverse: "used_in_recipes")`; the schema export reports
   `x-kiln-inverse` on the reference and `x-kiln-reverse-fields` on each
   target type. `KilnCMS.CMS.ReverseFields` is the reader.
+  An editor can also add, remove and reorder connections from the reverse
+  field. Each change is an edit of the *source* record (decision D23): its
+  own update as that editor, or a save of its working copy when it is
+  published, so the source's permissions, validations, history and lock all
+  apply. A held change is marked "goes live when *Source* is published", a
+  source the editor may not change shows a lock, and a source someone else
+  saved in the meantime fails on its own row.
 - **Item bounds**: on either kind of list (`multiple: true`), optional
   `min_items` / `max_items` bound how many items a value holds once it holds
   any — an empty optional field is still allowed; `required` asks for at
