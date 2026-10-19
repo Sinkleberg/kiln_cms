@@ -1,9 +1,9 @@
 # Relationships — reaching Directus / Hygraph parity
 
 **Status: built for 1.5** (2026-10-18). Every workstream R0–R10 is merged to
-`main` and checked end to end (§8). One part of R9 is still open: related
-content through the picker, [#2025](https://github.com/The-Verscienta/kiln_cms/issues/2025) (its relationship-first fields
-admin flow is built). D22 and D23
+`main` and checked end to end (§8). R9's last two parts — the
+relationship-first fields admin flow and related content through the
+picker — came in [#2025](https://github.com/The-Verscienta/kiln_cms/issues/2025). D22 and D23
 were adopted on 2026-10-16, and open questions 1–4 are answered (§7). On
 2026-10-17 the plan took in what Toolset's relationship admin does that it
 lacked: R1b, "Add new" in the picker, and a relationship-first fields admin
@@ -22,7 +22,7 @@ lacked: R1b, "Add new" in the picker, and a relationship-first fields admin
 | R6 relationship filters | [#2003](https://github.com/The-Verscienta/kiln_cms/pull/2003) |
 | R7 typed nested reads | [#2010](https://github.com/The-Verscienta/kiln_cms/pull/2010) |
 | R8 relationship writes | [#2014](https://github.com/The-Verscienta/kiln_cms/pull/2014) |
-| R9 editor UI | picker [#2002](https://github.com/The-Verscienta/kiln_cms/pull/2002), create and connect [#2005](https://github.com/The-Verscienta/kiln_cms/pull/2005); the admin and picker parts of R1b–R5 came in their own PRs; open: [#2025](https://github.com/The-Verscienta/kiln_cms/issues/2025) |
+| R9 editor UI | picker [#2002](https://github.com/The-Verscienta/kiln_cms/pull/2002), create and connect [#2005](https://github.com/The-Verscienta/kiln_cms/pull/2005); the admin and picker parts of R1b–R5 came in their own PRs; the relationship-first admin [#2029](https://github.com/The-Verscienta/kiln_cms/pull/2029) and related content through the picker [#2030](https://github.com/The-Verscienta/kiln_cms/pull/2030), for [#2025](https://github.com/The-Verscienta/kiln_cms/issues/2025) |
 | R10 graduation generator | [#2016](https://github.com/The-Verscienta/kiln_cms/pull/2016) |
 | The plan itself | [#1997](https://github.com/The-Verscienta/kiln_cms/pull/1997), [#2001](https://github.com/The-Verscienta/kiln_cms/pull/2001) |
 
@@ -580,7 +580,7 @@ fallback; the spike's outcome is under the JSON:API bullet and in §7 Q1.
 
 ### R9 — Editor UI
 
-**Built in part.** The picker is [#2002](https://github.com/The-Verscienta/kiln_cms/pull/2002) and create-and-connect is
+**Built.** The picker is [#2002](https://github.com/The-Verscienta/kiln_cms/pull/2002) and create-and-connect is
 [#2005](https://github.com/The-Verscienta/kiln_cms/pull/2005). Each of R1b, R2, R3, R4, R4b and R5 added its own piece of
 the picker and the fields admin: the "Full" state, type badges, link inputs,
 the reverse list, and the options' wording. The relationship-first fields
@@ -588,9 +588,9 @@ admin came last, in part 1 of [#2025](https://github.com/The-Verscienta/kiln_cms
 "A value" or "A relationship" first, and a relationship is then set up in
 four steps — which records connect, how many on each side (`max_sources` as
 any number, only one, or a typed limit), what each side calls it, and the
-delete rule — with the sentence the field list will show under it. One part
-is still open in #2025: related content (`related_<type>s`) through the same
-picker.
+delete rule — with the sentence the field list will show under it. Part 2
+of #2025 put related content (`related_<type>s`) through the same picker;
+see "Related content" below.
 
 - Replace the reference `<select>` with a picker component: search-as-you-type
   across the allowed target types (server-side, no 500 cap), type badges,
@@ -611,9 +611,26 @@ picker.
   out of public reads until then. It is an ordinary draft — if the editor
   abandons the source's change, the new record stays in the content list as a
   draft and is not deleted behind their back.
-- Related content: the same picker, so `related_<type>s` can finally choose
-  across types (new `related_any` many-to-many would be a covered addition —
-  or reuse a multi-type reference field; decide in the PR).
+- Related content: the same picker for `related_<type>s` (#2025).
+  **Decided (2026-10-18): no `related_any`.** Related content stays the same
+  type only. A new covered `related_any` many-to-many would put a new
+  surface under the 1.0 overlay contract for something a multi-type
+  `:reference` field (R2) already does, so cross-type links are a reference
+  field's job. The related-content panel says so in a line, with a link to
+  the fields admin for admins.
+  What changed is the editor and the order. The panel's multi-select over
+  the 500 most recently edited records of the type is now the R9 picker over
+  the same type: search as you type, reorder, remove, open the target, and
+  "Add new". The record being edited is never offered (the picker's
+  `exclude`). It still writes the complete `related_<type>_ids` list, so the
+  managed relationship, its `kind: :related` rows, the optimistic lock and a
+  published record's working copy behave as before. The list's order is now
+  kept: `Changes.OrderRelatedLinks` numbers the rows' `position` after the
+  write (`add_related_<type>_ids` appends after the rows already there), a
+  working copy holds the related list in its order rather than sorted, and
+  publishing a copy that only reordered the list promotes it. The editor
+  reads the list in that order (`ContentLinks.sort_related/2`); a load of
+  the many-to-many itself still does not sort by `position`.
 - Reverse fields (R4) render as a read-only list with the same row component.
 - **Fields admin: a relationship, not a data type.** A non-developer sets up
   a relationship the way Toolset's wizard asks for one, not by picking a type
@@ -831,4 +848,5 @@ What it found:
   label ("A Ingredient …"):
   [#2023](https://github.com/The-Verscienta/kiln_cms/issues/2023).
 - R9's relationship-first admin flow and the related-content picker were
-  never built: [#2025](https://github.com/The-Verscienta/kiln_cms/issues/2025).
+  never built: [#2025](https://github.com/The-Verscienta/kiln_cms/issues/2025). Both were built before the
+  release, in [#2029](https://github.com/The-Verscienta/kiln_cms/pull/2029) and [#2030](https://github.com/The-Verscienta/kiln_cms/pull/2030).

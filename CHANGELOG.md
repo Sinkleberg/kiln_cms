@@ -56,6 +56,10 @@ Every summary line below that was shortened links to its own entry there.
 
 ### Added
 
+- **Related content uses the reference picker: search, reorder, remove and
+  open, over the record's own type, with the order kept.**
+  ([#2030](https://github.com/The-Verscienta/kiln_cms/pull/2030) · [long form](docs/changelog/unreleased.md#related-content-uses-the-reference-picker))
+
 - **The fields admin asks for a relationship as one: "A relationship", then both sides ("Recipe links to Ingredient"), then how many on each side; the field list reads it back from both sides in one sentence.**
   ([#2025](https://github.com/The-Verscienta/kiln_cms/issues/2025))
 
