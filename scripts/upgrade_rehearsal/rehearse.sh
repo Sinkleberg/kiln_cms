@@ -310,10 +310,15 @@ seed_old() {
 # FROM's own task, run from the pinned checkout exactly as documented. It has
 # `@requirements []` and shells out to nothing but git, so it is loaded straight
 # from FROM's source instead of paying for a second, core-only compile of FROM.
+# Since 1.4.0 it also calls `Mix.Kiln.ProjectLock` (#1967), which a real
+# `mix kiln.update` gets from the compiled project, so FROM's lib/mix/kiln
+# helpers are loaded first. They are required before the task moves the pin,
+# so they are FROM's versions, as they would be in a real run.
 old_kiln_update() {
   (cd "$DS/upstream" && elixir -e '
     Mix.start()
     Mix.shell(Mix.Shell.IO)
+    Enum.each(Path.wildcard("lib/mix/kiln/*.ex"), &Code.require_file/1)
     Code.require_file("lib/mix/tasks/kiln.update.ex")
     Mix.Tasks.Kiln.Update.run(System.argv())
   ' -- "$@")
