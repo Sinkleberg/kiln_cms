@@ -385,18 +385,18 @@ Monetisation stays off the table until a decision after Phase 4.
 
 ## Upstream work this site needs from Kiln
 
-| # | Need | When | Notes |
-|---|---|---|---|
-| U1 | Publish `@kiln-cms/client` to npm | Phase 3 (a git dependency until then) | Its release workflow already exists |
-| U2 | A documented recipe for public author profiles | Phase 1 | `User` stays private |
-| U3 | Google News sitemap (`news:` namespace, items from the last 48 hours) | Phase 1 | Small; `SitemapController` exists |
-| U4 | Kiln 1.6 and 1.7 | Phase 2 | #1928, #1929 |
-| U5 | Kiln 2.1 to 2.5 | Phase 3 | This site is the pilot |
-| U6 | Firing and feed cost when a live blog posts an update every few seconds | Phase 3 | A benchmark |
-| U7 | Add `LiveBlogPosting` to the schema.org allowlist | Phase 3 | One line plus a test |
-| U9 | A covered "document meta slot" on article pages, if the block approach (N2) proves brittle | Phase 1, if needed | |
-| U10 | Make `KilnCMS.SafeFetch` a covered surface for plugins | Phase 1 | N8 |
-| U11 | A covered way for an overlay to re-fire a record | Phase 2 | N10 |
+| # | Need | When | Issue | Notes |
+|---|---|---|---|---|
+| U1 | Publish `@kiln-cms/client` to npm | Phase 3 (a git dependency until then) | [#2043](https://github.com/The-Verscienta/kiln_cms/issues/2043) | Its release workflow exists; the npm org and environment setup don't |
+| U2 | A documented recipe for public author profiles | Phase 1 | [#2044](https://github.com/The-Verscienta/kiln_cms/issues/2044) | `User` stays private |
+| U3 | Google News sitemap (`news:` namespace, items from the last 48 hours) | Phase 1 | [#2045](https://github.com/The-Verscienta/kiln_cms/issues/2045) | Small; `SitemapController` exists |
+| U4 | Kiln 1.6 and 1.7 | Phase 2 | [#1928](https://github.com/The-Verscienta/kiln_cms/issues/1928), [#1929](https://github.com/The-Verscienta/kiln_cms/issues/1929) | Already on the wedge |
+| U5 | Kiln 2.1 to 2.5 (the change feed) | Phase 3 | [#2050](https://github.com/The-Verscienta/kiln_cms/issues/2050) | Tracking issue; one issue per minor is filed as each one comes up |
+| U6 | Firing and feed cost when a live blog posts an update every few seconds | Phase 3 | [#2049](https://github.com/The-Verscienta/kiln_cms/issues/2049) | A benchmark |
+| U7 | `LiveBlogPosting` in schema.org output | Phase 3 | [#2046](https://github.com/The-Verscienta/kiln_cms/issues/2046) | Needs `liveBlogUpdate` built from related records, not only an allowlist entry |
+| U9 | A covered "document meta slot" on article pages, if the block approach (N2) proves brittle | Phase 1, if needed | Not filed | File only if the blocks fall short |
+| U10 | Make `KilnCMS.SafeFetch` a covered surface for plugins | Phase 1 | [#2047](https://github.com/The-Verscienta/kiln_cms/issues/2047) | N8 |
+| U11 | A covered way for an overlay to re-fire a record | Phase 2 | [#2048](https://github.com/The-Verscienta/kiln_cms/issues/2048) | N10 |
 
 ## Risks
 
@@ -431,4 +431,4 @@ Monetisation stays off the table until a decision after Phase 4.
    Slice 1 tests.
 4. verscienta-news: `Author`, sections, blocks, and the plugin public routes
    with the Codex styling.
-5. kiln_cms: U3 (news sitemap), U10 (SafeFetch for plugins).
+5. kiln_cms: U3 (news sitemap, #2045), U10 (SafeFetch for plugins, #2047).
