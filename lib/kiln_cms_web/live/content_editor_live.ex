@@ -2859,12 +2859,12 @@ defmodule KilnCMSWeb.ContentEditorLive do
     do: {:noreply, update_group_rows(socket, name, &GroupRows.add/2)}
 
   def handle_event("group_row_remove", %{"field" => name, "index" => index}, socket)
-      when is_binary(name) do
+      when is_binary(name) and is_binary(index) do
     {:noreply, update_group_rows(socket, name, index, &GroupRows.remove(&1, &2))}
   end
 
   def handle_event("group_row_move", %{"field" => name, "index" => index, "dir" => dir}, socket)
-      when is_binary(name) and dir in ["up", "down"] do
+      when is_binary(name) and is_binary(index) and dir in ["up", "down"] do
     {:noreply, update_group_rows(socket, name, index, &GroupRows.move(&1, &2, dir))}
   end
 
@@ -3952,7 +3952,7 @@ defmodule KilnCMSWeb.ContentEditorLive do
   end
 
   defp update_group_rows(socket, name, index, fun) do
-    case Integer.parse(to_string(index)) do
+    case Integer.parse(index) do
       {index, ""} -> update_group_rows(socket, name, fn rows, _def -> fun.(rows, index) end)
       _other -> socket
     end
