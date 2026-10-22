@@ -224,8 +224,11 @@ defmodule KilnCMSWeb.Plugs.PublicCache do
 
   # RFC 9110 §13.1.2: `If-None-Match` uses the *weak* comparison — opaque tags
   # compared with any `W/` stripped — and `*` matches any current
-  # representation.
-  defp fresh?(conn, etag) do
+  # representation. Public for `KilnCMSWeb.ArtifactController`, whose fired
+  # artifacts carry their own (weak) tag.
+  @doc false
+  @spec fresh?(Plug.Conn.t(), String.t()) :: boolean()
+  def fresh?(conn, etag) do
     tag = String.replace_prefix(etag, "W/", "")
 
     conn

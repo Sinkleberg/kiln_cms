@@ -65,6 +65,12 @@ Every summary line below that was shortened links to its own entry there.
   them, keyed by typed sub-fields, with every bad key reported by its path.**
   ([#2036](https://github.com/The-Verscienta/kiln_cms/pull/2036) · [long form](docs/changelog/unreleased.md#group-custom-field))
 
+### Changed
+
+- **Fired artifacts are gzipped: their `ETag` is now weak (`W/"…"`) and
+  `If-None-Match` is compared weakly.**
+  ([#PRNUM](https://github.com/The-Verscienta/kiln_cms/pull/PRNUM) · [long form](docs/changelog/unreleased.md#fired-artifacts-are-gzipped))
+
 ## [1.5.0] - 2026-10-18
 
 Long form: [docs/changelog/v1.5.0.md](docs/changelog/v1.5.0.md) —
