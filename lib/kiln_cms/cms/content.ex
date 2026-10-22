@@ -3390,6 +3390,29 @@ defmodule KilnCMS.CMS.Content do
           change {KilnCMS.CMS.Changes.FireArtifacts, only_when: :published}
         end
 
+        # Internal: move a JSON-in-text value into a `:group` field (written by
+        # `mix kiln.fields.convert` as the `:field_conversion` system actor,
+        # `KilnCMS.CMS.FieldConversion`). The parsed rows ride in the changeset
+        # context, not as input, and go through the same coercion an editor's
+        # save of the group runs; every other key is left as stored, the
+        # source field included (expand/migrate/contract).
+        #
+        # Shaped like `:resnapshot_media`: a backfill over rows nobody touched
+        # keeps `updated_at` and `lock_version`, sends no webhook, and loses to
+        # an editor's save in between. Versioned, because the group is
+        # delivered content and the sync delta API reads version rows. A
+        # published record re-fires. A live record's pending working copy gets
+        # the same conversion of its own held value, or publishing the copy
+        # would put back a map without the group.
+        update :convert_custom_field do
+          require_atomic? false
+          accept []
+          change KilnCMS.CMS.Changes.UnchangedSinceRead
+          change {KilnCMS.CMS.Changes.ApplyCustomFields, convert: true}
+          change KilnCMS.CMS.Changes.KeepUpdatedAt
+          change {KilnCMS.CMS.Changes.FireArtifacts, only_when: :published}
+        end
+
         # Internal: advance the materialized "what's on" sort key once an
         # occurrence has gone by (#766), written by `KilnCMS.Events.Sweep`.
         #
@@ -3632,12 +3655,16 @@ defmodule KilnCMS.CMS.Content do
           #   * `:resnapshot_media` — re-takes stored `:media` snapshots from
           #     the current library item (`mix kiln.media.resnapshot`), as the
           #     `:media` pipeline actor.
+          #   * `:convert_custom_field` — moves a JSON-in-text value into a
+          #     `:group` field (`mix kiln.fields.convert`), as the
+          #     `:field_conversion` actor.
           #
           # None accepts input, and none has a caller that is a person. Keep
           # the list that way: an action anyone else calls does not belong in
           # it. Each is admitted to the one subsystem that calls it (#1747).
           forbid_unless action([
                           :clear_reference_target,
+                          :convert_custom_field,
                           :refresh_computed,
                           :reindex_search_text,
                           :resnapshot_media,
@@ -3653,6 +3680,9 @@ defmodule KilnCMS.CMS.Content do
                         subsystem: :firing, action: :reindex_search_text}
 
           authorize_if {KilnCMS.Checks.SystemActor, subsystem: :media, action: :resnapshot_media}
+
+          authorize_if {KilnCMS.Checks.SystemActor,
+                        subsystem: :field_conversion, action: :convert_custom_field}
 
           authorize_if {KilnCMS.Checks.SystemActor, subsystem: :search, action: :set_embedding}
 

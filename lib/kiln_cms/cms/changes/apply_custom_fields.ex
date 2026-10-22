@@ -138,6 +138,7 @@ defmodule KilnCMS.CMS.Changes.ApplyCustomFields do
 
   alias Ash.Error.Changes.InvalidAttribute
   alias KilnCMS.CMS.FieldDefinition
+  alias KilnCMS.CMS.WorkingCopy
 
   @impl true
   def change(changeset, opts, context) do
@@ -148,6 +149,9 @@ defmodule KilnCMS.CMS.Changes.ApplyCustomFields do
     cond do
       opts[:resnapshot] == :media ->
         resnapshot_media(changeset, context)
+
+      opts[:convert] == true ->
+        convert(changeset, context)
 
       changeset.action_type == :create or
           Ash.Changeset.changing_attribute?(changeset, :custom_fields) ->
@@ -176,6 +180,94 @@ defmodule KilnCMS.CMS.Changes.ApplyCustomFields do
           do: {name, existing[name]}
 
     apply_definitions(changeset, existing, :strict, context, supplied)
+  end
+
+  # `:convert_custom_field` (`mix kiln.fields.convert`): the rows parsed out of
+  # the source field ride in the changeset context as `convert_custom_field:
+  # %{name: group, live: rows}`, and are coerced as if the caller had sent
+  # exactly that key — every other key merges through as stored.
+  #
+  # A live record's pending working copy may hold its own `custom_fields` map
+  # (`KilnCMS.CMS.WorkingCopy`), saved before the group existed. Publishing the
+  # copy replaces the live map with it, so the copy gets its own rows too
+  # (`held:`, parsed from the copy's source value) — see `convert_held/4`.
+  defp convert(changeset, context) do
+    case changeset.context do
+      %{convert_custom_field: %{name: _, live: _} = conversion} ->
+        convert(changeset, conversion, context)
+
+      _none ->
+        Ash.Changeset.add_error(changeset, "no conversion in the changeset context")
+    end
+  end
+
+  defp convert(changeset, %{name: name, live: live} = conversion, context) do
+    changeset =
+      apply_definitions(changeset, merge_base(changeset), :strict, context, %{name => live})
+
+    case Map.fetch(conversion, :held) do
+      {:ok, held} -> convert_held(changeset, name, held, context)
+      :error -> changeset
+    end
+  end
+
+  # The copy's `custom_fields` gets the group coerced from `rows` exactly as
+  # the live map does. Its lost-update base (`working_base`) moves with it, so
+  # the conversion is never what makes "Publish changes" report a conflict:
+  # a base that matched the held map now matches the converted held map, one
+  # that matched the live map now matches the converted live map, and any
+  # other base (a conflict already) is left alone.
+  defp convert_held(changeset, name, rows, context) do
+    fields = WorkingCopy.held_fields(changeset.data)
+    held = stringify_keys(fields["custom_fields"] || %{})
+    def = Enum.find(definitions_for(changeset), &(&1.name == name))
+    read_opts = context |> Ash.Context.to_opts() |> Keyword.put(:tenant, changeset.to_tenant)
+
+    case accumulate(def, %{name => rows}, held, {read_opts, :strict}, {%{}, []}) do
+      {cleaned, []} ->
+        converted =
+          case Map.fetch(cleaned, name) do
+            {:ok, value} -> Map.put(held, name, value)
+            :error -> Map.delete(held, name)
+          end
+
+        changeset
+        |> Ash.Changeset.force_change_attribute(
+          :working_fields,
+          Map.put(fields, "custom_fields", converted)
+        )
+        |> Ash.Changeset.force_change_attribute(
+          :working_base,
+          rebase(changeset, held, converted)
+        )
+
+      {_cleaned, errors} ->
+        Enum.reduce(errors, changeset, fn error, acc ->
+          Ash.Changeset.add_error(acc, %{error | message: "(working copy) " <> error.message})
+        end)
+    end
+  end
+
+  defp rebase(changeset, held, converted) do
+    record = changeset.data
+    base = WorkingCopy.base_fingerprints(record)
+    fingerprint = &WorkingCopy.fingerprint(changeset.resource, "custom_fields", &1)
+    recorded = base["custom_fields"]
+
+    cond do
+      recorded == nil ->
+        base
+
+      recorded == fingerprint.(held) ->
+        Map.put(base, "custom_fields", fingerprint.(converted))
+
+      recorded == fingerprint.(stringify_keys(record.custom_fields || %{})) ->
+        live = Ash.Changeset.get_attribute(changeset, :custom_fields)
+        Map.put(base, "custom_fields", fingerprint.(live))
+
+      true ->
+        base
+    end
   end
 
   @doc """
