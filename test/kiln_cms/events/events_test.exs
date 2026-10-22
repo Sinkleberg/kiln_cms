@@ -257,6 +257,31 @@ defmodule KilnCMS.EventsTest do
       assert Enum.uniq(local_times) == [~T[19:00:00]]
     end
 
+    test "a one-off's end is the real elapsed time across a DST change", ctx do
+      # 00:30 to 02:30 London wall time on the night the clocks go back is three
+      # real hours: 01:00–02:00 BST happens, then 01:00–02:00 GMT again. Fixed
+      # dates on purpose — the index tests schedule at noon so they never meet
+      # this, and this is where it is pinned instead.
+      event =
+        event!(ctx, %{
+          "when" => %{
+            "start" => "2026-10-25T00:30",
+            "end" => "2026-10-25T02:30",
+            "time_zone" => @london
+          }
+        })
+
+      assert [occurrence] =
+               Occurrences.for_record(
+                 event,
+                 utc("2026-10-24T00:00:00"),
+                 utc("2026-10-26T00:00:00")
+               )
+
+      assert occurrence.starts_at == utc("2026-10-24T23:30:00")
+      assert DateTime.diff(occurrence.ends_at, occurrence.starts_at, :second) == 10_800
+    end
+
     test "skipped dates are honoured", ctx do
       add_recurrence(ctx.td, ctx.admin)
 
