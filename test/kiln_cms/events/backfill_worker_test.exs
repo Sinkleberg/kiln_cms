@@ -41,11 +41,8 @@ defmodule KilnCMS.Events.BackfillWorkerTest do
   end
 
   defp event!(ctx, days) do
-    start =
-      DateTime.utc_now()
-      |> DateTime.add(days * 86_400, :second)
-      |> DateTime.shift_zone!(@london)
-      |> DateTime.to_naive()
+    # Noon London, never the current wall time (see `KilnCMS.Events.IndexTest`).
+    start = Date.utc_today() |> Date.add(days) |> NaiveDateTime.new!(~T[12:00:00])
 
     CMS.create_entry!(
       %{

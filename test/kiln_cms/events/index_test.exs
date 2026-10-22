@@ -76,29 +76,33 @@ defmodule KilnCMS.Events.IndexTest do
     utc |> DateTime.shift_zone!(zone) |> DateTime.to_naive() |> NaiveDateTime.to_iso8601()
   end
 
+  # Noon London wall time, `days` after today's UTC date. Never "now + N days":
+  # the current wall time falls in a DST gap, or within a weekly bound's last
+  # hour, whenever the suite runs at the matching hour before a change.
+  defp noon_london(days) do
+    Date.utc_today()
+    |> Date.add(days)
+    |> NaiveDateTime.new!(~T[12:00:00])
+    |> NaiveDateTime.to_iso8601()
+  end
+
   describe "the value written on save" do
     test "a future one-off is stored as its own start instant", ctx do
-      # 30 days out, at 19:00 London — expressed as local wall time, which is
+      # 30 days out, at noon London — expressed as local wall time, which is
       # what the field stores.
-      start = DateTime.utc_now() |> DateTime.add(30 * 86_400, :second)
+      start = noon_london(30)
 
-      record =
-        event!(ctx, %{"when" => %{"start" => local(start, @london), "time_zone" => @london}})
+      record = event!(ctx, %{"when" => %{"start" => start, "time_zone" => @london}})
 
       assert %DateTime{} = record.next_occurrence_at
       # The instant round-trips through the zone rather than being taken as UTC:
-      # 19:00 London in summer is 18:00Z, so a naive reading would be an hour out.
-      assert local(record.next_occurrence_at, @london) ==
-               local(start, @london)
-               |> NaiveDateTime.from_iso8601!()
-               |> NaiveDateTime.to_iso8601()
+      # noon London in summer is 11:00Z, so a naive reading would be an hour out.
+      stored = record.next_occurrence_at |> local(@london) |> NaiveDateTime.from_iso8601!()
+      assert NaiveDateTime.compare(stored, NaiveDateTime.from_iso8601!(start)) == :eq
     end
 
     test "a past one-off has nothing coming up", ctx do
-      past = DateTime.utc_now() |> DateTime.add(-30 * 86_400, :second)
-
-      record =
-        event!(ctx, %{"when" => %{"start" => local(past, @london), "time_zone" => @london}})
+      record = event!(ctx, %{"when" => %{"start" => noon_london(-30), "time_zone" => @london}})
 
       assert is_nil(record.next_occurrence_at)
     end
@@ -136,11 +140,9 @@ defmodule KilnCMS.Events.IndexTest do
     test "a recurring event whose series started in the past points at its NEXT date", ctx do
       ctx = with_recurrence(ctx)
       # Started a year ago, weekly, forever.
-      start = DateTime.utc_now() |> DateTime.add(-365 * 86_400, :second)
-
       record =
         event!(ctx, %{
-          "when" => %{"start" => local(start, @london), "time_zone" => @london},
+          "when" => %{"start" => noon_london(-365), "time_zone" => @london},
           "repeats" => %{"rrule" => "FREQ=WEEKLY"}
         })
 
@@ -154,11 +156,10 @@ defmodule KilnCMS.Events.IndexTest do
 
     test "an exhausted series has nothing coming up", ctx do
       ctx = with_recurrence(ctx)
-      start = DateTime.utc_now() |> DateTime.add(-365 * 86_400, :second)
 
       record =
         event!(ctx, %{
-          "when" => %{"start" => local(start, @london), "time_zone" => @london},
+          "when" => %{"start" => noon_london(-365), "time_zone" => @london},
           "repeats" => %{"rrule" => "FREQ=WEEKLY;COUNT=3"}
         })
 
@@ -169,10 +170,7 @@ defmodule KilnCMS.Events.IndexTest do
       # The horizon is a decade precisely so that `nil` never has to be
       # revisited. A 400-day horizon would have answered nil here and made the
       # sweep re-scan every past event forever.
-      start = DateTime.utc_now() |> DateTime.add(730 * 86_400, :second)
-
-      record =
-        event!(ctx, %{"when" => %{"start" => local(start, @london), "time_zone" => @london}})
+      record = event!(ctx, %{"when" => %{"start" => noon_london(730), "time_zone" => @london}})
 
       assert record.next_occurrence_at
       assert Index.horizon_days() > 730
@@ -207,10 +205,7 @@ defmodule KilnCMS.Events.IndexTest do
     end
 
     test "clearing the schedule clears the sort key", ctx do
-      start = DateTime.utc_now() |> DateTime.add(30 * 86_400, :second)
-
-      record =
-        event!(ctx, %{"when" => %{"start" => local(start, @london), "time_zone" => @london}})
+      record = event!(ctx, %{"when" => %{"start" => noon_london(30), "time_zone" => @london}})
 
       assert record.next_occurrence_at
 
