@@ -115,3 +115,20 @@ carries the reasoning.
   for now; the editor shows an existing group read-only, and the row editor
   follows. The migration adds one nullable column.
   ([#2036](https://github.com/The-Verscienta/kiln_cms/pull/2036))
+
+## Changed
+
+<a id="fired-artifacts-are-gzipped"></a>
+
+- **Fired artifacts are gzipped: their `ETag` is now weak (`W/"…"`) and
+  `If-None-Match` is compared weakly.** Bandit skips compression for any
+  response carrying a strong `ETag`, so `GET /api/content/:type/:slug` was
+  never gzipped by Kiln, whatever the client's `Accept-Encoding`. The tag
+  keeps its value and gains a `W/` prefix, and `If-None-Match` now uses the
+  weak comparison the cached JSON:API/GraphQL/search responses already use
+  (`KilnCMSWeb.Plugs.PublicCache`): `W/` ignored, a comma-separated list
+  matches if any tag does, `*` matches. A client still holding the old,
+  strong form revalidates to a `304`; one that compares tags itself sees each
+  document's tag change once and refetches it one time. ETags are opaque, so
+  this is not a contract change. A passphrase-unlocked document still has no
+  `ETag` and is never `304`ed. ([#2041](https://github.com/The-Verscienta/kiln_cms/pull/2041))

@@ -504,7 +504,7 @@ defmodule KilnCMSWeb.ArtifactController do
     # No conditional revalidation for a locked document either. The ETag has no
     # grant dimension, so a cache holding the unlocked body would 304 a caller
     # who presented nothing straight into it.
-    if not locked? and etag in get_req_header(conn, "if-none-match") do
+    if not locked? and KilnCMSWeb.Plugs.PublicCache.fresh?(conn, etag) do
       send_resp(conn, :not_modified, "")
     else
       respond(conn, surface, body)
@@ -555,7 +555,7 @@ defmodule KilnCMSWeb.ArtifactController do
     end
   end
 
-  # Strong ETag keyed on the record + surface + last-modified time, so it changes
+  # Weak ETag keyed on the record + surface + last-modified time, so it changes
   # whenever the document is republished — and on the variant, so a conditional
   # request can never 304 a caller into an arm it was not assigned. The served
   # locale is named too: the record id already differs per locale variant, but
@@ -565,8 +565,13 @@ defmodule KilnCMSWeb.ArtifactController do
   # An `?expand=` response also depends on its targets, which can change while
   # the source does not, so their fingerprint is named as well
   # (`ReferenceExpansion.expand/3`).
+  #
+  # Weak because Bandit will not gzip a response carrying a strong one (a
+  # strong validator promises byte-identical bodies, and the compressed body is
+  # not), and `If-None-Match` compares weakly anyway — so a client still holding
+  # the strong form from before revalidates against the weak one.
   defp etag(record, surface, variant, expansion_tag) do
-    ~s("#{record.id}-#{record.locale}-#{surface}-#{DateTime.to_unix(record.updated_at)}#{variant_suffix(variant)}#{expansion_suffix(expansion_tag)}")
+    ~s(W/"#{record.id}-#{record.locale}-#{surface}-#{DateTime.to_unix(record.updated_at)}#{variant_suffix(variant)}#{expansion_suffix(expansion_tag)}")
   end
 
   defp variant_suffix(nil), do: ""
@@ -593,7 +598,7 @@ defmodule KilnCMSWeb.ArtifactController do
       |> binary_part(0, 12)
       |> Base.url_encode64(padding: false)
 
-    {~s("#{record.id}-#{record.locale}-#{surface}-b#{digest}#{variant_suffix(variant)}"),
+    {~s(W/"#{record.id}-#{record.locale}-#{surface}-b#{digest}#{variant_suffix(variant)}"),
      {:encoded, json}}
   end
 

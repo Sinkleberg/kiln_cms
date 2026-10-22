@@ -1410,6 +1410,14 @@ What the cached responses carry:
   validator (`W/"…"`) so the server can still gzip the response; conditional
   `GET`s compare weakly anyway. A credentialed request never gets a `304` from
   this: it has no `ETag` to match.
+- **A fired artifact's `ETag` is weak too** (`W/"…"`), for the same reason:
+  Kiln gzips the artifact for a client that sends `Accept-Encoding: gzip`. It
+  names the document, locale, surface and publish time (a `?fields=` response
+  is tagged by a digest of its filtered body instead). `If-None-Match` is
+  compared weakly: a `W/` prefix is ignored, a comma-separated list matches if
+  any tag does, and `*` matches. A tag cached from an older Kiln (the same
+  value without `W/`) still revalidates. A passphrase-unlocked document has no
+  `ETag` and is never `304`ed.
 - **`Vary: Accept, Authorization, Origin`** on every response of these
   surfaces, cached or not. `Origin` because the CORS `Access-Control-Allow-Origin`
   header is only sent to a request with an allowed `Origin` — a copy cached from

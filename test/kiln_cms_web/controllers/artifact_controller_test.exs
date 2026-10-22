@@ -56,7 +56,8 @@ defmodule KilnCMSWeb.ArtifactControllerTest do
     assert json_response(served, 200)
     assert ["public, max-age=300"] = get_resp_header(served, "cache-control")
     assert [etag] = get_resp_header(served, "etag")
-    assert etag =~ ~r/^".+"$/
+    # Weak, so Bandit still gzips it (`ArtifactCompressionTest`).
+    assert etag =~ ~r/^W\/".+"$/
     assert [_last_modified] = get_resp_header(served, "last-modified")
     # The site's surrogate key, so a `KILN_CDN_PURGE_URL` purge reaches it.
     assert [keys] = get_resp_header(served, "surrogate-key")
