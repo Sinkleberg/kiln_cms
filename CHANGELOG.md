@@ -64,7 +64,7 @@ Every summary line below that was shortened links to its own entry there.
 ### Added
 
 - **`mix kiln.fields.convert` moves JSON-in-text values into a `:group` field.**
-  ([long form](docs/changelog/unreleased.md#fields-convert))
+  ([#2052](https://github.com/The-Verscienta/kiln_cms/pull/2052) · [long form](docs/changelog/unreleased.md#fields-convert))
 
 - **Media in delivered content carries dimensions, MIME type, focal point and variants.**
   ([#2040](https://github.com/The-Verscienta/kiln_cms/pull/2040) · [long form](docs/changelog/unreleased.md#media-snapshot-for-apps))
