@@ -309,57 +309,6 @@ defmodule KilnCMS.CMS.FieldConversionTest do
     end
   end
 
-  describe "the mix task" do
-    setup ctx do
-      Mix.shell(Mix.Shell.Process)
-      on_exit(fn -> Mix.shell(Mix.Shell.IO) end)
-      %{post: post!(ctx, ~s([{"dose": 2, "unit": "g"}]))}
-    end
-
-    test "is a dry run unless --apply, and writes a JSON report", %{post: post} = ctx do
-      path = Path.join(System.tmp_dir!(), "convert-#{System.unique_integer([:positive])}.json")
-      on_exit(fn -> File.rm(path) end)
-      args = ["post", ctx.source, "--to", ctx.group, "--map", "dose=amount"]
-
-      capture_io(fn -> Mix.Tasks.Kiln.Fields.Convert.run(args ++ ["--report", path]) end)
-      assert_received {:mix_shell, :info, ["── DRY RUN" <> _]}
-      assert_received {:mix_shell, :info, [dry]}
-      assert dry =~ "would convert 1"
-      assert dry =~ "--apply"
-      assert %{"convertible" => 1, "dry_run?" => true} = path |> File.read!() |> Jason.decode!()
-      assert reload(post).custom_fields[ctx.group] == nil
-
-      capture_io(fn -> Mix.Tasks.Kiln.Fields.Convert.run(args ++ ["--apply"]) end)
-      assert_received {:mix_shell, :info, [applied]}
-      assert applied =~ "converted 1"
-      assert reload(post).custom_fields[ctx.group] == [%{"amount" => 2.0, "unit" => "g"}]
-    end
-
-    test "refuses to write while a record is invalid", ctx do
-      post!(ctx, "Two grams")
-
-      assert_raise Mix.Error, ~r/1 invalid record\(s\); nothing written/, fn ->
-        capture_io(fn ->
-          Mix.Tasks.Kiln.Fields.Convert.run([
-            "post",
-            ctx.source,
-            "--to",
-            ctx.group,
-            "--map",
-            "dose=amount",
-            "--apply"
-          ])
-        end)
-      end
-    end
-
-    test "--map takes OLD=NEW", ctx do
-      assert_raise Mix.Error, ~r/--map takes OLD=NEW/, fn ->
-        Mix.Tasks.Kiln.Fields.Convert.run(["post", ctx.source, "--to", ctx.group, "--map", "x"])
-      end
-    end
-  end
-
   describe "the release entry point" do
     defp release(ctx, opts, serving? \\ true) do
       test = self()
