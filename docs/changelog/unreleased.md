@@ -21,6 +21,29 @@ carries the reasoning.
 
 ## Added
 
+<a id="fields-convert"></a>
+
+- **`mix kiln.fields.convert` moves JSON-in-text values into a `:group`
+  field.** Lists kept as JSON strings in `:text` fields (Verscienta's
+  `dosages`, `safety_warnings`, …) can now become validated group rows:
+  `mix kiln.fields.convert herb dosages --to dosage_rows [--map dose=amount]`.
+  It accepts a JSON array of objects, a single object, and either encoded
+  twice; applies `--map` key renames; and coerces every row through the
+  group's own rules (`Changes.ApplyCustomFields`, through a new internal
+  `:convert_custom_field` content action, as the `:field_conversion` system
+  actor). A dry run by default. Its report counts converted, empty and
+  already-converted records, and lists each invalid one by id and slug with
+  the reason: unparseable (prose) or the coercion error and its path
+  (`dosage_rows[2].unit`). `--report out.json` saves the report as a file.
+  Nothing is written while any record is invalid unless `--skip-invalid` is
+  given. The source field is never touched (expand/migrate/contract), and a
+  re-run skips records whose group already has rows unless `--overwrite` is
+  given. Each write is versioned, keeps `updated_at` and the lock, sends no
+  webhook, and re-fires a published record. A live record's pending working
+  copy is converted with it. In a release:
+  `bin/kiln_cms rpc 'KilnCMS.Release.convert_field(...)'`. Guide:
+  `docs/field-conversion.md`.
+
 <a id="media-snapshot-for-apps"></a>
 
 - **Media in delivered content carries dimensions, MIME type, focal point and

@@ -326,6 +326,50 @@ defmodule KilnCMS.Release do
     end
   end
 
+  @doc """
+  `mix kiln.fields.convert` for a release: move a JSON-in-text custom field's
+  values into a `:group` field, in the **running** node
+  (docs/field-conversion.md).
+
+      bin/kiln_cms rpc 'KilnCMS.Release.convert_field("herb", "dosages_json", "dosages")'
+      bin/kiln_cms rpc 'KilnCMS.Release.convert_field("herb", "dosages_json", "dosages", apply: true)'
+
+  Options are the task's flags: `apply: true` writes (a dry run otherwise),
+  `skip_invalid: true`, `overwrite: true`, `map: %{"old" => "new"}`, and
+  `org: "<slug>"` for a site other than the default one. Prints the task's
+  report and returns `KilnCMS.CMS.FieldConversion.run/5`'s result.
+
+  Through `rpc`, not `eval`: a published record's write enqueues its re-fire,
+  which needs the running application's queue.
+  """
+  @spec convert_field(String.t(), String.t(), String.t(), keyword()) ::
+          {:ok, map()} | {:error, String.t()}
+  def convert_field(type, source, target, opts \\ []),
+    do: run_conversion(type, source, target, opts, serving?())
+
+  # `serving?` is an argument only so the test can take the `eval` branch.
+  @doc false
+  def run_conversion(type, source, target, opts, serving?) do
+    run_opts = [
+      dry_run?: opts[:apply] != true,
+      skip_invalid?: opts[:skip_invalid] == true,
+      overwrite?: opts[:overwrite] == true,
+      renames: Map.new(opts[:map] || %{})
+    ]
+
+    result =
+      with true <- serving? || {:error, @needs_running_node},
+           {:ok, org_id} <- KilnCMS.CMS.FieldConversion.org_id(opts[:org]),
+           {:ok, report} = ok <-
+             KilnCMS.CMS.FieldConversion.run(org_id, type, source, target, run_opts) do
+        IO.puts(KilnCMS.CMS.FieldConversion.describe(report))
+        ok
+      end
+
+    with {:error, message} <- result, do: IO.puts(message)
+    result
+  end
+
   # No `load_app`/`with_repo` here: unlike the tasks above, an import cannot
   # run on the bare repo `eval` gives, so it refuses rather than starting a
   # second copy of the application next to the serving one. `serving?` is an

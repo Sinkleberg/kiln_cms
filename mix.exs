@@ -305,6 +305,7 @@ defmodule KilnCMS.MixProject do
       # Modeling & extending
       "docs/overlay-contract.md": [title: "The overlay contract"],
       "docs/extending-content.md": [],
+      "docs/field-conversion.md": [title: "Moving JSON-in-text fields to a group"],
       "docs/events.md": [title: "Events"],
       "docs/design-language.md": [],
       "docs/design-system.md": [],
@@ -468,6 +469,7 @@ defmodule KilnCMS.MixProject do
       "Modeling & extending": [
         "docs/overlay-contract.md",
         "docs/extending-content.md",
+        "docs/field-conversion.md",
         "docs/events.md",
         "docs/design-language.md",
         "docs/design-system.md",
