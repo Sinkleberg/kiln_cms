@@ -18,6 +18,9 @@ defmodule KilnCMSWeb.ContentEditor.InspectorComponents do
   import KilnCMSWeb.ContentEditor.Shared,
     only: [blank_to_nil: 1, selected_tag_ids: 2, user_label: 1, with_counts: 2]
 
+  alias KilnCMS.CMS.FieldDefinition
+  alias KilnCMSWeb.ContentEditor.GroupRows
+
   require Logger
 
   # Whether this record currently carries a passphrase (#496). Derived from the
@@ -660,28 +663,28 @@ defmodule KilnCMSWeb.ContentEditor.InspectorComponents do
     """
   end
 
-  # A group's rows have no editor yet, so they are shown, not edited — and no
-  # input is rendered, so a save leaves the key out of the params and
-  # `ApplyCustomFields` keeps the stored rows. Rows are written through the
-  # API until then.
+  # A `:group` field (structured rows): its sub-fields' own inputs, one set
+  # for a single group and one per row for a repeating one. The wire shape —
+  # rows keyed by position, the blank `_` / `_row` markers — is
+  # `KilnCMSWeb.ContentEditor.GroupRows`'s, which folds it back into the list
+  # `ApplyCustomFields` coerces. Add, remove and move are server-side edits of
+  # the form params (`group_row_*`), as a gallery's are, so the rows never
+  # hold state the form doesn't; dragging a row by its handle sends the same
+  # reorder through the shared `Sortable` hook.
+  #
+  # `value` must be what was posted while the form holds it — not the cleaned
+  # value, which drops a blank row the moment it is added.
   def custom_field_input(%{definition: %{field_type: :group}} = assigns) do
-    assigns = assign(assigns, :rows, group_row_count(assigns.value))
+    definition = assigns.definition
 
-    ~H"""
-    <div id={cf_id(@definition)}>
-      <p class="mb-1 block text-sm font-medium">{@definition.label}</p>
-      <p class="text-sm text-base-content/70">
-        {ngettext("%{count} row", "%{count} rows", @rows)}
-        <span class="text-base-content/50">
-          — {gettext("rows are edited through the API for now")}
-        </span>
-      </p>
-      <p :if={@definition.help_text} class="mt-1 text-xs text-base-content/60">
-        {@definition.help_text}
-      </p>
-      <.custom_field_errors_list definition={@definition} errors={@errors} />
-    </div>
-    """
+    assigns =
+      assigns
+      |> assign(:subs, FieldDefinition.group_fields(definition))
+      |> assign(:problems, GroupRows.errors(assigns.errors, definition.name))
+
+    if definition.multiple,
+      do: group_rows_input(assign(assigns, :rows, GroupRows.rows(assigns.value))),
+      else: group_input(assign(assigns, :row, GroupRows.row(assigns.value)))
   end
 
   # Everything else is registry-driven. A composite field type
@@ -711,9 +714,275 @@ defmodule KilnCMSWeb.ContentEditor.InspectorComponents do
     end
   end
 
-  defp group_row_count(rows) when is_list(rows), do: length(rows)
-  defp group_row_count(%{} = row) when map_size(row) > 0, do: 1
-  defp group_row_count(_none), do: 0
+  # A single group: one fieldset of its sub-fields' inputs.
+  defp group_input(assigns) do
+    ~H"""
+    <fieldset
+      id={cf_id(@definition)}
+      aria-describedby={@problems.field != [] && cf_errors_id(@definition)}
+    >
+      <legend class="mb-1 block text-sm font-medium">{@definition.label}</legend>
+      <%= if @subs == [] do %>
+        <.group_empty_note />
+      <% else %>
+        <input type="hidden" name={"#{@name}[_]"} value="" />
+        <div class="grid gap-3 rounded-lg border border-base-content/10 bg-base-200/30 p-3 sm:grid-cols-2">
+          <.group_cell
+            :for={sub <- @subs}
+            group={@definition}
+            sub={sub}
+            index={nil}
+            name={"#{@name}[#{sub.name}]"}
+            value={Map.get(@row, sub.name)}
+            errors={Map.get(@problems.cells, {nil, sub.name}, [])}
+          />
+        </div>
+      <% end %>
+      <p :if={@definition.help_text} class="mt-1 text-xs text-base-content/60">
+        {@definition.help_text}
+      </p>
+      <.custom_field_errors_list definition={@definition} errors={@problems.field} />
+    </fieldset>
+    """
+  end
+
+  # A repeating group: an ordered list of rows, each with a drag handle, move
+  # buttons and a remove button, then "Add row". `min_items`/`max_items` only
+  # disable the buttons here; the save is what enforces them.
+  defp group_rows_input(assigns) do
+    assigns =
+      assigns
+      |> assign(:last, length(assigns.rows) - 1)
+      |> assign(:full?, GroupRows.full?(assigns.rows, assigns.definition))
+      |> assign(:at_minimum?, GroupRows.at_minimum?(assigns.rows, assigns.definition))
+
+    ~H"""
+    <div
+      id={cf_id(@definition)}
+      role="group"
+      aria-labelledby={"#{cf_id(@definition)}-label"}
+      aria-describedby={@problems.field != [] && cf_errors_id(@definition)}
+    >
+      <div class="mb-1 flex items-baseline justify-between gap-2">
+        <span id={"#{cf_id(@definition)}-label"} class="text-sm font-medium">
+          {@definition.label}
+        </span>
+        <span :if={@rows != []} class="text-xs text-base-content/60">
+          {rows_count(@rows, @definition)}
+        </span>
+      </div>
+      <%= if @subs == [] do %>
+        <.group_empty_note />
+      <% else %>
+        <input type="hidden" name={"#{@name}[_]"} value="" />
+        <ol
+          :if={@rows != []}
+          id={"#{cf_id(@definition)}-rows"}
+          phx-hook="Sortable"
+          data-sort-event="group_row_reorder"
+          data-sort-field={@definition.name}
+          class="space-y-2"
+        >
+          <li
+            :for={{row, index} <- Enum.with_index(@rows)}
+            id={"cf-group-#{@definition.name}-row-#{index}"}
+            data-sort-id={index}
+            class={[
+              "rounded-lg border bg-base-200/30 p-3 transition-colors",
+              if(group_row_errors?(@problems, index),
+                do: "border-error/50",
+                else: "border-base-content/10 hover:border-base-content/20"
+              )
+            ]}
+          >
+            <input type="hidden" name={"#{@name}[#{index}][_row]"} value="" />
+            <div class="mb-2 flex items-center justify-between gap-2">
+              <div class="flex min-w-0 items-center gap-1">
+                <button
+                  type="button"
+                  data-drag-handle
+                  aria-label={gettext("Drag to reorder row %{position}", position: index + 1)}
+                  title={gettext("Drag to reorder")}
+                  class="-ml-1 cursor-grab rounded p-1 text-base-content/50 hover:bg-base-200 hover:text-base-content active:cursor-grabbing"
+                >
+                  <.icon name="hero-bars-2" class="size-4" />
+                </button>
+                <span class="text-xs font-medium tabular-nums text-base-content/70">
+                  {gettext("Row %{position}", position: index + 1)}
+                </span>
+              </div>
+              <div class="flex shrink-0 items-center gap-0.5">
+                <button
+                  type="button"
+                  phx-click="group_row_move"
+                  phx-value-field={@definition.name}
+                  phx-value-index={index}
+                  phx-value-dir="up"
+                  disabled={index == 0}
+                  aria-label={gettext("Move row %{position} up", position: index + 1)}
+                  class="btn btn-sm btn-ghost px-1.5"
+                >
+                  <.icon name="hero-chevron-up" class="size-4" />
+                </button>
+                <button
+                  type="button"
+                  phx-click="group_row_move"
+                  phx-value-field={@definition.name}
+                  phx-value-index={index}
+                  phx-value-dir="down"
+                  disabled={index == @last}
+                  aria-label={gettext("Move row %{position} down", position: index + 1)}
+                  class="btn btn-sm btn-ghost px-1.5"
+                >
+                  <.icon name="hero-chevron-down" class="size-4" />
+                </button>
+                <button
+                  type="button"
+                  phx-click="group_row_remove"
+                  phx-value-field={@definition.name}
+                  phx-value-index={index}
+                  disabled={@at_minimum?}
+                  aria-label={gettext("Remove row %{position}", position: index + 1)}
+                  title={
+                    @at_minimum? &&
+                      ngettext(
+                        "This field needs at least one row.",
+                        "This field needs at least %{count} rows.",
+                        @definition.min_items
+                      )
+                  }
+                  class="rounded px-1.5 py-1 text-base-content/60 transition-colors hover:bg-base-200 hover:text-error disabled:pointer-events-none disabled:opacity-40"
+                >
+                  <.icon name="hero-trash" class="size-4" />
+                </button>
+              </div>
+            </div>
+            <div class="grid gap-3 sm:grid-cols-2">
+              <.group_cell
+                :for={sub <- @subs}
+                group={@definition}
+                sub={sub}
+                index={index}
+                name={"#{@name}[#{index}][#{sub.name}]"}
+                value={Map.get(row, sub.name)}
+                errors={Map.get(@problems.cells, {index, sub.name}, [])}
+              />
+            </div>
+            <p
+              :for={message <- Map.get(@problems.rows, index, [])}
+              class="mt-2 flex items-center gap-1 text-xs text-error"
+            >
+              <.icon name="hero-exclamation-circle" class="size-4" /> {message}
+            </p>
+          </li>
+        </ol>
+        <p :if={@rows == []} class="text-sm text-base-content/60">
+          {gettext("No rows yet.")}
+        </p>
+        <button
+          type="button"
+          id={"#{cf_id(@definition)}-add"}
+          phx-click="group_row_add"
+          phx-value-field={@definition.name}
+          disabled={@full?}
+          class="btn btn-sm btn-default mt-2"
+        >
+          <.icon name="hero-plus" class="size-4" />
+          {gettext("Add row")}
+        </button>
+        <p :if={@full?} class="mt-1 text-xs text-base-content/60">
+          {ngettext(
+            "That's the most this field holds — one row.",
+            "That's the most this field holds — %{count} rows.",
+            @definition.max_items
+          )}
+        </p>
+      <% end %>
+      <p :if={@definition.help_text} class="mt-1 text-xs text-base-content/60">
+        {@definition.help_text}
+      </p>
+      <.custom_field_errors_list definition={@definition} errors={@problems.field} />
+    </div>
+    """
+  end
+
+  defp group_empty_note(assigns) do
+    ~H"""
+    <p class="text-sm text-base-content/60">
+      {gettext("This group has no fields yet. An admin adds them under Custom fields.")}
+    </p>
+    """
+  end
+
+  attr :group, :map, required: true
+  attr :sub, :map, required: true
+  attr :index, :any, required: true
+  attr :name, :string, required: true
+  attr :value, :any, required: true
+  attr :errors, :list, required: true
+
+  # One sub-field of one row, through the same inputs a top-level field gets,
+  # under an id of its own (`custom-field-<group>-<row>-<sub>`). The browser's
+  # `required` is left off: a blank row is dropped on save, so it must never
+  # block one, and the save names a missing value next to its input.
+  #
+  # A checkbox posts nothing when cleared — no hidden `"false"` — because a
+  # posted `"false"` is not blank, and would turn every untouched row into a
+  # filled-in one that its other required sub-fields then refuse.
+  defp group_cell(%{sub: %{field_type: :boolean}} = assigns) do
+    assigns = assign(assigns, :id, group_cell_id(assigns.group, assigns.index, assigns.sub))
+
+    ~H"""
+    <div class="self-end">
+      <label class="flex items-center gap-2 text-sm">
+        <input
+          id={@id}
+          type="checkbox"
+          name={@name}
+          value="true"
+          checked={@value in [true, "true", "1", "on"]}
+          aria-invalid={@errors != [] && "true"}
+          class="size-4 rounded border border-base-content/30 accent-primary"
+        />
+        <span class="font-medium">{@sub.label}</span>
+      </label>
+      <p :for={message <- @errors} class="mt-1 flex items-center gap-1 text-xs text-error">
+        <.icon name="hero-exclamation-circle" class="size-4" /> {message}
+      </p>
+    </div>
+    """
+  end
+
+  defp group_cell(assigns) do
+    definition = %{
+      assigns.sub
+      | name: group_cell_key(assigns.group, assigns.index, assigns.sub),
+        required: false,
+        # Said once, on the first row, rather than on every one.
+        help_text: if(assigns.index in [nil, 0], do: assigns.sub.help_text)
+    }
+
+    assigns = assign(assigns, :cell, definition)
+
+    ~H"""
+    <.custom_field_input definition={@cell} name={@name} value={@value} errors={@errors} />
+    """
+  end
+
+  defp group_cell_key(group, nil, sub), do: "#{group.name}-#{sub.name}"
+  defp group_cell_key(group, index, sub), do: "#{group.name}-#{index}-#{sub.name}"
+  defp group_cell_id(group, index, sub), do: "custom-field-" <> group_cell_key(group, index, sub)
+
+  defp group_row_errors?(problems, index) do
+    Map.has_key?(problems.rows, index) or
+      Enum.any?(problems.cells, fn {{row, _sub}, _messages} -> row == index end)
+  end
+
+  defp rows_count(rows, %{max_items: max}) when is_integer(max),
+    do: gettext("%{count} of %{max} rows", count: length(rows), max: max)
+
+  defp rows_count(rows, _definition),
+    do: ngettext("%{count} row", "%{count} rows", length(rows))
 
   defp bare_custom_field_input(assigns) do
     case field_type_parts(assigns.definition) do

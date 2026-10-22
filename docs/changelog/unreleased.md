@@ -116,6 +116,26 @@ carries the reasoning.
   follows. The migration adds one nullable column.
   ([#2036](https://github.com/The-Verscienta/kiln_cms/pull/2036))
 
+<a id="group-field-editor"></a>
+
+- **Group fields are edited in the admin and the content editor.** The fields
+  admin offers `:group` as a field type, asks whether it holds one set of
+  values or repeating rows (with optional row bounds), and lists the group's
+  sub-fields under it as "Fields in each row" — added, edited, ordered and
+  deleted in place with the plain types, as a reference's link fields are.
+  The content editor replaces #2036's read-only row count: a single group is
+  one fieldset of its sub-fields' inputs, and a repeating one is a list of
+  rows with "Add row", remove, move up/down and drag-to-reorder (the shared
+  `Sortable` hook). Rows post by position and are folded back into the
+  ordered list the write coerces, so a row edit is dirty and autosaves like
+  any other field edit; a blank row just added stays on screen through an
+  autosave. Each path error (`Unit (dosages[2].unit) is required`) shows
+  next to its row and sub-field, and `min_items`/`max_items` disable the
+  add and remove buttons while the save still enforces them. Also fixed on
+  the way: a server-side edit of one custom field (a gallery's remove, a
+  reference list's reorder) on a form no change event had filled yet showed
+  every other custom field blank, and the next save posted those blanks.
+
 ## Changed
 
 <a id="fired-artifacts-are-gzipped"></a>

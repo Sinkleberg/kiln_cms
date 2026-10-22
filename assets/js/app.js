@@ -800,7 +800,9 @@ const Hooks = {
     },
   },
   // Drag-and-drop reordering for editor block lists. On drop it reads the new
-  // order of `data-sort-id`s and pushes a "reorder" event to the LiveView.
+  // order of `data-sort-id`s and pushes a "reorder" event to the LiveView —
+  // or the event `data-sort-event` names, with `data-sort-field` as `field`,
+  // for a list that is one of several on the page (a group field's rows).
   Sortable: {
     mounted() {
       this.sorter = Sortable.create(this.el, {
@@ -811,7 +813,8 @@ const Hooks = {
           const order = Array.from(this.el.children)
             .map(c => c.dataset.sortId)
             .filter(id => id !== undefined)
-          this.pushEvent("reorder", {order})
+          const {sortEvent, sortField} = this.el.dataset
+          this.pushEvent(sortEvent || "reorder", sortField ? {field: sortField, order} : {order})
         },
       })
     },
