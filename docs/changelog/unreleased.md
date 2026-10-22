@@ -135,6 +135,7 @@ carries the reasoning.
   the way: a server-side edit of one custom field (a gallery's remove, a
   reference list's reorder) on a form no change event had filled yet showed
   every other custom field blank, and the next save posted those blanks.
+  ([#2053](https://github.com/The-Verscienta/kiln_cms/pull/2053))
 
 ## Changed
 
