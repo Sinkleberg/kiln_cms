@@ -126,9 +126,12 @@ UI" workflow, scoped to fields.
   does a gallery's. The schema export types a group as a closed object
   (`additionalProperties: false`), in an array when `multiple`, and lists the
   sub-fields as `x-kiln-sub-fields`; `custom_filter` answers only `null` on
-  it. Groups are defined through the code interface or the API for now — the
-  fields admin and the editor show an existing group but do not edit its
-  rows yet.
+  it. In the fields admin a group's sub-fields sit under it, as "Fields in
+  each row", added, edited, ordered and deleted in place like a reference's
+  link fields; the content editor shows a single group as one set of inputs
+  and a repeating one as rows an editor adds, removes and reorders (drag a
+  row by its handle, or use its arrows), with each problem shown next to the
+  row and sub-field its path names.
 - **Reverse fields (the other side)**: a `:reference` field may name what
   its targets call it — `inverse_label` ("Recipes using this ingredient")
   and `inverse_name` (`used_in_recipes`, suggested from the label when left

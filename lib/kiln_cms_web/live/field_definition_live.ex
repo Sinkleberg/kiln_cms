@@ -28,6 +28,12 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
   one small form at a time, and offer only the plain field types
   (`FieldDefinition.link_field_types/0`).
 
+  A `:group` field carries its **sub-fields** the same way, as "Fields in
+  each row": the amount and the unit of each dosage. The same small forms add,
+  edit, order and delete them, with the same plain types; only the parent
+  column differs (`group_of_id` rather than `link_of_id`), because a
+  sub-field's value lives inside the group's own value.
+
   Both forms first ask what a field holds: a value, or a relationship (R9,
   #2025, after Toolset's relationship wizard). A relationship is a
   `:reference` field set up in four steps — which records connect, how many
@@ -241,18 +247,25 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
 
   # --- link fields (R3) -----------------------------------------------------
 
-  # "Add a detail" under a reference field: a small create form scoped to it.
+  # "Add a detail" under a reference field, or "Add a field" under a group: a
+  # small create form scoped to it. Which of the two the parent is decides the
+  # column the new row is owned through (`link_params/3`).
   def handle_event("link_new", %{"parent" => parent_id}, socket) when is_binary(parent_id) do
-    if Enum.any?(
-         socket.assigns.definitions,
-         &(&1.id == parent_id and &1.field_type == :reference)
-       ) do
-      form = link_create_form(socket.assigns.actor, socket.assigns.current_org, parent_id)
+    case Enum.find(socket.assigns.definitions, &(&1.id == parent_id)) do
+      %{field_type: type} when type in [:reference, :group] ->
+        form = link_create_form(socket.assigns.actor, socket.assigns.current_org, parent_id)
 
-      {:noreply,
-       assign(socket, :link_form, %{parent: parent_id, id: nil, form: form, name_edited?: false})}
-    else
-      {:noreply, socket}
+        {:noreply,
+         assign(socket, :link_form, %{
+           parent: parent_id,
+           kind: child_kind(type),
+           id: nil,
+           form: form,
+           name_edited?: false
+         })}
+
+      _other ->
+        {:noreply, socket}
     end
   end
 
@@ -266,7 +279,8 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
 
         {:noreply,
          assign(socket, :link_form, %{
-           parent: link.link_of_id,
+           parent: FieldDefinition.parent_id(link),
+           kind: if(link.group_of_id, do: :group, else: :link),
            id: id,
            form: form,
            name_edited?: true
@@ -320,7 +334,8 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
 
   def handle_event("link_move", %{"id" => id, "dir" => dir}, socket)
       when is_binary(id) and dir in ["up", "down"] do
-    with %{link_of_id: parent_id} <- find_link(socket, id),
+    with %{} = link <- find_link(socket, id),
+         parent_id = FieldDefinition.parent_id(link),
          ids = socket.assigns.link_fields |> Map.get(parent_id, []) |> Enum.map(& &1.id),
          index when is_integer(index) <- Enum.find_index(ids, &(&1 == id)),
          target = if(dir == "up", do: index - 1, else: index + 1),
@@ -687,13 +702,17 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
     |> to_form()
   end
 
+  defp child_kind(:group), do: :group
+  defp child_kind(_reference), do: :link
+
   # The same option/default clean-up as a field's own form. A new link field
-  # is pinned to the reference it was opened under and goes to the end of its
-  # list; an edit never moves it.
+  # (or group sub-field) is pinned to the parent it was opened under and goes
+  # to the end of its list; an edit never moves it.
   defp link_params(params, link_form, assigns \\ nil)
 
-  defp link_params(params, %{id: nil, parent: parent_id}, assigns) do
-    params = params |> normalize() |> Map.put("link_of_id", parent_id)
+  defp link_params(params, %{id: nil, parent: parent_id, kind: kind}, assigns) do
+    column = if kind == :group, do: "group_of_id", else: "link_of_id"
+    params = params |> normalize() |> Map.put(column, parent_id)
 
     case assigns do
       nil -> params
@@ -702,7 +721,7 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
   end
 
   defp link_params(params, _link_form, _assigns),
-    do: params |> normalize() |> Map.delete("link_of_id")
+    do: params |> normalize() |> Map.drop(["link_of_id", "group_of_id"])
 
   defp reorder_links(socket, parent_id, order) do
     by_id = socket.assigns.link_fields |> Map.get(parent_id, []) |> Map.new(&{&1.id, &1})
@@ -821,10 +840,9 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
         tenant: socket.assigns.current_org,
         query: [sort: [position: :asc, name: :asc]]
       )
-      # Link fields (R3) are listed under their reference field, not as fields
-      # of a type. A group's sub-fields are not listed here at all yet.
-      |> Enum.filter(&is_nil(&1.group_of_id))
-      |> Enum.split_with(&(not is_nil(&1.link_of_id)))
+      # Link fields (R3) are listed under their reference field, and a
+      # group's sub-fields under their group — not as fields of a type.
+      |> Enum.split_with(&(not is_nil(FieldDefinition.parent_id(&1))))
 
     # A definition whose content type no longer exists (#1770) is listed on
     # its own, with only a delete: nothing renders, validates or delivers it,
@@ -840,7 +858,7 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
 
     socket
     |> assign(:definitions, definitions)
-    |> assign(:link_fields, Enum.group_by(links, & &1.link_of_id))
+    |> assign(:link_fields, Enum.group_by(links, &FieldDefinition.parent_id/1))
     |> assign(:grouped, grouped)
     |> assign(:orphaned, Enum.sort_by(orphaned, &{to_string(&1.content_type), &1.name}))
   end
@@ -1207,8 +1225,8 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
   # `{label, name}` pairs, to name a reference's target type in the choices.
   attr :target_types, :list, default: []
 
-  # Single image or a gallery, for a `:media` field, with the gallery's
-  # optional item bounds. A `:reference` field asks the same question from
+  # Single image or a gallery, for a `:media` field — or one row or repeating
+  # rows, for a `:group` — with the list's optional item bounds. A `:reference` field asks the same question from
   # both sides in `relationship_counts/1`; this keeps only the warning, shown
   # whenever a stored list is about to become a single item or another type.
   defp multiple_field(assigns) do
@@ -1231,8 +1249,8 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
     # The warning outlives the toggle: retyping a list field to another type
     # narrows it just the same (`SyncFieldValues`), so it shows then too.
     ~H"""
-    <div :if={@type == :media || @narrowing} class="sm:col-span-2">
-      <fieldset :if={@type == :media}>
+    <div :if={@type in [:media, :group] || @narrowing} class="sm:col-span-2">
+      <fieldset :if={@type in [:media, :group]}>
         <legend class="mb-1 block text-sm font-medium">{gettext("Holds")}</legend>
         <div class="grid gap-2 sm:grid-cols-2">
           <label
@@ -1298,6 +1316,15 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
             )}
           </p>
         </fieldset>
+        <p
+          :if={@type == :group}
+          id={"#{@id}-sub-fields-hint"}
+          class="mt-2 text-xs text-base-content/60"
+        >
+          {gettext(
+            "Once the field is saved, add the fields each row holds — an amount, a unit — under it in the list below."
+          )}
+        </p>
       </fieldset>
       <p
         :if={@narrowing}
@@ -1389,6 +1416,17 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
          "It can go to the trash, but can't be deleted for good while anything still links to it."
        ), "hero-lock-closed"}
     ]
+  end
+
+  # A repeating group's row bounds in the list, when it has any.
+  defp rows_summary(%{min_items: min, max_items: max}) do
+    case {min, max} do
+      {nil, nil} -> gettext("Any number of rows.")
+      {min, nil} -> ngettext("At least one row.", "At least %{count} rows.", min)
+      {nil, max} -> ngettext("At most one row.", "At most %{count} rows.", max)
+      {same, same} -> ngettext("Exactly one row.", "Exactly %{count} rows.", same)
+      {min, max} -> gettext("Between %{min} and %{max} rows.", min: min, max: max)
+    end
   end
 
   # The delete rule in the list, after the summary, when it is not the
@@ -1589,15 +1627,9 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
   end
 
   # The value form's type picker: every type but `:reference`, which is
-  # "A relationship" now — and but `:group`, whose sub-fields this screen
-  # cannot add yet. A group made through the API still edits here under its
-  # own type, so a save cannot retype it by omission.
-  defp value_type_options(field_types, current \\ nil) do
-    for type <- field_types,
-        type != :reference,
-        type != :group or to_string(current) == "group",
-        do: {type_label(type), type}
-  end
+  # "A relationship" now.
+  defp value_type_options(field_types),
+    do: for(type <- field_types, type != :reference, do: {type_label(type), type})
 
   # The step heading over the delete rule, in the relationship form.
   attr :id, :string, required: true
@@ -2013,11 +2045,14 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
     case to_string(form[:field_type].value) do
       "media" -> :media
       "reference" -> :reference
+      "group" -> :group
       _other -> nil
     end
   end
 
-  defp list_type(%{field_type: type, multiple: true}) when type in [:media, :reference], do: type
+  defp list_type(%{field_type: type, multiple: true}) when type in [:media, :reference, :group],
+    do: type
+
   defp list_type(_stored), do: nil
 
   # The reference's target types as an admin reads them ("Page", "Page or
@@ -2048,6 +2083,7 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
     do: gettext("How many %{type} records can be connected", type: target)
 
   defp bounds_legend(:media, _target), do: gettext("How many images")
+  defp bounds_legend(:group, _target), do: gettext("How many rows")
   defp bounds_legend(_type, _target), do: gettext("How many items")
 
   defp multiple_choices(:media, _target) do
@@ -2056,6 +2092,18 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
        "hero-photo"},
       {"true", gettext("A gallery"),
        gettext("Several images, in the order the editor arranges them."), "hero-squares-2x2"}
+    ]
+  end
+
+  defp multiple_choices(:group, _target) do
+    [
+      {"false", gettext("One set of values"),
+       gettext("A single row — a product's specifications, a venue's address."),
+       "hero-rectangle-group"},
+      {"true", gettext("Repeating rows"),
+       gettext(
+         "As many rows as the editor adds, in the order they arrange them — dosages, steps."
+       ), "hero-table-cells"}
     ]
   end
 
@@ -2085,6 +2133,12 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
     do:
       gettext(
         "Saving keeps only the first image of each gallery already filled in. The others are removed from the content, not from the media library."
+      )
+
+  defp narrowing_warning(:group),
+    do:
+      gettext(
+        "Saving keeps only the first row of each list already filled in. The other rows are removed from the content."
       )
 
   defp narrowing_warning(:reference),
@@ -2466,7 +2520,7 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
                     <.icon name="hero-bars-2" class="size-4" />
                   </button>
                   <div class="min-w-0 flex-1 space-y-1">
-                    <div class="flex items-center gap-2">
+                    <div class="flex flex-wrap items-center gap-2">
                       <span class="font-medium">{definition.label}</span>
                       <code class="text-xs text-base-content/60">{definition.name}</code>
                       <span class="rounded bg-base-200 px-1.5 py-0.5 text-xs text-base-content/70">
@@ -2483,6 +2537,12 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
                         class="rounded bg-base-200 px-1.5 py-0.5 text-xs text-base-content/70"
                       >
                         {gettext("list")}
+                      </span>
+                      <span
+                        :if={definition.field_type == :group and definition.multiple}
+                        class="rounded bg-base-200 px-1.5 py-0.5 text-xs text-base-content/70"
+                      >
+                        {gettext("repeating")}
                       </span>
                       <span
                         :if={definition.field_type == :text and definition.deliver_plain}
@@ -2527,13 +2587,13 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
                     <p :if={definition.compute} class="text-xs text-base-content/60">
                       {gettext("Formula")}: <code>{definition.compute}</code>
                     </p>
-                    <.link_fields_panel
-                      :if={definition.field_type == :reference}
-                      definition={definition}
-                      links={Map.get(@link_fields, definition.id, [])}
-                      link_form={@link_form}
-                      target_types={@target_types}
-                    />
+                    <p
+                      :if={definition.field_type == :group and definition.multiple}
+                      id={"field-#{definition.id}-bounds"}
+                      class="text-xs text-base-content/60"
+                    >
+                      {rows_summary(definition)}
+                    </p>
                   </div>
                   <div class="flex shrink-0 items-center gap-1">
                     <button
@@ -2579,6 +2639,23 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
                       <.icon name="hero-trash" class="size-4" />
                     </button>
                   </div>
+                </div>
+                <%!-- Under the field's row rather than inside its text column,
+                      so the list keeps its width beside the buttons on a
+                      phone; indented to the text on wider screens. --%>
+                <div
+                  :if={
+                    !editing?(@edit, definition.id) and
+                      definition.field_type in [:reference, :group]
+                  }
+                  class="sm:pl-10"
+                >
+                  <.link_fields_panel
+                    definition={definition}
+                    links={Map.get(@link_fields, definition.id, [])}
+                    link_form={@link_form}
+                    target_types={@target_types}
+                  />
                 </div>
 
                 <.form
@@ -2629,7 +2706,7 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
                       field={@edit.form[:field_type]}
                       type="select"
                       label={gettext("Field type")}
-                      options={value_type_options(@field_types, @edit.form[:field_type].value)}
+                      options={value_type_options(@field_types)}
                       hint={type_description(@edit.form[:field_type].value, @field_types)}
                     />
                     <.input field={@edit.form[:label]} label={gettext("Label")} />
@@ -2750,11 +2827,21 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
   attr :target_types, :list, required: true
 
   # A reference field's link fields (R3), worded for someone setting up a
-  # relationship rather than a schema: "Details on each connection".
+  # relationship rather than a schema: "Details on each connection". A group's
+  # sub-fields are the same list under the group, as "Fields in each row".
   defp link_fields_panel(assigns) do
+    group? = assigns.definition.field_type == :group
+
     assigns =
       assigns
-      |> assign(:root, "field-#{assigns.definition.id}-details")
+      |> assign(:group?, group?)
+      |> assign(
+        :root,
+        if(group?,
+          do: "field-#{assigns.definition.id}-sub-fields",
+          else: "field-#{assigns.definition.id}-details"
+        )
+      )
       |> assign(
         :target,
         assigns.definition
@@ -2777,7 +2864,9 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
     >
       <div class="flex flex-wrap items-baseline justify-between gap-2">
         <h4 id={"#{@root}-heading"} class="text-sm font-medium">
-          {gettext("Details on each connection")}
+          {if @group?,
+            do: gettext("Fields in each row"),
+            else: gettext("Details on each connection")}
         </h4>
         <button
           :if={!(@open && is_nil(@open.id))}
@@ -2788,10 +2877,21 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
           class="inline-flex cursor-pointer items-center gap-1 rounded text-xs font-medium text-primary-ink transition-colors hover:underline"
         >
           <.icon name="hero-plus" class="size-3.5" />
-          {gettext("Add a detail")}
+          {if @group?, do: gettext("Add a field"), else: gettext("Add a detail")}
         </button>
       </div>
-      <p class="mt-0.5 text-xs text-base-content/60">
+      <p :if={@group?} class="mt-0.5 text-xs text-base-content/60">
+        {if @definition.multiple,
+          do:
+            gettext(
+              "What an editor fills in on every row — an amount, a unit, a note. Plain values only: a row can't hold an image, a link to a record or another group."
+            ),
+          else:
+            gettext(
+              "The values this group holds together — a width, a height, a weight. Plain values only: a group can't hold an image, a link to a record or another group."
+            )}
+      </p>
+      <p :if={!@group?} class="mt-0.5 text-xs text-base-content/60">
         {gettext(
           "What an editor fills in for every %{type} this field connects — a quantity, a role, a note. It belongs to the connection, not to either record.",
           type: @target || gettext("record")
@@ -2856,9 +2956,15 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
                 phx-click="delete"
                 phx-value-id={link.id}
                 data-confirm={
-                  gettext("Delete this detail? Its value is removed from every connection.")
+                  if @group?,
+                    do: gettext("Delete this field? Its value is removed from every row."),
+                    else: gettext("Delete this detail? Its value is removed from every connection.")
                 }
-                aria-label={gettext("Delete detail %{label}", label: link.label)}
+                aria-label={
+                  if @group?,
+                    do: gettext("Delete field %{label}", label: link.label),
+                    else: gettext("Delete detail %{label}", label: link.label)
+                }
                 class="rounded px-2 py-1 text-xs text-base-content/60 hover:bg-base-200 hover:text-error"
               >
                 <.icon name="hero-trash" class="size-4" />
@@ -2869,16 +2975,20 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
             :if={@open && @open.id == link.id}
             form={@open.form}
             id={"link-field-form-#{link.id}"}
+            group?={@group?}
           />
         </li>
       </ol>
       <p :if={@links == [] and !@open} class="mt-2 text-xs text-base-content/50">
-        {gettext("No details yet.")}
+        {if @group?,
+          do: gettext("No fields yet — editors see nothing to fill in until you add one."),
+          else: gettext("No details yet.")}
       </p>
       <.link_field_form
         :if={@open && is_nil(@open.id)}
         form={@open.form}
         id={"link-field-form-new-#{@definition.id}"}
+        group?={@group?}
       />
     </div>
     """
@@ -2886,6 +2996,7 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
 
   attr :form, :any, required: true
   attr :id, :string, required: true
+  attr :group?, :boolean, default: false
 
   defp link_field_form(assigns) do
     ~H"""
@@ -2896,11 +3007,15 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
       phx-submit="link_save"
       class="mt-2 grid gap-3 rounded-md border border-base-content/10 bg-base-100 p-3 sm:grid-cols-2"
     >
-      <.input field={@form[:label]} label={gettext("Label")} placeholder={gettext("Quantity")} />
+      <.input
+        field={@form[:label]}
+        label={gettext("Label")}
+        placeholder={if @group?, do: gettext("Unit"), else: gettext("Quantity")}
+      />
       <.input
         field={@form[:name]}
         label={gettext("Machine name")}
-        placeholder="quantity"
+        placeholder={if @group?, do: "unit", else: "quantity"}
         hint={gettext("Filled in from the label until you change it.")}
       />
       <.input
@@ -2921,10 +3036,14 @@ defmodule KilnCMSWeb.FieldDefinitionLive do
           checked={@form[:required].value in [true, "true"]}
           class="size-4 rounded border border-base-content/30 accent-primary"
         />
-        {gettext("Required on every connection")}
+        {if @group?,
+          do: gettext("Required on every row"),
+          else: gettext("Required on every connection")}
       </label>
       <div class="flex gap-2 sm:col-span-2">
-        <.button type="submit" variant="primary">{gettext("Save detail")}</.button>
+        <.button type="submit" variant="primary">
+          {if @group?, do: gettext("Save field"), else: gettext("Save detail")}
+        </.button>
         <button type="button" phx-click="link_cancel" class="btn btn-sm btn-default">
           {gettext("Cancel")}
         </button>

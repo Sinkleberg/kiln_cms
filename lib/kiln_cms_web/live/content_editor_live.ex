@@ -50,6 +50,7 @@ defmodule KilnCMSWeb.ContentEditorLive do
   alias KilnCMS.Slug
   alias KilnCMS.Unsplash
   alias KilnCMSWeb.ContentEditor.FieldEvents
+  alias KilnCMSWeb.ContentEditor.GroupRows
   alias KilnCMSWeb.ContentEditor.InlineTerms
   alias KilnCMSWeb.ContentEditor.NewDraft
   alias KilnCMSWeb.ContentEditor.ReferenceValues
@@ -1960,6 +1961,7 @@ defmodule KilnCMSWeb.ContentEditorLive do
       |> merge_tag_params(socket)
       |> drop_blank_related(socket)
       |> ReferenceValues.normalize(socket.assigns.field_definitions)
+      |> GroupRows.normalize(socket.assigns.field_definitions)
 
     {params, socket} = sync_slug(params, event["_target"], socket)
     socket = assign(socket, :form, AshPhoenix.Form.validate(socket.assigns.form, params))
@@ -2849,6 +2851,31 @@ defmodule KilnCMSWeb.ContentEditorLive do
     {:noreply, update_field_gallery(socket, name, &move_id(&1, id, dir))}
   end
 
+  # A repeating group's rows (`GroupRows`): add, remove, move and a dragged
+  # order, each a rewrite of the posted rows through the same
+  # params-then-validate path a gallery takes, so a row edit is dirty and
+  # autosaves like any other field edit.
+  def handle_event("group_row_add", %{"field" => name}, socket) when is_binary(name),
+    do: {:noreply, update_group_rows(socket, name, &GroupRows.add/2)}
+
+  def handle_event("group_row_remove", %{"field" => name, "index" => index}, socket)
+      when is_binary(name) and is_binary(index) do
+    {:noreply, update_group_rows(socket, name, index, &GroupRows.remove(&1, &2))}
+  end
+
+  def handle_event("group_row_move", %{"field" => name, "index" => index, "dir" => dir}, socket)
+      when is_binary(name) and is_binary(index) and dir in ["up", "down"] do
+    {:noreply, update_group_rows(socket, name, index, &GroupRows.move(&1, &2, dir))}
+  end
+
+  # Pushed by the `Sortable` hook (`data-sort-event`) with the rows' old
+  # positions in their new order.
+  def handle_event("group_row_reorder", %{"field" => name, "order" => order}, socket)
+      when is_binary(name) and is_list(order) do
+    {:noreply,
+     update_group_rows(socket, name, fn rows, _def -> GroupRows.reorder(rows, order) end)}
+  end
+
   def handle_event("add_picked_images", %{"bid" => bid}, socket) when is_binary(bid) do
     case socket.assigns.picked do
       [] ->
@@ -3263,6 +3290,7 @@ defmodule KilnCMSWeb.ContentEditorLive do
       |> merge_tag_params(socket)
       |> drop_blank_related(socket)
       |> ReferenceValues.normalize(socket.assigns.field_definitions)
+      |> GroupRows.normalize(socket.assigns.field_definitions)
 
     if socket.assigns.record.state == :published,
       do: save_live(socket, params),
@@ -3904,6 +3932,51 @@ defmodule KilnCMSWeb.ContentEditorLive do
       put_custom_field_param(socket, name, ["" | items])
     else
       socket
+    end
+  end
+
+  # Rewrite a repeating group's rows through `fun` — given the rows as posted
+  # (blank ones included) and the definition — and re-validate. Only a group
+  # this view may change (`custom_field_editable?/3`), as for a gallery.
+  defp update_group_rows(socket, name, fun) do
+    editable? =
+      custom_field_editable?(socket, name, &match?(%{field_type: :group, multiple: true}, &1))
+
+    if editable? do
+      definition = Enum.find(socket.assigns.field_definitions, &(&1.name == name))
+      rows = socket.assigns.form |> GroupRows.posted(name) |> GroupRows.rows()
+      put_custom_field_param(socket, name, fun.(rows, definition))
+    else
+      socket
+    end
+  end
+
+  defp update_group_rows(socket, name, index, fun) do
+    case Integer.parse(index) do
+      {index, ""} -> update_group_rows(socket, name, fn rows, _def -> fun.(rows, index) end)
+      _other -> socket
+    end
+  end
+
+  # An autosave rebuilds the form from the saved record, and the save dropped
+  # every blank row (`ApplyCustomFields`) — so a row added a moment ago, and
+  # not typed into yet, would vanish. Each repeating group that posted a
+  # blank row has its rows validated back onto the rebuilt form, which is
+  # the same value the save just stored, plus the rows on screen.
+  defp keep_blank_group_rows(socket, previous_form) do
+    case GroupRows.pending(
+           AshPhoenix.Form.params(previous_form),
+           socket.assigns.field_definitions
+         ) do
+      pending when map_size(pending) == 0 ->
+        socket
+
+      pending ->
+        assign(
+          socket,
+          :form,
+          AshPhoenix.Form.validate(socket.assigns.form, %{"custom_fields" => pending})
+        )
     end
   end
 
@@ -4878,7 +4951,11 @@ defmodule KilnCMSWeb.ContentEditorLive do
         reloaded =
           fetch!(socket.assigns.kind, record.id, socket.assigns.actor, socket.assigns.current_org)
 
-        socket |> assign_record(reloaded) |> broadcast_saved() |> mark_saved()
+        socket
+        |> assign_record(reloaded)
+        |> keep_blank_group_rows(socket.assigns.form)
+        |> broadcast_saved()
+        |> mark_saved()
 
       {:error, form} ->
         handle_autosave_error(socket, form)

@@ -163,6 +163,12 @@ defmodule KilnCMSWeb.ContentEditor.Shared do
   # widget (every part of a composite field) on the first half-filled day, and
   # the next change event then posted the blanks — destroying what was typed.
   # Fall back to what was submitted for a field the cleaned map lacks.
+  #
+  # And to the stored value for a field nothing submitted: the map can be the
+  # posted `custom_fields` argument itself, and a server-side edit of one
+  # field (a gallery's remove, a group's "Add row") on a form no change event
+  # has filled yet posts that one field alone. An absent key keeps its stored
+  # value, so that is what its input shows — not a blank the next save posts.
   def custom_field_value(form, name) do
     case AshPhoenix.Form.value(form, :custom_fields) do
       map when is_map(map) ->
@@ -178,10 +184,15 @@ defmodule KilnCMSWeb.ContentEditor.Shared do
 
   defp submitted_custom_field(form, name) do
     case AshPhoenix.Form.params(form) do
-      %{"custom_fields" => %{} = submitted} -> Map.get(submitted, name)
-      _ -> nil
+      %{"custom_fields" => %{^name => value}} -> value
+      _ -> stored_custom_field(form, name)
     end
   end
+
+  defp stored_custom_field(%{data: %{custom_fields: %{} = stored}}, name),
+    do: Map.get(stored, name)
+
+  defp stored_custom_field(_form, _name), do: nil
 
   # Validation messages `ApplyCustomFields` attached for one definition — the
   # errors land on the `:custom_fields` attribute with the field's name in

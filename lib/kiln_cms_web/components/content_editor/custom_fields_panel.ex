@@ -21,6 +21,7 @@ defmodule KilnCMSWeb.ContentEditor.CustomFieldsPanel do
 
   import KilnCMSWeb.ContentEditor.Shared, only: [custom_field_errors: 2, custom_field_value: 2]
 
+  alias KilnCMSWeb.ContentEditor.GroupRows
   alias KilnCMSWeb.ContentEditor.Localization
 
   attr :form, :any, required: true
@@ -86,7 +87,7 @@ defmodule KilnCMSWeb.ContentEditor.CustomFieldsPanel do
             :if={definition.field_type != :reference}
             definition={definition}
             name={"#{@form.name}[custom_fields][#{definition.name}]"}
-            value={custom_field_value(@form, definition.name)}
+            value={input_value(@form, definition)}
             errors={custom_field_errors(@form, definition.name)}
             options={custom_field_options(definition, @media)}
           />
@@ -115,6 +116,12 @@ defmodule KilnCMSWeb.ContentEditor.CustomFieldsPanel do
     </section>
     """
   end
+
+  # A group shows the rows as posted while the form holds them: the cleaned
+  # value `custom_field_value/2` prefers has already dropped a blank row, so
+  # "Add row" would add nothing anyone could see.
+  defp input_value(form, %{field_type: :group, name: name}), do: GroupRows.posted(form, name)
+  defp input_value(form, definition), do: custom_field_value(form, definition.name)
 
   # An unsaved draft has no id yet, so nothing can connect to it.
   defp show_reverse?(record, reverse_fields),
