@@ -69,7 +69,7 @@ Every summary line below that was shortened links to its own entry there.
 
 - **Fired artifacts are gzipped: their `ETag` is now weak (`W/"…"`) and
   `If-None-Match` is compared weakly.**
-  ([#PRNUM](https://github.com/The-Verscienta/kiln_cms/pull/PRNUM) · [long form](docs/changelog/unreleased.md#fired-artifacts-are-gzipped))
+  ([#2041](https://github.com/The-Verscienta/kiln_cms/pull/2041) · [long form](docs/changelog/unreleased.md#fired-artifacts-are-gzipped))
 
 ## [1.5.0] - 2026-10-18
 

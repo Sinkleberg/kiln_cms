@@ -18,7 +18,8 @@ defmodule KilnCMSWeb.ArtifactCompressionTest do
   setup do
     server =
       start_supervised!(
-        {Bandit, plug: KilnCMSWeb.Endpoint, scheme: :http, ip: :loopback, port: 0, startup_log: false}
+        {Bandit,
+         plug: KilnCMSWeb.Endpoint, scheme: :http, ip: :loopback, port: 0, startup_log: false}
       )
 
     {:ok, {_ip, port}} = ThousandIsland.listener_info(server)

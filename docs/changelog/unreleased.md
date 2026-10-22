@@ -88,4 +88,4 @@ carries the reasoning.
   strong form revalidates to a `304`; one that compares tags itself sees each
   document's tag change once and refetches it one time. ETags are opaque, so
   this is not a contract change. A passphrase-unlocked document still has no
-  `ETag` and is never `304`ed. ([#PRNUM](https://github.com/The-Verscienta/kiln_cms/pull/PRNUM))
+  `ETag` and is never `304`ed. ([#2041](https://github.com/The-Verscienta/kiln_cms/pull/2041))
