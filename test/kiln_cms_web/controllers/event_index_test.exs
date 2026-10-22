@@ -42,13 +42,13 @@ defmodule KilnCMSWeb.EventIndexTest do
     %{conn: conn, admin: admin, td: td, plural: name, org: KilnCMS.Accounts.default_org_id()}
   end
 
-  # `days` from now, at whatever the current wall time is in London.
+  # Noon London, `days` after today's UTC date. Noon rather than the current
+  # wall time: a clock-relative start lands on a DST change whenever the suite
+  # runs at the matching hour a few days before one, and then "start + 2h" in
+  # wall time is three real hours (or one). The DST arithmetic itself is
+  # covered with fixed dates in `KilnCMS.EventsTest`.
   defp schedule(days, opts \\ []) do
-    start =
-      DateTime.utc_now()
-      |> DateTime.add(days * 86_400, :second)
-      |> DateTime.shift_zone!(@london)
-      |> DateTime.to_naive()
+    start = Date.utc_today() |> Date.add(days) |> NaiveDateTime.new!(~T[12:00:00])
 
     %{"start" => NaiveDateTime.to_iso8601(start), "time_zone" => @london}
     |> Map.merge(Map.new(opts))
@@ -280,14 +280,14 @@ defmodule KilnCMSWeb.EventIndexTest do
 
     test "a bound with a wall time is read in the event zone, not as UTC",
          %{conn: conn} = ctx do
-      published!(ctx, "Later today plus ten", 10)
+      published!(ctx, "Ten days out", 10)
 
       until = Date.utc_today() |> Date.add(11) |> Date.to_iso8601()
 
       body =
         conn |> get("/#{ctx.plural}/index.json?until=#{until}T23:59:59") |> json_response(200)
 
-      assert Enum.map(body["events"], & &1["title"]) == ["Later today plus ten"]
+      assert Enum.map(body["events"], & &1["title"]) == ["Ten days out"]
     end
 
     test "?from= earlier than the anchor is clamped, and the response says so",

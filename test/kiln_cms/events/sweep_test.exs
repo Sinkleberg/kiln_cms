@@ -56,10 +56,12 @@ defmodule KilnCMS.Events.SweepTest do
     )
   end
 
-  defp local(%DateTime{} = utc), do: utc |> DateTime.shift_zone!(@london) |> DateTime.to_naive()
-
-  defp schedule(start),
-    do: %{"start" => NaiveDateTime.to_iso8601(local(start)), "time_zone" => @london}
+  # Noon London, `days` after today's UTC date — not the current wall time,
+  # which lands on a DST change when the suite runs at the matching hour.
+  defp schedule(days) do
+    start = Date.utc_today() |> Date.add(days) |> NaiveDateTime.new!(~T[12:00:00])
+    %{"start" => NaiveDateTime.to_iso8601(start), "time_zone" => @london}
+  end
 
   # Put a row into the state the sweep exists to correct: a stored value that has
   # since gone by. Written straight to the row, because the whole point is that
@@ -72,10 +74,8 @@ defmodule KilnCMS.Events.SweepTest do
 
   describe "what it visits" do
     test "advances a recurring event whose date has gone by", ctx do
-      start = DateTime.utc_now() |> DateTime.add(-365 * 86_400, :second)
-
       record =
-        event!(ctx, %{"when" => schedule(start), "repeats" => %{"rrule" => "FREQ=WEEKLY"}})
+        event!(ctx, %{"when" => schedule(-365), "repeats" => %{"rrule" => "FREQ=WEEKLY"}})
 
       # Pretend last week's occurrence is the one on the row.
       stale!(record, DateTime.add(Index.anchor(), -3 * 86_400, :second))
@@ -87,8 +87,7 @@ defmodule KilnCMS.Events.SweepTest do
     end
 
     test "clears a series that has ended", ctx do
-      start = DateTime.utc_now() |> DateTime.add(-30 * 86_400, :second)
-      record = event!(ctx, %{"when" => schedule(start)})
+      record = event!(ctx, %{"when" => schedule(-30)})
 
       # A one-off in the past materialized as nil on save; force it back to a
       # stale value so the sweep has something to find.
@@ -100,8 +99,7 @@ defmodule KilnCMS.Events.SweepTest do
     end
 
     test "leaves a FUTURE value alone", ctx do
-      start = DateTime.utc_now() |> DateTime.add(30 * 86_400, :second)
-      record = event!(ctx, %{"when" => schedule(start)})
+      record = event!(ctx, %{"when" => schedule(30)})
 
       assert record.next_occurrence_at
       before = reload(record)
@@ -119,8 +117,7 @@ defmodule KilnCMS.Events.SweepTest do
       # The rows a `calendar_types/1`-scoped sweep would strand forever: delete
       # the schedule field and the type is no longer event-shaped, but its rows
       # still carry a sort key that will never be corrected by anything else.
-      start = DateTime.utc_now() |> DateTime.add(-30 * 86_400, :second)
-      record = event!(ctx, %{"when" => schedule(start)})
+      record = event!(ctx, %{"when" => schedule(-30)})
       stale!(record, DateTime.add(Index.anchor(), -86_400, :second))
 
       ctx.td.id
@@ -136,10 +133,8 @@ defmodule KilnCMS.Events.SweepTest do
 
   describe "what it must not do" do
     setup ctx do
-      start = DateTime.utc_now() |> DateTime.add(-365 * 86_400, :second)
-
       record =
-        event!(ctx, %{"when" => schedule(start), "repeats" => %{"rrule" => "FREQ=WEEKLY"}})
+        event!(ctx, %{"when" => schedule(-365), "repeats" => %{"rrule" => "FREQ=WEEKLY"}})
 
       published = CMS.publish_entry!(record, actor: ctx.admin)
       stale!(published, DateTime.add(Index.anchor(), -3 * 86_400, :second))

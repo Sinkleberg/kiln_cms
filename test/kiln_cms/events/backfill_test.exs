@@ -43,12 +43,11 @@ defmodule KilnCMS.Events.BackfillTest do
     %{admin: admin, td: td, type: name, org: KilnCMS.Accounts.default_org_id()}
   end
 
+  # Noon London, `days` after today's UTC date — never the current wall time,
+  # which puts a weekly series an hour past the seven-day bound whenever the
+  # suite runs in the small hours of the week before a DST change.
   defp schedule(days) do
-    start =
-      DateTime.utc_now()
-      |> DateTime.add(days * 86_400, :second)
-      |> DateTime.shift_zone!(@london)
-      |> DateTime.to_naive()
+    start = Date.utc_today() |> Date.add(days) |> NaiveDateTime.new!(~T[12:00:00])
 
     %{"start" => NaiveDateTime.to_iso8601(start), "time_zone" => @london}
   end
