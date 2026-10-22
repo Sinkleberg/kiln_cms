@@ -59,7 +59,7 @@ Every summary line below that was shortened links to its own entry there.
 - **A `:text` custom field can also be delivered as plain text.**
   ([#2037](https://github.com/The-Verscienta/kiln_cms/pull/2037) · [long form](docs/changelog/unreleased.md#a-text-custom-field-can-also-be-delivered-as-plain-text))
 - **`?fields=` trims the fired `json` artifact; a guide to Kiln in a native app.**
-  ([#PR](https://github.com/The-Verscienta/kiln_cms/pull/PR) · [long form](docs/changelog/unreleased.md#fields-trims-the-fired-json-artifact-a-guide-to-kiln-in-a-native-app))
+  ([#2039](https://github.com/The-Verscienta/kiln_cms/pull/2039) · [long form](docs/changelog/unreleased.md#fields-trims-the-fired-json-artifact-a-guide-to-kiln-in-a-native-app))
 
 ## [1.5.0] - 2026-10-18
 

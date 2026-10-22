@@ -227,7 +227,7 @@ at about 4 KB, and the webhook body is the editor-facing shape, not the
 delivery artifact. The device should fetch through sync or the artifact read,
 which only ever serve what an anonymous reader may see. Mind `audience` and
 `locked` in the webhook data too
-([webhooks.md → Gated content is delivered too](webhooks.md#gated-content-is-delivered-too--check-audience)):
+(see *Gated content is delivered too* in [webhooks.md](webhooks.md)):
 a members-only publish is still a `published` event.
 
 The same backend can also front the content API: one sync loop on the server,
