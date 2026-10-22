@@ -2842,6 +2842,18 @@ defmodule KilnCMSWeb.ContentEditorLive do
 
   # Remove and move for a gallery field. (A list of references sends the same
   # edits from its picker — the `ReferencePicker` `handle_info/2` clause.)
+  # A single media custom field (#2054) picks through the same drawer, in
+  # single-select mode; `pick_image` with `index: "field_media"` lands the pick.
+  def handle_event("open_field_media_picker", %{"field" => name}, socket)
+      when is_binary(name) do
+    if field_media_editable?(socket, name),
+      do: {:noreply, assign(socket, :picking, {:field_media, name})},
+      else: {:noreply, socket}
+  end
+
+  def handle_event("clear_field_media", %{"field" => name}, socket) when is_binary(name),
+    do: {:noreply, put_field_media(socket, name, "")}
+
   def handle_event("field_gallery_remove", %{"field" => name, "id" => id}, socket)
       when is_binary(name) and is_binary(id),
       do: {:noreply, update_field_gallery(socket, name, &List.delete(&1, id))}
@@ -3116,6 +3128,19 @@ defmodule KilnCMSWeb.ContentEditorLive do
   def handle_event("pick_image", %{"index" => "new", "id" => media_id, "url" => url}, socket)
       when is_binary(media_id) and is_binary(url),
       do: {:noreply, socket |> apply_pick(:new, media_id, url) |> reset_picker()}
+
+  # Set a single media custom field (#2054) — only the field the drawer was
+  # opened for, so a stale or crafted pick can't land somewhere else.
+  def handle_event("pick_image", %{"index" => "field_media", "field" => name, "id" => id}, socket)
+      when is_binary(name) and is_binary(id) do
+    case socket.assigns.picking do
+      {:field_media, ^name} = target ->
+        {:noreply, socket |> apply_pick(target, id, nil) |> reset_picker()}
+
+      _other ->
+        {:noreply, reset_picker(socket)}
+    end
+  end
 
   # Fill the existing image block identified by `bid`. Its current position is
   # resolved from the live form now, not captured when the picker opened, so a
@@ -3753,6 +3778,9 @@ defmodule KilnCMSWeb.ContentEditorLive do
 
   defp apply_pick(socket, :seo_image, _media_id, url), do: put_seo_image(socket, url)
 
+  defp apply_pick(socket, {:field_media, name}, media_id, _url),
+    do: put_field_media(socket, name, media_id)
+
   # Not on a translation whose type shares the featured image (#1860).
   defp apply_pick(socket, :featured, media_id, _url) do
     if shared_locked?(socket, :featured_image_id) do
@@ -3875,6 +3903,19 @@ defmodule KilnCMSWeb.ContentEditorLive do
       name,
       &match?(%{field_type: type, multiple: true} when type in [:media, :reference], &1)
     )
+  end
+
+  # The same gate for a single media field (#2054).
+  defp field_media_editable?(socket, name) do
+    custom_field_editable?(socket, name, &match?(%{field_type: :media, multiple: false}, &1))
+  end
+
+  # Set (or, with `""`, clear) a single media field and re-validate, as the
+  # featured image does; `ApplyCustomFields` resolves the id to its snapshot.
+  defp put_field_media(socket, name, media_id) do
+    if field_media_editable?(socket, name),
+      do: put_custom_field_param(socket, name, media_id),
+      else: socket
   end
 
   # The same gate for any custom field whose definition passes `pred`.

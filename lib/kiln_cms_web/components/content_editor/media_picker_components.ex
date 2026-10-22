@@ -18,6 +18,7 @@ defmodule KilnCMSWeb.ContentEditor.MediaPickerComponents do
   defp pick_index(:new), do: "new"
   defp pick_index({:gallery, _id}), do: "gallery"
   defp pick_index({:field_gallery, _name}), do: "field_gallery"
+  defp pick_index({:field_media, _name}), do: "field_media"
   defp pick_index(:featured), do: "featured"
   defp pick_index(:seo_image), do: "seo_image"
   defp pick_index({:block, _id}), do: "block"
@@ -30,7 +31,7 @@ defmodule KilnCMSWeb.ContentEditor.MediaPickerComponents do
   defp pick_block_id(_), do: nil
 
   # The gallery custom field a multi-select fills; nil for every other target.
-  defp pick_field({:field_gallery, name}), do: name
+  defp pick_field({kind, name}) when kind in [:field_gallery, :field_media], do: name
   defp pick_field(_), do: nil
   attr :index, :any, required: true
   attr :media, :list, required: true
@@ -133,6 +134,7 @@ defmodule KilnCMSWeb.ContentEditor.MediaPickerComponents do
             phx-click={if @multi?, do: "toggle_pick", else: "pick_image"}
             phx-value-index={pick_index(@index)}
             phx-value-bid={pick_block_id(@index)}
+            phx-value-field={pick_field(@index)}
             phx-value-id={item.id}
             phx-value-url={item.url}
             title={item.filename}
