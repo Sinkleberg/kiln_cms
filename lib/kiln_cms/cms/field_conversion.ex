@@ -45,8 +45,8 @@ defmodule KilnCMS.CMS.FieldConversion do
 
   require Logger
 
-  alias KilnCMS.CMS.ContentTypes
   alias KilnCMS.CMS.Changes.ApplyCustomFields
+  alias KilnCMS.CMS.ContentTypes
   alias KilnCMS.CMS.FieldDefinition
   alias KilnCMS.CMS.WorkingCopy
 
@@ -116,18 +116,9 @@ defmodule KilnCMS.CMS.FieldConversion do
 
       report =
         cond do
-          dry_run? ->
-            pass(plan, false)
-
-          skip_invalid? ->
-            pass(plan, true)
-
-          true ->
-            # The check pass, then — only if every record fits — the write
-            # pass, which re-reads: a record an editor saved in between is
-            # judged on what it holds now.
-            checked = pass(plan, false)
-            if checked.problems == [], do: pass(plan, true), else: %{checked | blocked?: true}
+          dry_run? -> pass(plan, false)
+          skip_invalid? -> pass(plan, true)
+          true -> checked_then_written(plan)
         end
 
       {:ok,
@@ -178,33 +169,31 @@ defmodule KilnCMS.CMS.FieldConversion do
   defp parse(%{} = map, _decodes) when not is_struct(map), do: {:ok, [map]}
 
   defp parse(string, decodes) when is_binary(string) do
-    trimmed = String.trim(string)
-
-    cond do
-      trimmed == "" ->
+    case String.trim(string) do
+      "" ->
         :empty
 
-      decodes >= @max_decodes ->
+      _text when decodes >= @max_decodes ->
         {:error, "is still a JSON string after #{@max_decodes} decodes"}
 
-      true ->
-        case Jason.decode(trimmed) do
-          {:ok, decoded} when is_binary(decoded) ->
-            parse(decoded, decodes + 1)
-
-          {:ok, decoded} when is_list(decoded) or is_map(decoded) or is_nil(decoded) ->
-            parse(decoded, decodes)
-
-          {:ok, other} ->
-            {:error, "is JSON #{inspect(other)}, not an object or a list of objects"}
-
-          {:error, _} ->
-            {:error, "is not JSON: #{excerpt(trimmed)}"}
-        end
+      trimmed ->
+        trimmed |> Jason.decode() |> decoded(trimmed, decodes)
     end
   end
 
   defp parse(other, _decodes), do: {:error, "is #{inspect(other)}, not text"}
+
+  defp decoded({:ok, string}, _text, decodes) when is_binary(string),
+    do: parse(string, decodes + 1)
+
+  defp decoded({:ok, value}, _text, decodes)
+       when is_list(value) or is_map(value) or is_nil(value),
+       do: parse(value, decodes)
+
+  defp decoded({:ok, other}, _text, _decodes),
+    do: {:error, "is JSON #{inspect(other)}, not an object or a list of objects"}
+
+  defp decoded({:error, _}, text, _decodes), do: {:error, "is not JSON: #{excerpt(text)}"}
 
   defp excerpt(text) do
     if String.length(text) > 60,
@@ -215,39 +204,37 @@ defmodule KilnCMS.CMS.FieldConversion do
   @doc "A plain-text summary of `report` for the task's output."
   @spec describe(report()) :: String.t()
   def describe(report) do
-    verb =
-      cond do
-        report.dry_run? -> "would convert #{report.convertible}"
-        report.blocked? -> "converted 0 (nothing written: #{length(report.problems)} invalid)"
-        true -> "converted #{report.written}"
-      end
-
     problems =
       Enum.map(report.problems, fn problem ->
         "\n  #{problem.id}#{if problem.slug, do: " (#{problem.slug})"} — #{problem.kind}:" <>
           Enum.map_join(problem.messages, "", &"\n      #{&1}")
       end)
 
-    hint =
-      cond do
-        report.dry_run? and report.problems != [] ->
-          "\nFix the records above (or pass --skip-invalid to leave them as strings), then run with --apply."
-
-        report.dry_run? and report.convertible > 0 ->
-          "\nRun again with --apply to write."
-
-        report.blocked? ->
-          "\nFix the records above, or pass --skip-invalid to leave them as strings."
-
-        true ->
-          ""
-      end
-
     "#{report.type}: #{report.source} → #{report.target}: scanned #{report.scanned}, " <>
-      "#{verb}, #{report.empty} empty, #{report.kept} already converted, " <>
+      "#{verb(report)}, #{report.empty} empty, #{report.kept} already converted, " <>
       "#{length(report.problems)} invalid" <>
-      if(report.problems == [], do: ".", else: ":") <> Enum.join(problems) <> hint
+      if(report.problems == [], do: ".", else: ":") <> Enum.join(problems) <> hint(report)
   end
+
+  defp verb(%{dry_run?: true} = report), do: "would convert #{report.convertible}"
+
+  defp verb(%{blocked?: true} = report),
+    do: "converted 0 (nothing written: #{length(report.problems)} invalid)"
+
+  defp verb(report), do: "converted #{report.written}"
+
+  defp hint(%{dry_run?: true, problems: [_ | _]}),
+    do:
+      "\nFix the records above (or pass --skip-invalid to leave them as strings), " <>
+        "then run with --apply."
+
+  defp hint(%{dry_run?: true, convertible: n}) when n > 0,
+    do: "\nRun again with --apply to write."
+
+  defp hint(%{blocked?: true}),
+    do: "\nFix the records above, or pass --skip-invalid to leave them as strings."
+
+  defp hint(_report), do: ""
 
   # --- setup -----------------------------------------------------------------
 
@@ -310,6 +297,14 @@ defmodule KilnCMS.CMS.FieldConversion do
     do: definitions |> Enum.map(& &1.name) |> Enum.sort() |> Enum.join(", ")
 
   # --- the pass ---------------------------------------------------------------
+
+  # The check pass, then — only if every record fits — the write pass, which
+  # re-reads: a record an editor saved in between is judged on what it holds
+  # now.
+  defp checked_then_written(plan) do
+    checked = pass(plan, false)
+    if checked.problems == [], do: pass(plan, true), else: %{checked | blocked?: true}
+  end
 
   defp pass(plan, write?) do
     plan

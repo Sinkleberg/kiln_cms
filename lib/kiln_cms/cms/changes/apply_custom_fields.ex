@@ -218,9 +218,7 @@ defmodule KilnCMS.CMS.Changes.ApplyCustomFields do
   # that matched the live map now matches the converted live map, and any
   # other base (a conflict already) is left alone.
   defp convert_held(changeset, name, rows, context) do
-    record = changeset.data
-    resource = changeset.resource
-    fields = WorkingCopy.held_fields(record)
+    fields = WorkingCopy.held_fields(changeset.data)
     held = stringify_keys(fields["custom_fields"] || %{})
     def = Enum.find(definitions_for(changeset), &(&1.name == name))
     read_opts = context |> Ash.Context.to_opts() |> Keyword.put(:tenant, changeset.to_tenant)
@@ -233,39 +231,42 @@ defmodule KilnCMS.CMS.Changes.ApplyCustomFields do
             :error -> Map.delete(held, name)
           end
 
-        fingerprint = &WorkingCopy.fingerprint(resource, "custom_fields", &1)
-        live_before = stringify_keys(record.custom_fields || %{})
-        live_after = Ash.Changeset.get_attribute(changeset, :custom_fields)
-
-        base =
-          case WorkingCopy.base_fingerprints(record) do
-            %{"custom_fields" => recorded} = base ->
-              cond do
-                recorded == fingerprint.(held) ->
-                  Map.put(base, "custom_fields", fingerprint.(converted))
-
-                recorded == fingerprint.(live_before) ->
-                  Map.put(base, "custom_fields", fingerprint.(live_after))
-
-                true ->
-                  base
-              end
-
-            base ->
-              base
-          end
-
         changeset
         |> Ash.Changeset.force_change_attribute(
           :working_fields,
           Map.put(fields, "custom_fields", converted)
         )
-        |> Ash.Changeset.force_change_attribute(:working_base, base)
+        |> Ash.Changeset.force_change_attribute(
+          :working_base,
+          rebase(changeset, held, converted)
+        )
 
       {_cleaned, errors} ->
         Enum.reduce(errors, changeset, fn error, acc ->
           Ash.Changeset.add_error(acc, %{error | message: "(working copy) " <> error.message})
         end)
+    end
+  end
+
+  defp rebase(changeset, held, converted) do
+    record = changeset.data
+    base = WorkingCopy.base_fingerprints(record)
+    fingerprint = &WorkingCopy.fingerprint(changeset.resource, "custom_fields", &1)
+    recorded = base["custom_fields"]
+
+    cond do
+      recorded == nil ->
+        base
+
+      recorded == fingerprint.(held) ->
+        Map.put(base, "custom_fields", fingerprint.(converted))
+
+      recorded == fingerprint.(stringify_keys(record.custom_fields || %{})) ->
+        live = Ash.Changeset.get_attribute(changeset, :custom_fields)
+        Map.put(base, "custom_fields", fingerprint.(live))
+
+      true ->
+        base
     end
   end
 
