@@ -103,7 +103,8 @@ defmodule KilnCMSWeb.PlainFieldsDeliveryTest do
     end
 
     test "/api/sync carries it inside the artifact", %{conn: conn, page: page, name: name} do
-      body = conn |> get("/api/sync", %{"initial" => "true", "type" => "page"}) |> json_response(200)
+      body =
+        conn |> get("/api/sync", %{"initial" => "true", "type" => "page"}) |> json_response(200)
 
       assert %{"artifact" => artifact} = Enum.find(body["items"], &(&1["id"] == page.id))
       assert artifact["custom_fields_plain"] == %{name => @plain}
@@ -152,7 +153,9 @@ defmodule KilnCMSWeb.PlainFieldsDeliveryTest do
 
     test "the calculation is nil", %{page: page} do
       conn =
-        json_api("/api/json/pages/by-slug/#{page.slug}?locale=en&fields[page]=title,custom_fields_plain")
+        json_api(
+          "/api/json/pages/by-slug/#{page.slug}?locale=en&fields[page]=title,custom_fields_plain"
+        )
 
       assert conn.status == 200
       attributes = Jason.decode!(conn.resp_body)["data"]["attributes"]

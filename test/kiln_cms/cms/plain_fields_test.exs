@@ -89,7 +89,9 @@ defmodule KilnCMS.CMS.PlainFieldsTest do
     end
 
     test "a link field is never projected" do
-      assert PlainFields.project(%{"a" => "x"}, [definition("a", %{link_of_id: Ash.UUID.generate()})]) ==
+      assert PlainFields.project(%{"a" => "x"}, [
+               definition("a", %{link_of_id: Ash.UUID.generate()})
+             ]) ==
                nil
     end
 
