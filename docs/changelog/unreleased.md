@@ -175,7 +175,7 @@ carries the reasoning.
   before, so writes and the API are unchanged; the controls follow the
   gallery's rules (writers only, not on a shared field of a translation, and
   a pick lands only in the field the drawer was opened for).
-  ([#2054](https://github.com/The-Verscienta/kiln_cms/issues/2054))
+  ([#2054](https://github.com/The-Verscienta/kiln_cms/issues/2054) · [#2055](https://github.com/The-Verscienta/kiln_cms/pull/2055))
 
 <a id="fired-artifacts-are-gzipped"></a>
 

@@ -84,7 +84,7 @@ Every summary line below that was shortened links to its own entry there.
 
 - **A single media custom field is picked from the library drawer, with a
   thumbnail, instead of a dropdown of filenames.**
-  ([#2054](https://github.com/The-Verscienta/kiln_cms/issues/2054) · [long form](docs/changelog/unreleased.md#single-media-picker))
+  ([#2055](https://github.com/The-Verscienta/kiln_cms/pull/2055) · [long form](docs/changelog/unreleased.md#single-media-picker))
 
 - **Fired artifacts are gzipped: their `ETag` is now weak (`W/"…"`) and
   `If-None-Match` is compared weakly.**
