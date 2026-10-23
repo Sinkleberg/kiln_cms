@@ -162,6 +162,21 @@ carries the reasoning.
 
 ## Changed
 
+<a id="single-media-picker"></a>
+
+- **A single media custom field is picked from the library drawer, with a
+  thumbnail, instead of a dropdown of filenames.** The dropdown listed only
+  the editor's recent media window, so an older image could not be chosen at
+  all, and it offered no preview, search or Unsplash import. The field now
+  shows the current image with **Choose from library** (or **Replace**) and
+  **Remove**, the featured image's shape, and the drawer opens in
+  single-select mode. The thumbnail comes from the stored snapshot, so an
+  image outside the window still shows. The form posts the same id as
+  before, so writes and the API are unchanged; the controls follow the
+  gallery's rules (writers only, not on a shared field of a translation, and
+  a pick lands only in the field the drawer was opened for).
+  ([#2054](https://github.com/The-Verscienta/kiln_cms/issues/2054) · [#2055](https://github.com/The-Verscienta/kiln_cms/pull/2055))
+
 <a id="fired-artifacts-are-gzipped"></a>
 
 - **Fired artifacts are gzipped: their `ETag` is now weak (`W/"…"`) and

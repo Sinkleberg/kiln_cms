@@ -169,8 +169,8 @@ defmodule KilnCMSWeb.DynamicEntryEditorTest do
     conn = log_in(conn, admin)
     {:ok, lv, html} = live(conn, ~p"/editor/content/#{definition.name}/#{entry.id}")
 
-    # The media select renders its choices; the reference searches its type.
-    assert html =~ ~s(<option value="#{media.id}")
+    # The media field opens the library drawer; the reference searches its type.
+    assert html =~ "None selected"
     assert has_element?(lv, "#custom-field-related_page-search[role=combobox]")
 
     lv
@@ -179,9 +179,11 @@ defmodule KilnCMSWeb.DynamicEntryEditorTest do
 
     lv |> element("#custom-field-related_page-opt-#{page.id}") |> render_click()
 
-    lv
-    |> form("##{definition.name}-editor", %{"form" => %{"custom_fields" => %{"hero" => media.id}}})
-    |> render_submit()
+    lv |> element("#custom-field-hero-choose") |> render_click()
+    lv |> element("#image-picker-dialog button[phx-value-id='#{media.id}']") |> render_click()
+    refute has_element?(lv, "#image-picker-dialog")
+
+    lv |> form("##{definition.name}-editor") |> render_submit()
 
     saved = ContentTypes.get_record!(definition.name, entry.id, actor: admin)
 
@@ -191,10 +193,79 @@ defmodule KilnCMSWeb.DynamicEntryEditorTest do
     assert saved.custom_fields["related_page"]["type"] == "page"
 
     # The re-rendered pickers show the saved selections.
-    html = render(lv)
-    assert html =~ ~s(<option value="#{media.id}" selected)
+    assert has_element?(lv, "#custom-field-hero input[type=hidden][value='#{media.id}']")
+    assert has_element?(lv, "#custom-field-hero img[src='#{media.url}']")
     assert has_element?(lv, "#cf-ref-related_page-#{page.id}", "Target page")
     refute has_element?(lv, "#custom-field-related_page-search")
+  end
+
+  test "a single media field is picked, replaced and removed from the library drawer", %{
+    conn: conn
+  } do
+    admin = authed_user(:admin)
+
+    definition =
+      CMS.create_type_definition!(
+        %{name: "one#{System.unique_integer([:positive])}", label: "Single"},
+        actor: admin
+      )
+
+    CMS.create_field_definition!(
+      %{type_definition_id: definition.id, name: "hero", label: "Hero", field_type: :media},
+      actor: admin
+    )
+
+    [a, b] =
+      for n <- 1..2 do
+        Ash.Seed.seed!(KilnCMS.CMS.MediaItem, %{
+          filename: "one-#{n}-#{System.unique_integer([:positive])}.png",
+          url: "/uploads/one-#{n}.png",
+          alt: "one #{n}"
+        })
+      end
+
+    entry =
+      ContentTypes.create!(
+        definition.name,
+        %{title: "One", slug: "one-#{System.unique_integer([:positive])}"},
+        actor: admin
+      )
+
+    {:ok, lv, _html} =
+      conn |> log_in(admin) |> live(~p"/editor/content/#{definition.name}/#{entry.id}")
+
+    refute has_element?(lv, "#custom-field-hero-remove")
+
+    pick = fn media ->
+      lv |> element("#custom-field-hero-choose") |> render_click()
+      # Single-select: no multi-select confirm bar.
+      refute has_element?(lv, "#image-picker-dialog button[phx-click='add_picked_images']")
+      lv |> element("#image-picker-dialog button[phx-value-id='#{media.id}']") |> render_click()
+    end
+
+    stored = fn ->
+      ContentTypes.get_record!(definition.name, entry.id, actor: admin).custom_fields["hero"]
+    end
+
+    pick.(a)
+    lv |> form("##{definition.name}-editor") |> render_submit()
+    assert stored.()["id"] == a.id
+
+    # Replace.
+    pick.(b)
+    assert has_element?(lv, "#custom-field-hero img[src='#{b.url}']")
+    lv |> form("##{definition.name}-editor") |> render_submit()
+    assert stored.()["id"] == b.id
+
+    # Remove clears the field on save.
+    lv |> element("#custom-field-hero-remove") |> render_click()
+    assert render(lv) =~ "None selected"
+    lv |> form("##{definition.name}-editor") |> render_submit()
+    assert stored.() == nil
+
+    # A pick for a field the drawer wasn't opened for lands nowhere.
+    render_click(lv, "pick_image", %{"index" => "field_media", "field" => "hero", "id" => a.id})
+    assert has_element?(lv, "#custom-field-hero input[type=hidden][value='']")
   end
 
   test "a gallery media field is filled, ordered and emptied from the library drawer", %{

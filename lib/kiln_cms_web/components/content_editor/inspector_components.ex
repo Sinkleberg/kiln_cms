@@ -31,10 +31,9 @@ defmodule KilnCMSWeb.ContentEditor.InspectorComponents do
   # reference searches its target itself — `ReferencePicker`). A gallery takes
   # the library rows themselves: it renders thumbnails, and a just-picked id
   # whose snapshot hasn't resolved yet looks its url up here.
-  def custom_field_options(%{field_type: :media, multiple: true}, media), do: media
-
-  def custom_field_options(%{field_type: :media}, media),
-    do: Enum.map(media, &{&1.filename, &1.id})
+  # Both media shapes take the library rows themselves: they render thumbnails,
+  # and a just-picked id whose snapshot hasn't resolved yet looks its url up here.
+  def custom_field_options(%{field_type: :media}, media), do: media
 
   def custom_field_options(_definition, _media), do: []
   # Why the intelligence panel came back empty.
@@ -560,29 +559,64 @@ defmodule KilnCMSWeb.ContentEditor.InspectorComponents do
     """
   end
 
-  # A single media pick-list: the select posts the target id; the stored
-  # value is the write-time snapshot map (see ApplyCustomFields), so the
-  # current selection is its "id". (A reference is `ReferencePicker`.)
+  # A single media field (#2054): a thumbnail of the current pick, and the
+  # library drawer to change it — the featured image's shape, replacing a
+  # `<select>` of filenames that listed only the editor's recent window. The id
+  # rides in a hidden input, so the form posts what it always posted; picking
+  # and removing are server-side edits of the form params
+  # (`open_field_media_picker`, `clear_field_media`).
+  #
+  # Rendered from the stored snapshot, so an item older than the drawer's
+  # window still shows; a raw id (a failed validate's params) borrows its url
+  # from the window. A list (stored while the field was a gallery) shows its
+  # first item — what saving it keeps.
   def custom_field_input(%{definition: %{field_type: :media}} = assigns) do
-    assigns = assign(assigns, :selected_id, snapshot_id(assigns.value))
+    assigns =
+      assign(assigns, :item, assigns.value |> gallery_items(assigns.options) |> List.first())
 
     ~H"""
-    <div>
-      <label for={cf_id(@definition)} class="mb-1 block text-sm font-medium">
+    <div
+      id={cf_id(@definition)}
+      role="group"
+      aria-labelledby={"#{cf_id(@definition)}-label"}
+      aria-describedby={@errors != [] && cf_errors_id(@definition)}
+    >
+      <span id={"#{cf_id(@definition)}-label"} class="mb-1 block text-sm font-medium">
         {@definition.label}
-      </label>
-      <select
-        id={cf_id(@definition)}
-        name={@name}
-        aria-invalid={@errors != [] && "true"}
-        aria-describedby={@errors != [] && cf_errors_id(@definition)}
-        class="field-select"
-      >
-        <option value="">{gettext("— None —")}</option>
-        <option :for={{label, id} <- @options} value={id} selected={@selected_id == id}>
-          {label}
-        </option>
-      </select>
+      </span>
+      <input type="hidden" name={@name} value={(@item && @item.id) || ""} />
+      <div class="flex flex-wrap items-center gap-3">
+        <span class="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-md border border-base-content/10 bg-base-200 text-base-content/40">
+          <img
+            :if={@item && @item.url}
+            src={@item.url}
+            alt={@item.alt || ""}
+            loading="lazy"
+            class="size-full object-cover"
+          />
+          <.icon :if={!(@item && @item.url)} name="hero-photo" class="size-6" />
+        </span>
+        <span :if={!@item} class="text-sm text-base-content/70">{gettext("None selected")}</span>
+        <button
+          type="button"
+          id={"#{cf_id(@definition)}-choose"}
+          phx-click="open_field_media_picker"
+          phx-value-field={@definition.name}
+          class="btn btn-sm btn-default"
+        >
+          {if @item, do: gettext("Replace"), else: gettext("Choose from library")}
+        </button>
+        <button
+          :if={@item}
+          type="button"
+          id={"#{cf_id(@definition)}-remove"}
+          phx-click="clear_field_media"
+          phx-value-field={@definition.name}
+          class="text-sm text-base-content/70 hover:text-error"
+        >
+          {gettext("Remove")}
+        </button>
+      </div>
       <p :if={@definition.help_text} class="mt-1 text-xs text-base-content/60">
         {@definition.help_text}
       </p>
@@ -1230,12 +1264,6 @@ defmodule KilnCMSWeb.ContentEditor.InspectorComponents do
     end)
     |> Enum.uniq_by(& &1.id)
   end
-
-  # The selected id of a single media field. A list (a value stored
-  # while the field was a gallery) selects its first item — what saving it
-  # keeps — rather than reading as "None" and clearing it on the next save.
-  defp snapshot_id(value),
-    do: value |> KilnCMS.CMS.Changes.ApplyCustomFields.snapshot_ids() |> List.first()
 
   defp custom_input_type(:integer), do: "number"
   defp custom_input_type(:float), do: "number"
