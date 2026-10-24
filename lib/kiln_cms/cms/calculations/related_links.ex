@@ -17,6 +17,9 @@ defmodule KilnCMS.CMS.Calculations.RelatedLinks do
   A calculation is serialized as its own value, so this returns exactly three
   fields and cannot widen when a content attribute is added.
 
+  The list is in the editor's order (#2025): each link's `position`, the
+  order `related_<type>s` itself loads in (`KilnCMS.CMS.RelatedOrder`).
+
   Takes the relationship name because the shared `Content` macro mints a
   different one per type (`related_pages` / `related_posts` / `related_entries`)
   — passing it beats three near-identical modules.
@@ -44,6 +47,7 @@ defmodule KilnCMS.CMS.Calculations.RelatedLinks do
   def calculate(records, opts, _context) do
     relationship = opts[:relationship]
 
+    # In the editor's order (#2025): `related_<type>s` loads that way.
     Enum.map(records, fn record ->
       record
       |> Map.get(relationship)

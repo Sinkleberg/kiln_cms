@@ -162,6 +162,28 @@ carries the reasoning.
 
 ## Changed
 
+<a id="related-links-ordered"></a>
+
+- **Related content comes back in the order the editor set: JSON:API
+  `include=related_<type>s`, GraphQL `related<Type>s` and `related_links`.**
+  Since 1.5 the editor keeps the related list's order in each `kind:
+  :related` link's `position` (#2025), but only the editor read it back:
+  Ash sorts a many-to-many by its destination, and a sort that reaches the
+  join row needs the join resource unique on `(source_id, target_id)`, which
+  `ContentLink` is not — reference edges share the table. The curated rows
+  now have a join resource of their own, `RelatedLink`: the same table, no
+  migration, narrowed by a base filter (`kind = 'related' AND field IS
+  NULL`). `related_<type>s` goes through it sorted by `position`, a `limit`
+  takes the first of that order for each parent, and `related_links` (MCP
+  write echoes included) follows. The `related_<type>_ids` arguments are
+  unchanged; they write an unsorted private twin, `curated_<type>s`, over the
+  same join, because `manage_relationship` can't take that sort. One
+  narrowing: a payload link (R8) of another `kind` between two records of
+  the same type used to appear among their related records, and no longer
+  does, in the relationship or its `has`/`has_all`/`has_none` filters —
+  related content is the curated links only.
+  ([#2061](https://github.com/The-Verscienta/kiln_cms/pull/2061), [#2064](https://github.com/The-Verscienta/kiln_cms/pull/2064))
+
 <a id="single-media-picker"></a>
 
 - **A single media custom field is picked from the library drawer, with a
@@ -191,3 +213,19 @@ carries the reasoning.
   document's tag change once and refetches it one time. ETags are opaque, so
   this is not a contract change. A passphrase-unlocked document still has no
   `ETag` and is never `304`ed. ([#2041](https://github.com/The-Verscienta/kiln_cms/pull/2041))
+
+## Fixed
+
+<a id="vector-scan-env-replaces-compiled-mode"></a>
+
+- **`KILN_VECTOR_SEARCH_EXACT` / `KILN_HNSW_EF_SEARCH` no longer crash-loop a
+  deployment whose compiled config sets the other `vector_scan:` mode.**
+  Runtime config is deep-merged over compiled config key by key, so
+  `KILN_VECTOR_SEARCH_EXACT=true` over a project's
+  `vector_scan: [ef_search: 150]` became `[ef_search: 150, exact: true]`, and
+  `KilnCMS.Repo` refused to boot with "vector_scan sets both ef_search and
+  exact", although only one variable was set (the mirror case failed the
+  same way). The env var now writes its whole mode (`[ef_search: nil,
+  exact: true]` or `[ef_search: N, exact: false]`), so it replaces the
+  compiled one. Setting both variables at once is still refused.
+  ([#2019](https://github.com/The-Verscienta/kiln_cms/issues/2019) · [#2060](https://github.com/The-Verscienta/kiln_cms/pull/2060))

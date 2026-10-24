@@ -358,7 +358,8 @@ defmodule KilnCMS.CMS.ContentLinks do
   @doc """
   The target ids of `record`'s curated related links, in their order:
   position, then id, so links from before positions were kept (all 0) still
-  come back the same way every time.
+  come back the same way every time — the order `related_<type>s` loads in
+  (`KilnCMS.CMS.RelatedOrder`), read as the cms bookkeeping.
   """
   @spec related_order(struct()) :: [Ash.UUID.t()]
   def related_order(record) do
@@ -366,48 +367,6 @@ defmodule KilnCMS.CMS.ContentLinks do
     |> related_links()
     |> Enum.sort_by(&{&1.position, &1.target_id})
     |> Enum.map(& &1.target_id)
-  end
-
-  @doc """
-  `ids` — targets `record` relates as curated related content — in the order
-  of their links' positions (`related_order/1`). An id with no related link
-  goes last, in the order given.
-  """
-  @spec in_related_order(struct(), [Ash.UUID.t()]) :: [Ash.UUID.t()]
-  def in_related_order(_record, []), do: []
-
-  def in_related_order(record, ids) do
-    rank =
-      record
-      |> related_order()
-      |> Enum.with_index()
-      |> Map.new(fn {id, i} -> {to_string(id), i} end)
-
-    last = map_size(rank)
-
-    ids
-    |> Enum.with_index()
-    |> Enum.sort_by(fn {id, i} -> {Map.get(rank, to_string(id), last), i} end)
-    |> Enum.map(&elem(&1, 0))
-  end
-
-  @doc """
-  `record` with its loaded related-content relationship (`related_<type>s`)
-  in its links' order. A load of the many-to-many does not follow `position`,
-  so a caller that shows the list in order — the editor — sorts it here.
-  Unloaded, or fewer than two, it is left as it is.
-  """
-  @spec sort_related(struct(), atom()) :: struct()
-  def sort_related(record, relationship) do
-    case Map.get(record, relationship) do
-      [_, _ | _] = loaded ->
-        by_id = Map.new(loaded, &{&1.id, &1})
-        ordered = in_related_order(record, Enum.map(loaded, & &1.id))
-        Map.put(record, relationship, Enum.map(ordered, &Map.fetch!(by_id, &1)))
-
-      _unloaded_or_short ->
-        record
-    end
   end
 
   # Read as the cms bookkeeping and failing closed, like `existing/1`: a

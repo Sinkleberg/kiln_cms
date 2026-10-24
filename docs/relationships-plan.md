@@ -629,8 +629,16 @@ see "Related content" below.
   write (`add_related_<type>_ids` appends after the rows already there), a
   working copy holds the related list in its order rather than sorted, and
   publishing a copy that only reordered the list promotes it. The editor
-  reads the list in that order (`ContentLinks.sort_related/2`); a load of
-  the many-to-many itself still does not sort by `position`.
+  reads the list in that order, and so do JSON:API, GraphQL and the
+  `related_links` projection: `related_<type>s` itself is sorted by
+  `position`. Ash sorts a many-to-many by its destination unless the sort
+  reaches the source (`parent()`, a lateral join), which it allows only
+  through a join resource unique on `(source_id, target_id)`. `ContentLink`
+  is not — reference edges share the table — so the curated rows have a
+  join resource of their own, `RelatedLink`: the same table, `migrate?
+  false`, narrowed by a base filter. Because `manage_relationship` can't
+  take a `parent()` sort, the `related_<type>_ids` arguments write an
+  unsorted private twin, `curated_<type>s`, over the same join.
 - Reverse fields (R4) render as a read-only list with the same row component.
 - **Fields admin: a relationship, not a data type.** A non-developer sets up
   a relationship the way Toolset's wizard asks for one, not by picking a type
