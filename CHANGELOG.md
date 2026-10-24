@@ -54,6 +54,28 @@ Long form: [docs/changelog/unreleased.md](docs/changelog/unreleased.md) —
 the Unreleased entries as they were written when each change merged.
 Every summary line below that was shortened links to its own entry there.
 
+## [1.5.1] - 2026-10-24
+
+Long form: [docs/changelog/v1.5.1.md](docs/changelog/v1.5.1.md) —
+the 1.5.1 entries as they were written when each change merged.
+Every summary line below that was shortened links to its own entry there.
+
+### Fixed
+
+- **JSON:API and GraphQL serve a `:reference` field's target under its
+  current slug and title, not the ones stored when the referrer was saved.**
+  ([#2059](https://github.com/The-Verscienta/kiln_cms/pull/2059) · [long form](docs/changelog/v1.5.1.md#fresh-reference-labels))
+
+- **The release image builds again under OTP 29.1.1, whose `:httpc` refused
+  GitHub's ~10.7 KB release-redirect headers.**
+  ([#2062](https://github.com/The-Verscienta/kiln_cms/pull/2062) · [long form](docs/changelog/v1.5.1.md#httpc-header-limit))
+
+### Security
+
+- **req_llm 1.29.0 (CRITICAL EEF-CVE-2026-107685: WebSocket streaming
+  skipped TLS verification) and plug_crypto 2.2.1 (CVE-2026-105963).**
+  ([#2057](https://github.com/The-Verscienta/kiln_cms/pull/2057) · [long form](docs/changelog/v1.5.1.md#req-llm-tls-advisory))
+
 ## [1.5.0] - 2026-10-18
 
 Long form: [docs/changelog/v1.5.0.md](docs/changelog/v1.5.0.md) —
@@ -2796,7 +2818,8 @@ that `mix kiln.update` compares against.
   one that can't be described by a changelog diff.
   ([long form](docs/changelog/v0.1.0.md#if-your-project-pins-a-sha-from-before-this-tag-your-first-update-is-the-only))
 
-[Unreleased]: https://github.com/The-Verscienta/kiln_cms/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/The-Verscienta/kiln_cms/compare/v1.5.1...HEAD
+[1.5.1]: https://github.com/The-Verscienta/kiln_cms/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/The-Verscienta/kiln_cms/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/The-Verscienta/kiln_cms/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/The-Verscienta/kiln_cms/compare/v1.2.1...v1.3.0
