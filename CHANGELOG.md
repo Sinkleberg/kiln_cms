@@ -100,6 +100,10 @@ Every summary line below that was shortened links to its own entry there.
   current slug and title, not the ones stored when the referrer was saved.**
   ([#2059](https://github.com/The-Verscienta/kiln_cms/pull/2059) · [long form](docs/changelog/unreleased.md#fresh-reference-labels))
 
+- **`KILN_VECTOR_SEARCH_EXACT` / `KILN_HNSW_EF_SEARCH` no longer crash-loop a
+  deployment whose compiled config sets the other `vector_scan:` mode.**
+  ([#2060](https://github.com/The-Verscienta/kiln_cms/pull/2060) · [long form](docs/changelog/unreleased.md#vector-scan-env-replaces-compiled-mode))
+
 ### Security
 
 - **req_llm 1.29.0 (CRITICAL EEF-CVE-2026-107685: WebSocket streaming

@@ -232,6 +232,19 @@ carries the reasoning.
   the stored value whole because they can write it back.
   ([#2059](https://github.com/The-Verscienta/kiln_cms/pull/2059))
 
+<a id="vector-scan-env-replaces-compiled-mode"></a>
+
+- **`KILN_VECTOR_SEARCH_EXACT` / `KILN_HNSW_EF_SEARCH` no longer crash-loop a
+  deployment whose compiled config sets the other `vector_scan:` mode.**
+  Runtime config is deep-merged over compiled config key by key, so
+  `KILN_VECTOR_SEARCH_EXACT=true` over a project's
+  `vector_scan: [ef_search: 150]` became `[ef_search: 150, exact: true]`, and
+  `KilnCMS.Repo` refused to boot with "vector_scan sets both ef_search and
+  exact", although only one variable was set (the mirror case failed the
+  same way). The env var now writes its whole mode (`[ef_search: nil,
+  exact: true]` or `[ef_search: N, exact: false]`), so it replaces the
+  compiled one. Setting both variables at once is still refused.
+  ([#2019](https://github.com/The-Verscienta/kiln_cms/issues/2019) · [#2060](https://github.com/The-Verscienta/kiln_cms/pull/2060))
 
 ## Security
 
